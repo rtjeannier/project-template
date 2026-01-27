@@ -13,9 +13,10 @@ services:
       - GITHUB_REPO=${GITHUB_REPO:-}
       - RUNNER_TOKEN=${RUNNER_TOKEN:-}
     volumes:
-      # Persist authentication and runner config
-      - claude-config:/home/runner/.claude
-      - gh-config:/home/runner/.config/gh
+      # Mount authentication from host machine
+      - ~/.claude:/home/runner/.claude
+      - ~/.config/gh:/home/runner/.config/gh
+      # Persist runner config
       - runner-config:/home/runner
       # Mount workspace for the project
       - ./:/home/runner/work
@@ -36,9 +37,5 @@ services:
     stdin_open: true
 
 volumes:
-  claude-config:
-    name: claude-config
-  gh-config:
-    name: gh-config
   runner-config:
     name: runner-config
