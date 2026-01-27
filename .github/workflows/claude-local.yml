@@ -19,9 +19,37 @@ jobs:
       (github.event.comment.user.login == 'rtjeannier' || github.event.review.user.login == 'rtjeannier')
 
     steps:
+      - name: Determine context (issue vs PR)
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if this is a PR review event
+          if [[ -n "${{ github.event.pull_request.number }}" ]]; then
+            echo "is_pr=true" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "pr_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "Triggered from PR review on PR #${{ github.event.pull_request.number }}"
+          # Check if issue_comment is on a PR (issues have pull_request property if they're PRs)
+          elif [[ -n "${{ github.event.issue.pull_request }}" ]]; then
+            echo "is_pr=true" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            # Get PR branch name via API
+            PR_BRANCH=$(gh pr view ${{ github.event.issue.number }} --json headRefName -q '.headRefName')
+            echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+            echo "Triggered from comment on PR #${{ github.event.issue.number }}, branch: $PR_BRANCH"
+          else
+            echo "is_pr=false" >> $GITHUB_OUTPUT
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            echo "pr_branch=" >> $GITHUB_OUTPUT
+            echo "Triggered from issue #${{ github.event.issue.number }}"
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # Checkout PR branch if on a PR, otherwise main
+          ref: ${{ steps.context.outputs.is_pr == 'true' && steps.context.outputs.pr_branch || 'main' }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -59,19 +87,32 @@ jobs:
             echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create branch and PR
-        if: steps.changes.outputs.has_changes == 'true'
+      - name: Commit changes to PR branch
+        if: steps.changes.outputs.has_changes == 'true' && steps.context.outputs.is_pr == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create a branch name from the issue/PR number
-          BRANCH_NAME="claude/issue-${{ github.event.issue.number || github.event.pull_request.number }}-$(date +%s)"
+          git add -A
+          git commit -m "fix: Claude Code changes
+
+          Triggered by: #${{ steps.context.outputs.pr_number }}
+          Task: ${{ steps.extract.outputs.task }}"
+
+          git push origin ${{ steps.context.outputs.pr_branch }}
+
+      - name: Create branch and PR for issues
+        if: steps.changes.outputs.has_changes == 'true' && steps.context.outputs.is_pr == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a branch name from the issue number
+          BRANCH_NAME="claude/issue-${{ github.event.issue.number }}-$(date +%s)"
 
           git checkout -b "$BRANCH_NAME"
           git add -A
           git commit -m "feat: Claude Code implementation
 
-          Triggered by: #${{ github.event.issue.number || github.event.pull_request.number }}
+          Triggered by: #${{ github.event.issue.number }}
           Task: ${{ steps.extract.outputs.task }}"
 
           git push -u origin "$BRANCH_NAME"
@@ -82,22 +123,29 @@ jobs:
             --body "## Summary
           Automated implementation by Claude Code.
 
-          **Triggered by:** #${{ github.event.issue.number || github.event.pull_request.number }}
+          **Triggered by:** #${{ github.event.issue.number }}
           **Task:** ${{ steps.extract.outputs.task }}
 
           ---
           Please review the changes and merge if satisfactory." \
             --base main
 
-      - name: Comment on issue
+      - name: Comment on issue/PR
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ISSUE_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
+
           if [[ "${{ steps.changes.outputs.has_changes }}" == "true" ]]; then
-            gh issue comment ${{ github.event.issue.number || github.event.pull_request.number }} \
-              --body "I've created a PR with the requested changes. Please review!"
+            if [[ "${{ steps.context.outputs.is_pr }}" == "true" ]]; then
+              gh issue comment $ISSUE_NUMBER \
+                --body "I've pushed the requested changes to this PR. Please review!"
+            else
+              gh issue comment $ISSUE_NUMBER \
+                --body "I've created a PR with the requested changes. Please review!"
+            fi
           else
-            gh issue comment ${{ github.event.issue.number || github.event.pull_request.number }} \
+            gh issue comment $ISSUE_NUMBER \
               --body "I've completed the task but there were no code changes to commit."
           fi
