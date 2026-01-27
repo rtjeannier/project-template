@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: claude-runner
+    restart: unless-stopped
+    environment:
+      # These can be overridden in .env file
+      - RUNNER_NAME=${RUNNER_NAME:-claude-runner}
+      - GITHUB_REPO=${GITHUB_REPO:-}
+      - RUNNER_TOKEN=${RUNNER_TOKEN:-}
+    volumes:
+      # Persist authentication and runner config
+      - claude-config:/home/runner/.claude
+      - gh-config:/home/runner/.config/gh
+      - runner-config:/home/runner
+      # Mount workspace for the project
+      - ./:/home/runner/work
+    working_dir: /home/runner/work
+    # Keep container running
+    tty: true
+    stdin_open: true
+
+volumes:
+  claude-config:
+    name: claude-config
+  gh-config:
+    name: gh-config
+  runner-config:
+    name: runner-config

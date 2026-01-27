@@ -1,0 +1,27 @@
+{
+  "name": "Claude Code Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {},
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "GitHub.copilot",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/home/runner/work,type=bind",
+    "source=claude-config,target=/home/runner/.claude,type=volume",
+    "source=gh-config,target=/home/runner/.config/gh,type=volume",
+    "source=runner-config,target=/home/runner/.runner-data,type=volume"
+  ],
+  "remoteUser": "runner",
+  "postCreateCommand": "echo 'Dev container ready. Run ./config.sh to set up the runner if needed.'"
+}

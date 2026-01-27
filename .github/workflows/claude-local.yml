@@ -1,0 +1,103 @@
+name: Claude Code Runner
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    # Only run on self-hosted runner (your PC or cloud VM)
+    runs-on: self-hosted
+
+    # Security: Only respond to comments from authorized user
+    if: |
+      contains(github.event.comment.body || github.event.review.body, '@claude-code') &&
+      (github.event.comment.user.login == 'rtjeannier' || github.event.review.user.login == 'rtjeannier')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "Claude Code"
+          git config user.email "claude-code@users.noreply.github.com"
+
+      - name: Extract task from comment
+        id: extract
+        run: |
+          COMMENT="${{ github.event.comment.body || github.event.review.body }}"
+          # Remove the @claude-code trigger and trim
+          TASK=$(echo "$COMMENT" | sed 's/@claude-code//g' | xargs)
+          echo "task=$TASK" >> $GITHUB_OUTPUT
+          echo "Task extracted: $TASK"
+
+      - name: Run Claude Code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Navigate to workspace
+          cd $GITHUB_WORKSPACE
+
+          # Run Claude Code with the extracted task
+          # The -p flag runs in non-interactive mode
+          claude -p "${{ steps.extract.outputs.task }}"
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create branch and PR
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a branch name from the issue/PR number
+          BRANCH_NAME="claude/issue-${{ github.event.issue.number || github.event.pull_request.number }}-$(date +%s)"
+
+          git checkout -b "$BRANCH_NAME"
+          git add -A
+          git commit -m "feat: Claude Code implementation
+
+          Triggered by: #${{ github.event.issue.number || github.event.pull_request.number }}
+          Task: ${{ steps.extract.outputs.task }}"
+
+          git push -u origin "$BRANCH_NAME"
+
+          # Create PR
+          gh pr create \
+            --title "Claude Code: ${{ steps.extract.outputs.task }}" \
+            --body "## Summary
+          Automated implementation by Claude Code.
+
+          **Triggered by:** #${{ github.event.issue.number || github.event.pull_request.number }}
+          **Task:** ${{ steps.extract.outputs.task }}
+
+          ---
+          Please review the changes and merge if satisfactory." \
+            --base main
+
+      - name: Comment on issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ steps.changes.outputs.has_changes }}" == "true" ]]; then
+            gh issue comment ${{ github.event.issue.number || github.event.pull_request.number }} \
+              --body "I've created a PR with the requested changes. Please review!"
+          else
+            gh issue comment ${{ github.event.issue.number || github.event.pull_request.number }} \
+              --body "I've completed the task but there were no code changes to commit."
+          fi
