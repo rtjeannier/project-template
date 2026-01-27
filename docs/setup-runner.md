@@ -5,90 +5,43 @@ This guide walks you through setting up the GitHub Actions runner on your local 
 ## Prerequisites
 
 - Docker and Docker Compose installed
+- VS Code with Dev Containers extension
 - GitHub account with access to your repository
 - Claude Max Pro subscription (for Claude Code authentication)
 
-## Step 1: Build the Container
+## Understanding the Architecture
 
-From your project root:
+**Important:** The VS Code devcontainer and the GitHub Actions runner are the same container. When you open this project in VS Code's devcontainer, you're working inside the environment that will execute your GitHub Actions workflows. This means:
 
-```bash
-docker-compose build
-```
+- Authentication you set up (GitHub CLI, Claude Code) persists for workflow runs
+- The runner process runs in the same container where you develop
+- Your `~/.claude` and `~/.config/gh` directories are mounted from your host machine
 
-This creates an image with:
-- GitHub Actions runner
-- Claude Code CLI
-- Git and GitHub CLI
-- Node.js
+## Option A: VS Code Devcontainer Setup (Recommended)
 
-## Step 2: Start the Container
+This is the simplest approach - VS Code handles the container for you.
+
+### Step 1: Open in VS Code
 
 ```bash
-docker-compose up -d
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+code .
 ```
 
-The container will start but the runner won't be configured yet.
+When prompted, click "Reopen in Container" (or run `Dev Containers: Reopen in Container` from the command palette).
 
-## Step 3: Get a Runner Token
+### Step 2: Authenticate GitHub CLI
 
-1. Go to your GitHub repository
-2. Settings → Actions → Runners
-3. Click "New self-hosted runner"
-4. Copy the token shown (it starts with `A...`)
-
-**Note:** Tokens expire after about 1 hour. If yours expires, generate a new one.
-
-## Step 4: Configure the Runner
-
-Enter the container:
+In the VS Code terminal (which is now inside the container):
 
 ```bash
-docker exec -it claude-runner bash
+gh auth login
 ```
 
-Configure the runner:
+Follow the prompts to authenticate with GitHub.
 
-```bash
-cd /home/runner
-./config.sh --url https://github.com/YOUR_USERNAME/YOUR_REPO --token YOUR_TOKEN
-```
-
-You'll be prompted for:
-- **Runner group:** Press Enter for default
-- **Runner name:** Press Enter or give it a name like "local-pc"
-- **Labels:** Press Enter for default (self-hosted, Linux, X64)
-- **Work folder:** Press Enter for default
-
-Exit the container:
-
-```bash
-exit
-```
-
-## Step 5: Restart the Container
-
-```bash
-docker-compose restart
-```
-
-The runner will now start automatically and connect to GitHub.
-
-## Step 6: Verify the Runner
-
-1. Go to your GitHub repository
-2. Settings → Actions → Runners
-3. You should see your runner listed as "Idle"
-
-## Step 7: Authenticate Claude Code
-
-Enter the container:
-
-```bash
-docker exec -it claude-runner bash
-```
-
-Authenticate Claude Code:
+### Step 3: Authenticate Claude Code
 
 ```bash
 claude auth login
@@ -96,19 +49,101 @@ claude auth login
 
 Follow the prompts to log in with your Claude Max Pro account.
 
-Also authenticate GitHub CLI:
+### Step 4: Configure the Runner Using GitHub CLI
+
+Use the GitHub CLI to automatically get a registration token and configure the runner:
 
 ```bash
-gh auth login
+# Get repository info
+REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+
+# Get a runner registration token via GitHub API
+TOKEN=$(gh api -X POST repos/$REPO/actions/runners/registration-token -q '.token')
+
+# Configure the runner
+cd /home/runner && ./config.sh --url https://github.com/$REPO --token $TOKEN --unattended --name claude-runner --labels self-hosted,Linux,X64
+
+# Return to workspace
+cd /home/runner/work
 ```
 
-Exit:
+### Step 5: Start the Runner
+
+```bash
+# Start the runner in the background
+cd /home/runner && nohup ./run.sh > /tmp/runner.log 2>&1 &
+```
+
+### Step 6: Verify the Runner is Online
+
+```bash
+# Check runner status via GitHub API
+gh api repos/$(gh repo view --json nameWithOwner -q '.nameWithOwner')/actions/runners --jq '.runners[] | {name, status, busy}'
+```
+
+You should see:
+```json
+{"busy":false,"name":"claude-runner","status":"online"}
+```
+
+## Option B: Docker Compose Setup (Without VS Code)
+
+If you prefer to run the container directly without VS Code.
+
+### Step 1: Build and Start the Container
+
+```bash
+docker-compose build
+docker-compose up -d
+```
+
+### Step 2: Enter the Container
+
+```bash
+docker exec -it claude-runner bash
+```
+
+### Step 3: Authenticate (Inside Container)
+
+```bash
+# Authenticate GitHub CLI
+gh auth login
+
+# Authenticate Claude Code
+claude auth login
+```
+
+### Step 4: Configure the Runner
+
+**Using GitHub CLI (recommended):**
+
+```bash
+REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+TOKEN=$(gh api -X POST repos/$REPO/actions/runners/registration-token -q '.token')
+cd /home/runner && ./config.sh --url https://github.com/$REPO --token $TOKEN --unattended --name claude-runner --labels self-hosted,Linux,X64
+```
+
+**Or manually:**
+
+1. Go to your GitHub repository → Settings → Actions → Runners
+2. Click "New self-hosted runner"
+3. Copy the token shown (starts with `A...`)
+4. Run:
+   ```bash
+   cd /home/runner
+   ./config.sh --url https://github.com/YOUR_USERNAME/YOUR_REPO --token YOUR_TOKEN
+   ```
+
+### Step 5: Exit and Restart
 
 ```bash
 exit
+docker-compose restart
 ```
 
-## Step 8: Test It
+The runner will now start automatically on container startup.
+
+## Testing the Setup
 
 Create an issue in your repository:
 
