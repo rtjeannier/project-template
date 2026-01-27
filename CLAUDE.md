@@ -1,24 +1,7 @@
 # Claude Code Instructions
 
 This file contains instructions for Claude Code when working on this project.
-
-## Workflow Rules
-
-1. **Never commit directly to main** - Always create a feature branch
-2. **Create plans before implementation** - For non-trivial tasks, outline your approach first
-3. **Submit changes via PR** - Push your branch and create a pull request
-4. **Write clear commit messages** - Explain the "why", not just the "what"
-
-## When Triggered via @claude-code
-
-When triggered by a GitHub issue or PR comment containing `@claude-code`:
-
-1. Read and understand the request in the comment
-2. Create a new branch from main: `git checkout -b feature/<short-description>`
-3. Implement the requested changes
-4. Commit with a clear message
-5. Push the branch and create a PR
-6. Link the PR to the original issue
+These standards apply to ALL Claude Code sessions (interactive and automated).
 
 ## Code Style
 
@@ -26,9 +9,35 @@ When triggered by a GitHub issue or PR comment containing `@claude-code`:
 - Keep changes focused and minimal
 - Don't refactor unrelated code
 - Add comments only where logic isn't self-evident
+- Create plans before implementation for non-trivial tasks
+- Write clear commit messages - explain the "why", not just the "what"
 
 ## Testing
 
 - Run existing tests before submitting PR
 - Add tests for new functionality when appropriate
 - Ensure the build passes
+
+## Git Operations
+
+**Interactive sessions:** Handle git operations normally (create branches, commit, push, create PRs).
+
+**@claude-code workflow:** Focus only on code changes. The GitHub Actions workflow handles:
+- Branching (checks out PR branch or creates new branch from main)
+- Committing changes
+- Pushing to remote
+- Creating/updating PRs
+- Posting responses to issues/PRs
+
+## Workflow Rules
+
+1. **Never commit directly to main** - Always use feature branches (enforced by hook)
+2. **Submit changes via PR** - All changes go through pull requests for review
+
+## Prompt Tags
+
+Include these tags in your prompt to trigger special behavior (enforced by hooks):
+
+| Tag | Effect |
+|-----|--------|
+| `/wait` | After creating a PR, poll its state every 30s for up to 10 minutes. Reports when merged/closed with review comments, or notifies on timeout. |
