@@ -49,3 +49,6 @@ temp/
 .runner
 .credentials
 .credentials_rsaparams
+
+# Claude Code local settings (session-specific, not for version control)
+.claude/settings.local.json
