@@ -61,7 +61,6 @@ RUN mkdir -p /home/runner/.claude /home/runner/.config/gh
 # Set working directory for projects
 WORKDIR /home/runner/work
 
-# Entry point script will be mounted or added
-COPY entrypoint.sh /home/runner/entrypoint.sh
-
-ENTRYPOINT ["/home/runner/entrypoint.sh"]
+# No entrypoint - allows VS Code devcontainer to work
+# Runner is started by postStartCommand in devcontainer.json
+CMD ["bash"]

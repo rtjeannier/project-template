@@ -20,8 +20,10 @@
     "source=${localWorkspaceFolder},target=/home/runner/work,type=bind",
     "source=claude-config,target=/home/runner/.claude,type=volume",
     "source=gh-config,target=/home/runner/.config/gh,type=volume",
-    "source=runner-config,target=/home/runner/.runner-data,type=volume"
+    "source=runner-config,target=/home/runner,type=volume"
   ],
+  "workspaceFolder": "/home/runner/work",
   "remoteUser": "runner",
-  "postCreateCommand": "echo 'Dev container ready. Run ./config.sh to set up the runner if needed.'"
+  "postCreateCommand": "echo 'Dev container ready!'",
+  "postStartCommand": "if [ -f /home/runner/.runner ]; then nohup /home/runner/run.sh > /home/runner/runner.log 2>&1 & echo 'Runner started in background'; else echo 'Runner not configured. Run: cd /home/runner && ./config.sh --url https://github.com/OWNER/REPO --token TOKEN'; fi"
 }

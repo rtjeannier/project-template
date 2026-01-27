@@ -20,7 +20,18 @@ services:
       # Mount workspace for the project
       - ./:/home/runner/work
     working_dir: /home/runner/work
-    # Keep container running
+    # Start runner if configured, otherwise just stay alive
+    command: >
+      bash -c "
+        if [ -f /home/runner/.runner ]; then
+          echo 'Starting GitHub Actions runner...'
+          /home/runner/run.sh
+        else
+          echo 'Runner not configured. Run: docker exec -it claude-runner bash'
+          echo 'Then: cd /home/runner && ./config.sh --url https://github.com/OWNER/REPO --token TOKEN'
+          tail -f /dev/null
+        fi
+      "
     tty: true
     stdin_open: true
 
