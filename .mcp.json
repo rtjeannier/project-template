@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fantasypros": {
+      "type": "http",
+      "url": "https://api.fantasypros.com/mcp",
+      "headers": {
+        "x-api-key": "${FANTASYPROS_API_KEY}"
+      }
+    }
+  }
+}
