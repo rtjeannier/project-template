@@ -1,0 +1,19 @@
+[project]
+name = "guillotine"
+version = "0.1.0"
+description = "Monte Carlo survival and FAAB bidding simulator for guillotine fantasy football leagues"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+guillotine = "guillotine.cli:main"
+
+[tool.setuptools]
+packages = ["guillotine", "guillotine.providers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

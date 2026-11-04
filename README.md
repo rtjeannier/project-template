@@ -1,3 +1,6 @@
+> **Guillotine league simulator:** this repo contains a fantasy football guillotine
+> league survival and FAAB bidding simulator. See [docs/guillotine.md](docs/guillotine.md).
+
 # Project Template
 
 A template repository for projects using Claude Code with self-hosted GitHub Actions runners.

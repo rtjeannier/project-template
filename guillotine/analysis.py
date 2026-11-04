@@ -1,0 +1,184 @@
+"""Turn simulation runs into decisions.
+
+Compares scenarios on the same random draws:
+  * baseline — everyone, including you, bids using the model
+  * pass     — you sit out this week's waivers
+  * force X  — you win player X this week at a price likely to beat the field
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from .models import LeagueState
+from .simulate import SimResults, Simulator, UserPolicy
+
+WIN_TARGETS = (0.5, 0.75, 0.9)  # bid levels reported: P(beat every opponent)
+
+
+@dataclass
+class Candidate:
+    player_id: str
+    gain: float  # weekly starting-lineup points you'd gain
+    bid_for: dict[float, int]  # target win probability -> bid needed
+    suggested_bid: int
+    p_win_at_suggested: float
+    d_champion: float = 0.0  # change in P(win league) vs passing
+    d_survive_3: float = 0.0  # change in P(alive after the next 3 weeks) vs passing
+    champion: float = 0.0
+    survive_3: float = 0.0
+
+
+@dataclass
+class Analysis:
+    state: LeagueState
+    sim: Simulator
+    baseline: SimResults
+    passed: SimResults
+    candidates: list[Candidate] = field(default_factory=list)
+    holes: list[dict] = field(default_factory=list)
+    future_targets: list[dict] = field(default_factory=list)
+    opponents: list[dict] = field(default_factory=list)
+
+
+def bid_needed(opp_bids: np.ndarray, p_win: float) -> int:
+    """Smallest whole-dollar bid that beats the top opposing bid with prob ``p_win``.
+
+    Ties are treated as losses (tiebreak usually goes against you or is a coin flip).
+    """
+    return int(np.quantile(opp_bids, p_win)) + 1
+
+
+def p_win_at(opp_bids: np.ndarray, bid: int) -> float:
+    return float(np.mean(opp_bids < bid))
+
+
+def survive_through(res: SimResults, team_id: str, n_weeks: int) -> float:
+    alive = res.p_alive_after(team_id)
+    return float(alive[min(n_weeks, len(alive)) - 1])
+
+
+def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0,
+            sim: Simulator | None = None) -> Analysis:
+    sim = sim or Simulator(state, seed=seed)
+    me = state.my_team_id
+    my_faab = int(state.team(me).faab)
+
+    baseline = sim.run(n_sims, UserPolicy("auto"))
+    passed = sim.run(n_sims, UserPolicy("pass"))
+    out = Analysis(state=state, sim=sim, baseline=baseline, passed=passed)
+
+    # ---- this week's waiver targets
+    gains = sorted(baseline.user_gain_now.items(), key=lambda kv: -kv[1])
+    for pid, gain in gains:
+        if gain < sim.model.min_gain or len(out.candidates) >= top_k:
+            continue
+        opp = np.array(baseline.opp_max_bid[pid])
+        bid_for = {t: bid_needed(opp, t) for t in WIN_TARGETS}
+        suggested = min(bid_for[0.75], my_faab)
+        forced = sim.run(n_sims, UserPolicy("force", pid, suggested))
+        c = Candidate(
+            player_id=pid,
+            gain=gain,
+            bid_for=bid_for,
+            suggested_bid=suggested,
+            p_win_at_suggested=p_win_at(opp, suggested),
+            champion=forced.p_champion(me),
+            survive_3=survive_through(forced, me, 3),
+        )
+        c.d_champion = c.champion - passed.p_champion(me)
+        c.d_survive_3 = c.survive_3 - survive_through(passed, me, 3)
+        out.candidates.append(c)
+
+    out.holes = roster_holes(sim)
+    out.future_targets = future_targets(sim, baseline)
+    out.opponents = opponent_table(sim, baseline)
+    return out
+
+
+def roster_holes(sim: Simulator) -> list[dict]:
+    """Your starter at each slot vs the median starter at that slot across the league."""
+    proj, spec = sim.proj, sim.spec
+    vb = proj.value_basis[0]
+    lineups = {tid: spec.assign(r, vb, proj.pos) for tid, r in sim.init_rosters.items()}
+    mine = lineups[sim.user]
+    rows = []
+    for k, (label, p) in enumerate(mine):
+        league = [vb[lu[k][1]] if lu[k][1] is not None else 0.0 for lu in lineups.values()]
+        you = vb[p] if p is not None else 0.0
+        rows.append({
+            "slot": label,
+            "player": sim.state.players[proj.ids[p]].name if p is not None else "(empty)",
+            "you": you,
+            "league_median": float(np.median(league)),
+            "gap": you - float(np.median(league)),
+            "rank": 1 + sum(v > you for v in league),
+            "of": len(league),
+        })
+    return rows
+
+
+def future_targets(sim: Simulator, res: SimResults, top: int = 15) -> list[dict]:
+    """Players on other rosters who are likely to hit waivers later, and what they'd cost."""
+    me = sim.user
+    mine = set(sim.state.team(me).players)
+    prices: dict[tuple[int, int, str], tuple[str, int]] = {
+        (s, j, pid): (tid, amt) for s, j, pid, tid, amt in res.awards
+    }
+    rows = []
+    for pid, entries in res.pool_entries.items():
+        if pid in mine or pid in sim.state.waiver_pool:
+            continue
+        sims_seen = {s for s, _, _ in entries}
+        first = {}
+        for s, j, g in entries:
+            first.setdefault(s, (j, g))
+        gains = [g for j, g in first.values() if not np.isnan(g)]
+        if not gains:
+            continue
+        med_gain = float(np.median(gains))
+        if med_gain < sim.model.min_gain:
+            continue
+        paid = [prices[(s, j, pid)][1] for s, (j, _) in first.items() if (s, j, pid) in prices]
+        won = sum(1 for s, (j, _) in first.items() if prices.get((s, j, pid), ("",))[0] == me)
+        weeks = [res.weeks[min(j, len(res.weeks) - 1)] for j, _ in first.values()]
+        owner = next(t.name for t in sim.state.teams if pid in t.players)
+        rows.append({
+            "player": sim.state.players[pid].name,
+            "pos": sim.state.players[pid].pos,
+            "owner": owner,
+            "p_available": len(sims_seen) / res.n_sims,
+            "typical_week": int(np.median(weeks)),
+            "your_gain": med_gain,
+            "median_price": float(np.median(paid)) if paid else 0.0,
+            "p_you_win": won / res.n_sims,
+        })
+    rows.sort(key=lambda r: -(r["p_available"] * r["your_gain"]))
+    return rows[:top]
+
+
+def opponent_table(sim: Simulator, res: SimResults) -> list[dict]:
+    proj, spec = sim.proj, sim.spec
+    vb = proj.value_basis[0]
+    lineups = {tid: spec.assign(r, vb, proj.pos) for tid, r in sim.init_rosters.items()}
+    n_slots = len(next(iter(lineups.values())))
+    medians = [np.median([vb[lu[k][1]] if lu[k][1] is not None else 0 for lu in lineups.values()])
+               for k in range(n_slots)]
+    rows = []
+    for t in sim.state.teams:
+        lu = lineups[t.id]
+        gaps = [((vb[p] if p is not None else 0) - medians[k], label) for k, (label, p) in enumerate(lu)]
+        weakest = sorted(gaps)[:2]
+        rows.append({
+            "team": t.name,
+            "is_you": t.id == sim.user,
+            "faab": t.faab,
+            "proj_weekly": float(sum(vb[p] for _, p in lu if p is not None)),
+            "p_elim_next": float(res.elim_counts[t.id][0] / res.n_sims),
+            "p_champion": res.p_champion(t.id),
+            "needs": ", ".join(label for g, label in weakest if g < -0.5) or "-",
+        })
+    rows.sort(key=lambda r: -r["proj_weekly"])
+    return rows

@@ -1,0 +1,3682 @@
+{
+ "settings": {
+  "season": 2026,
+  "current_week": 10,
+  "last_week": 17,
+  "roster_slots": {
+   "QB": 1,
+   "RB": 2,
+   "WR": 3,
+   "TE": 1,
+   "FLEX": 1,
+   "K": 1,
+   "DEF": 1,
+   "BN": 6
+  },
+  "roster_size": 16,
+  "eliminations_per_week": 1,
+  "min_bid": 0
+ },
+ "my_team_id": "team1",
+ "teams": [
+  {
+   "id": "team1",
+   "name": "You",
+   "faab": 814,
+   "players": [
+    "qb1",
+    "qb4",
+    "rb2",
+    "rb21",
+    "rb31",
+    "rb38",
+    "rb44",
+    "wr2",
+    "wr17",
+    "wr24",
+    "wr35",
+    "wr55",
+    "te2",
+    "te12",
+    "k1",
+    "def9"
+   ]
+  },
+  {
+   "id": "team2",
+   "name": "Gridiron Ghosts",
+   "faab": 656,
+   "players": [
+    "qb5",
+    "qb10",
+    "rb6",
+    "rb12",
+    "rb28",
+    "rb34",
+    "rb49",
+    "wr3",
+    "wr14",
+    "wr25",
+    "wr27",
+    "wr52",
+    "te6",
+    "te17",
+    "k4",
+    "def8"
+   ]
+  },
+  {
+   "id": "team3",
+   "name": "Faab Hoarders",
+   "faab": 509,
+   "players": [
+    "qb19",
+    "qb14",
+    "rb8",
+    "rb17",
+    "rb18",
+    "rb35",
+    "rb36",
+    "wr8",
+    "wr20",
+    "wr19",
+    "wr28",
+    "wr48",
+    "te1",
+    "te13",
+    "k10",
+    "def6"
+   ]
+  },
+  {
+   "id": "team4",
+   "name": "Waiver Wolves",
+   "faab": 503,
+   "players": [
+    "qb7",
+    "qb25",
+    "rb9",
+    "rb11",
+    "rb23",
+    "rb40",
+    "rb46",
+    "wr4",
+    "wr13",
+    "wr34",
+    "wr30",
+    "wr44",
+    "te4",
+    "te19",
+    "k5",
+    "def2"
+   ]
+  },
+  {
+   "id": "team5",
+   "name": "Late Round QB",
+   "faab": 243,
+   "players": [
+    "qb6",
+    "qb3",
+    "rb7",
+    "rb16",
+    "rb14",
+    "rb24",
+    "rb41",
+    "wr12",
+    "wr18",
+    "wr26",
+    "wr39",
+    "wr51",
+    "te5",
+    "te16",
+    "k3",
+    "def4"
+   ]
+  },
+  {
+   "id": "team6",
+   "name": "Bench Mob",
+   "faab": 517,
+   "players": [
+    "qb9",
+    "qb18",
+    "rb1",
+    "rb25",
+    "rb30",
+    "rb29",
+    "rb37",
+    "wr6",
+    "wr23",
+    "wr29",
+    "wr36",
+    "wr41",
+    "te10",
+    "te21",
+    "k8",
+    "def5"
+   ]
+  },
+  {
+   "id": "team7",
+   "name": "Sunday Scaries",
+   "faab": 523,
+   "players": [
+    "qb2",
+    "qb15",
+    "rb3",
+    "rb13",
+    "rb26",
+    "rb42",
+    "rb47",
+    "wr1",
+    "wr16",
+    "wr31",
+    "wr38",
+    "wr37",
+    "te3",
+    "te14",
+    "k2",
+    "def10"
+   ]
+  },
+  {
+   "id": "team8",
+   "name": "Bye Week Blues",
+   "faab": 724,
+   "players": [
+    "qb8",
+    "qb16",
+    "rb10",
+    "rb20",
+    "rb22",
+    "rb32",
+    "rb43",
+    "wr5",
+    "wr7",
+    "wr21",
+    "wr45",
+    "wr49",
+    "te9",
+    "te22",
+    "k13",
+    "def16"
+   ]
+  },
+  {
+   "id": "team9",
+   "name": "Kicker Truthers",
+   "faab": 335,
+   "players": [
+    "qb12",
+    "qb11",
+    "rb5",
+    "rb15",
+    "rb33",
+    "rb45",
+    "rb56",
+    "wr9",
+    "wr11",
+    "wr32",
+    "wr33",
+    "wr42",
+    "te7",
+    "te11",
+    "k9",
+    "def3"
+   ]
+  }
+ ],
+ "waiver_pool": [
+  "qb13",
+  "qb17",
+  "rb19",
+  "rb4",
+  "rb27",
+  "rb39",
+  "rb48",
+  "wr10",
+  "wr15",
+  "wr22",
+  "wr40",
+  "wr43",
+  "te8",
+  "te15",
+  "k6",
+  "def1"
+ ],
+ "free_agents": [
+  "qb20",
+  "qb21",
+  "qb22",
+  "qb23",
+  "qb24",
+  "qb26",
+  "qb27",
+  "qb28",
+  "qb29",
+  "qb30",
+  "qb31",
+  "qb32",
+  "qb33",
+  "qb34",
+  "qb35",
+  "qb36",
+  "qb37",
+  "qb38",
+  "qb39",
+  "qb40",
+  "rb50",
+  "rb51",
+  "rb52",
+  "rb53",
+  "rb54",
+  "rb55",
+  "rb57",
+  "rb58",
+  "rb59",
+  "rb60",
+  "rb61",
+  "rb62",
+  "rb63",
+  "rb64",
+  "rb65",
+  "rb66",
+  "rb67",
+  "rb68",
+  "rb69",
+  "rb70",
+  "rb71",
+  "rb72",
+  "rb73",
+  "rb74",
+  "rb75",
+  "rb76",
+  "rb77",
+  "rb78",
+  "rb79",
+  "rb80",
+  "rb81",
+  "rb82",
+  "rb83",
+  "rb84",
+  "rb85",
+  "rb86",
+  "rb87",
+  "rb88",
+  "rb89",
+  "rb90",
+  "wr46",
+  "wr47",
+  "wr50",
+  "wr53",
+  "wr54",
+  "wr56",
+  "wr57",
+  "wr58",
+  "wr59",
+  "wr60",
+  "wr61",
+  "wr62",
+  "wr63",
+  "wr64",
+  "wr65",
+  "wr66",
+  "wr67",
+  "wr68",
+  "wr69",
+  "wr70",
+  "wr71",
+  "wr72",
+  "wr73",
+  "wr74",
+  "wr75",
+  "wr76",
+  "wr77",
+  "wr78",
+  "wr79",
+  "wr80",
+  "wr81",
+  "wr82",
+  "wr83",
+  "wr84",
+  "wr85",
+  "wr86",
+  "wr87",
+  "wr88",
+  "wr89",
+  "wr90",
+  "wr91",
+  "wr92",
+  "wr93",
+  "wr94",
+  "wr95",
+  "wr96",
+  "wr97",
+  "wr98",
+  "wr99",
+  "wr100",
+  "wr101",
+  "wr102",
+  "wr103",
+  "wr104",
+  "wr105",
+  "wr106",
+  "wr107",
+  "wr108",
+  "wr109",
+  "wr110",
+  "wr111",
+  "wr112",
+  "wr113",
+  "wr114",
+  "wr115",
+  "wr116",
+  "wr117",
+  "wr118",
+  "wr119",
+  "wr120",
+  "te18",
+  "te20",
+  "te23",
+  "te24",
+  "te25",
+  "te26",
+  "te27",
+  "te28",
+  "te29",
+  "te30",
+  "te31",
+  "te32",
+  "te33",
+  "te34",
+  "te35",
+  "te36",
+  "te37",
+  "te38",
+  "te39",
+  "te40",
+  "te41",
+  "te42",
+  "te43",
+  "te44",
+  "te45",
+  "k7",
+  "k11",
+  "k12",
+  "k14",
+  "k15",
+  "k16",
+  "k17",
+  "k18",
+  "k19",
+  "k20",
+  "k21",
+  "k22",
+  "k23",
+  "k24",
+  "k25",
+  "k26",
+  "k27",
+  "k28",
+  "k29",
+  "k30",
+  "k31",
+  "k32",
+  "def7",
+  "def11",
+  "def12",
+  "def13",
+  "def14",
+  "def15",
+  "def17",
+  "def18",
+  "def19",
+  "def20",
+  "def21",
+  "def22",
+  "def23",
+  "def24",
+  "def25",
+  "def26",
+  "def27",
+  "def28",
+  "def29",
+  "def30",
+  "def31",
+  "def32"
+ ],
+ "players": [
+  {
+   "id": "qb1",
+   "name": "Sample QB 1",
+   "pos": "QB",
+   "nfl_team": "T28",
+   "bye": 11,
+   "ros_points": 172.2,
+   "trade_value": 48.3
+  },
+  {
+   "id": "qb2",
+   "name": "Sample QB 2",
+   "pos": "QB",
+   "nfl_team": "T07",
+   "bye": 13,
+   "ros_points": 171.2,
+   "trade_value": 47.8
+  },
+  {
+   "id": "qb3",
+   "name": "Sample QB 3",
+   "pos": "QB",
+   "nfl_team": "T27",
+   "bye": 7,
+   "ros_points": 171.9,
+   "trade_value": 42.7
+  },
+  {
+   "id": "qb4",
+   "name": "Sample QB 4",
+   "pos": "QB",
+   "nfl_team": "T26",
+   "bye": 9,
+   "ros_points": 155.8,
+   "trade_value": 34.7
+  },
+  {
+   "id": "qb5",
+   "name": "Sample QB 5",
+   "pos": "QB",
+   "nfl_team": "T14",
+   "bye": 6,
+   "ros_points": 176.8,
+   "trade_value": 45.2
+  },
+  {
+   "id": "qb6",
+   "name": "Sample QB 6",
+   "pos": "QB",
+   "nfl_team": "T08",
+   "bye": 8,
+   "ros_points": 154.8,
+   "trade_value": 34.2
+  },
+  {
+   "id": "qb7",
+   "name": "Sample QB 7",
+   "pos": "QB",
+   "nfl_team": "T14",
+   "bye": 14,
+   "ros_points": 129.5,
+   "trade_value": 27.0
+  },
+  {
+   "id": "qb8",
+   "name": "Sample QB 8",
+   "pos": "QB",
+   "nfl_team": "T17",
+   "bye": 10,
+   "ros_points": 131.6,
+   "trade_value": 28.0
+  },
+  {
+   "id": "qb9",
+   "name": "Sample QB 9",
+   "pos": "QB",
+   "nfl_team": "T25",
+   "bye": 13,
+   "ros_points": 139.6,
+   "trade_value": 32.0
+  },
+  {
+   "id": "qb10",
+   "name": "Sample QB 10",
+   "pos": "QB",
+   "nfl_team": "T31",
+   "bye": 8,
+   "ros_points": 143.5,
+   "trade_value": 28.6
+  },
+  {
+   "id": "qb11",
+   "name": "Sample QB 11",
+   "pos": "QB",
+   "nfl_team": "T05",
+   "bye": 13,
+   "ros_points": 111.6,
+   "trade_value": 18.0
+  },
+  {
+   "id": "qb12",
+   "name": "Sample QB 12",
+   "pos": "QB",
+   "nfl_team": "T01",
+   "bye": 6,
+   "ros_points": 133.6,
+   "trade_value": 23.6
+  },
+  {
+   "id": "qb13",
+   "name": "Sample QB 13",
+   "pos": "QB",
+   "nfl_team": "T16",
+   "bye": 6,
+   "ros_points": 114.4,
+   "trade_value": 14.0
+  },
+  {
+   "id": "qb14",
+   "name": "Sample QB 14",
+   "pos": "QB",
+   "nfl_team": "T29",
+   "bye": 13,
+   "ros_points": 105.9,
+   "trade_value": 15.1
+  },
+  {
+   "id": "qb15",
+   "name": "Sample QB 15",
+   "pos": "QB",
+   "nfl_team": "T16",
+   "bye": 9,
+   "ros_points": 120.7,
+   "trade_value": 17.1
+  },
+  {
+   "id": "qb16",
+   "name": "Sample QB 16",
+   "pos": "QB",
+   "nfl_team": "T07",
+   "bye": 8,
+   "ros_points": 113.5,
+   "trade_value": 13.6
+  },
+  {
+   "id": "qb17",
+   "name": "Sample QB 17",
+   "pos": "QB",
+   "nfl_team": "T06",
+   "bye": 5,
+   "ros_points": 99.0,
+   "trade_value": 6.3
+  },
+  {
+   "id": "qb18",
+   "name": "Sample QB 18",
+   "pos": "QB",
+   "nfl_team": "T06",
+   "bye": 13,
+   "ros_points": 96.2,
+   "trade_value": 10.3
+  },
+  {
+   "id": "qb19",
+   "name": "Sample QB 19",
+   "pos": "QB",
+   "nfl_team": "T00",
+   "bye": 9,
+   "ros_points": 99.6,
+   "trade_value": 6.6
+  },
+  {
+   "id": "qb20",
+   "name": "Sample QB 20",
+   "pos": "QB",
+   "nfl_team": "T04",
+   "bye": 11,
+   "ros_points": 92.1,
+   "trade_value": 8.3
+  },
+  {
+   "id": "qb21",
+   "name": "Sample QB 21",
+   "pos": "QB",
+   "nfl_team": "T28",
+   "bye": 14,
+   "ros_points": 79.5,
+   "trade_value": 2.0
+  },
+  {
+   "id": "qb22",
+   "name": "Sample QB 22",
+   "pos": "QB",
+   "nfl_team": "T27",
+   "bye": 14,
+   "ros_points": 80.7,
+   "trade_value": 2.6
+  },
+  {
+   "id": "qb23",
+   "name": "Sample QB 23",
+   "pos": "QB",
+   "nfl_team": "T23",
+   "bye": 5,
+   "ros_points": 91.4,
+   "trade_value": 2.5
+  },
+  {
+   "id": "qb24",
+   "name": "Sample QB 24",
+   "pos": "QB",
+   "nfl_team": "T17",
+   "bye": 7,
+   "ros_points": 78.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb25",
+   "name": "Sample QB 25",
+   "pos": "QB",
+   "nfl_team": "T27",
+   "bye": 11,
+   "ros_points": 72.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb26",
+   "name": "Sample QB 26",
+   "pos": "QB",
+   "nfl_team": "T19",
+   "bye": 11,
+   "ros_points": 68.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb27",
+   "name": "Sample QB 27",
+   "pos": "QB",
+   "nfl_team": "T12",
+   "bye": 11,
+   "ros_points": 61.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb28",
+   "name": "Sample QB 28",
+   "pos": "QB",
+   "nfl_team": "T04",
+   "bye": 7,
+   "ros_points": 72.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb29",
+   "name": "Sample QB 29",
+   "pos": "QB",
+   "nfl_team": "T12",
+   "bye": 9,
+   "ros_points": 76.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb30",
+   "name": "Sample QB 30",
+   "pos": "QB",
+   "nfl_team": "T18",
+   "bye": 8,
+   "ros_points": 76.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb31",
+   "name": "Sample QB 31",
+   "pos": "QB",
+   "nfl_team": "T20",
+   "bye": 9,
+   "ros_points": 68.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb32",
+   "name": "Sample QB 32",
+   "pos": "QB",
+   "nfl_team": "T04",
+   "bye": 14,
+   "ros_points": 58.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb33",
+   "name": "Sample QB 33",
+   "pos": "QB",
+   "nfl_team": "T07",
+   "bye": 8,
+   "ros_points": 61.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb34",
+   "name": "Sample QB 34",
+   "pos": "QB",
+   "nfl_team": "T03",
+   "bye": 13,
+   "ros_points": 51.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb35",
+   "name": "Sample QB 35",
+   "pos": "QB",
+   "nfl_team": "T06",
+   "bye": 14,
+   "ros_points": 55.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb36",
+   "name": "Sample QB 36",
+   "pos": "QB",
+   "nfl_team": "T09",
+   "bye": 5,
+   "ros_points": 58.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb37",
+   "name": "Sample QB 37",
+   "pos": "QB",
+   "nfl_team": "T21",
+   "bye": 5,
+   "ros_points": 58.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb38",
+   "name": "Sample QB 38",
+   "pos": "QB",
+   "nfl_team": "T27",
+   "bye": 13,
+   "ros_points": 42.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb39",
+   "name": "Sample QB 39",
+   "pos": "QB",
+   "nfl_team": "T28",
+   "bye": 11,
+   "ros_points": 48.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "qb40",
+   "name": "Sample QB 40",
+   "pos": "QB",
+   "nfl_team": "T04",
+   "bye": 7,
+   "ros_points": 49.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb1",
+   "name": "Sample RB 1",
+   "pos": "RB",
+   "nfl_team": "T29",
+   "bye": 12,
+   "ros_points": 131.4,
+   "trade_value": 34.2
+  },
+  {
+   "id": "rb2",
+   "name": "Sample RB 2",
+   "pos": "RB",
+   "nfl_team": "T05",
+   "bye": 5,
+   "ros_points": 158.2,
+   "trade_value": 43.1
+  },
+  {
+   "id": "rb3",
+   "name": "Sample RB 3",
+   "pos": "RB",
+   "nfl_team": "T20",
+   "bye": 14,
+   "ros_points": 144.3,
+   "trade_value": 40.6
+  },
+  {
+   "id": "rb4",
+   "name": "Sample RB 4",
+   "pos": "RB",
+   "nfl_team": "T12",
+   "bye": 5,
+   "ros_points": 151.9,
+   "trade_value": 39.9
+  },
+  {
+   "id": "rb5",
+   "name": "Sample RB 5",
+   "pos": "RB",
+   "nfl_team": "T07",
+   "bye": 7,
+   "ros_points": 143.9,
+   "trade_value": 36.0
+  },
+  {
+   "id": "rb6",
+   "name": "Sample RB 6",
+   "pos": "RB",
+   "nfl_team": "T28",
+   "bye": 14,
+   "ros_points": 113.8,
+   "trade_value": 25.4
+  },
+  {
+   "id": "rb7",
+   "name": "Sample RB 7",
+   "pos": "RB",
+   "nfl_team": "T17",
+   "bye": 12,
+   "ros_points": 121.9,
+   "trade_value": 29.4
+  },
+  {
+   "id": "rb8",
+   "name": "Sample RB 8",
+   "pos": "RB",
+   "nfl_team": "T24",
+   "bye": 9,
+   "ros_points": 132.3,
+   "trade_value": 30.1
+  },
+  {
+   "id": "rb9",
+   "name": "Sample RB 9",
+   "pos": "RB",
+   "nfl_team": "T11",
+   "bye": 12,
+   "ros_points": 106.3,
+   "trade_value": 21.6
+  },
+  {
+   "id": "rb10",
+   "name": "Sample RB 10",
+   "pos": "RB",
+   "nfl_team": "T03",
+   "bye": 14,
+   "ros_points": 104.1,
+   "trade_value": 20.5
+  },
+  {
+   "id": "rb11",
+   "name": "Sample RB 11",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 6,
+   "ros_points": 140.4,
+   "trade_value": 34.2
+  },
+  {
+   "id": "rb12",
+   "name": "Sample RB 12",
+   "pos": "RB",
+   "nfl_team": "T16",
+   "bye": 5,
+   "ros_points": 123.8,
+   "trade_value": 25.9
+  },
+  {
+   "id": "rb13",
+   "name": "Sample RB 13",
+   "pos": "RB",
+   "nfl_team": "T11",
+   "bye": 11,
+   "ros_points": 115.5,
+   "trade_value": 26.3
+  },
+  {
+   "id": "rb14",
+   "name": "Sample RB 14",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 7,
+   "ros_points": 122.4,
+   "trade_value": 25.2
+  },
+  {
+   "id": "rb15",
+   "name": "Sample RB 15",
+   "pos": "RB",
+   "nfl_team": "T16",
+   "bye": 14,
+   "ros_points": 99.9,
+   "trade_value": 18.5
+  },
+  {
+   "id": "rb16",
+   "name": "Sample RB 16",
+   "pos": "RB",
+   "nfl_team": "T29",
+   "bye": 12,
+   "ros_points": 106.0,
+   "trade_value": 21.5
+  },
+  {
+   "id": "rb17",
+   "name": "Sample RB 17",
+   "pos": "RB",
+   "nfl_team": "T29",
+   "bye": 9,
+   "ros_points": 104.7,
+   "trade_value": 16.3
+  },
+  {
+   "id": "rb18",
+   "name": "Sample RB 18",
+   "pos": "RB",
+   "nfl_team": "T24",
+   "bye": 10,
+   "ros_points": 86.8,
+   "trade_value": 11.9
+  },
+  {
+   "id": "rb19",
+   "name": "Sample RB 19",
+   "pos": "RB",
+   "nfl_team": "T04",
+   "bye": 11,
+   "ros_points": 100.1,
+   "trade_value": 18.5
+  },
+  {
+   "id": "rb20",
+   "name": "Sample RB 20",
+   "pos": "RB",
+   "nfl_team": "T26",
+   "bye": 13,
+   "ros_points": 90.7,
+   "trade_value": 13.8
+  },
+  {
+   "id": "rb21",
+   "name": "Sample RB 21",
+   "pos": "RB",
+   "nfl_team": "T20",
+   "bye": 13,
+   "ros_points": 81.4,
+   "trade_value": 9.2
+  },
+  {
+   "id": "rb22",
+   "name": "Sample RB 22",
+   "pos": "RB",
+   "nfl_team": "T16",
+   "bye": 14,
+   "ros_points": 93.4,
+   "trade_value": 15.2
+  },
+  {
+   "id": "rb23",
+   "name": "Sample RB 23",
+   "pos": "RB",
+   "nfl_team": "T07",
+   "bye": 7,
+   "ros_points": 103.1,
+   "trade_value": 15.5
+  },
+  {
+   "id": "rb24",
+   "name": "Sample RB 24",
+   "pos": "RB",
+   "nfl_team": "T11",
+   "bye": 14,
+   "ros_points": 79.3,
+   "trade_value": 8.2
+  },
+  {
+   "id": "rb25",
+   "name": "Sample RB 25",
+   "pos": "RB",
+   "nfl_team": "T11",
+   "bye": 8,
+   "ros_points": 88.3,
+   "trade_value": 8.2
+  },
+  {
+   "id": "rb26",
+   "name": "Sample RB 26",
+   "pos": "RB",
+   "nfl_team": "T18",
+   "bye": 13,
+   "ros_points": 88.0,
+   "trade_value": 12.5
+  },
+  {
+   "id": "rb27",
+   "name": "Sample RB 27",
+   "pos": "RB",
+   "nfl_team": "T08",
+   "bye": 6,
+   "ros_points": 87.4,
+   "trade_value": 7.7
+  },
+  {
+   "id": "rb28",
+   "name": "Sample RB 28",
+   "pos": "RB",
+   "nfl_team": "T14",
+   "bye": 7,
+   "ros_points": 96.3,
+   "trade_value": 12.2
+  },
+  {
+   "id": "rb29",
+   "name": "Sample RB 29",
+   "pos": "RB",
+   "nfl_team": "T16",
+   "bye": 6,
+   "ros_points": 94.7,
+   "trade_value": 11.4
+  },
+  {
+   "id": "rb30",
+   "name": "Sample RB 30",
+   "pos": "RB",
+   "nfl_team": "T28",
+   "bye": 13,
+   "ros_points": 74.3,
+   "trade_value": 5.6
+  },
+  {
+   "id": "rb31",
+   "name": "Sample RB 31",
+   "pos": "RB",
+   "nfl_team": "T18",
+   "bye": 10,
+   "ros_points": 75.9,
+   "trade_value": 6.4
+  },
+  {
+   "id": "rb32",
+   "name": "Sample RB 32",
+   "pos": "RB",
+   "nfl_team": "T28",
+   "bye": 14,
+   "ros_points": 69.7,
+   "trade_value": 3.4
+  },
+  {
+   "id": "rb33",
+   "name": "Sample RB 33",
+   "pos": "RB",
+   "nfl_team": "T29",
+   "bye": 12,
+   "ros_points": 68.0,
+   "trade_value": 2.5
+  },
+  {
+   "id": "rb34",
+   "name": "Sample RB 34",
+   "pos": "RB",
+   "nfl_team": "T13",
+   "bye": 7,
+   "ros_points": 70.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb35",
+   "name": "Sample RB 35",
+   "pos": "RB",
+   "nfl_team": "T30",
+   "bye": 10,
+   "ros_points": 66.5,
+   "trade_value": 1.8
+  },
+  {
+   "id": "rb36",
+   "name": "Sample RB 36",
+   "pos": "RB",
+   "nfl_team": "T25",
+   "bye": 12,
+   "ros_points": 61.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb37",
+   "name": "Sample RB 37",
+   "pos": "RB",
+   "nfl_team": "T22",
+   "bye": 8,
+   "ros_points": 75.0,
+   "trade_value": 1.5
+  },
+  {
+   "id": "rb38",
+   "name": "Sample RB 38",
+   "pos": "RB",
+   "nfl_team": "T31",
+   "bye": 14,
+   "ros_points": 63.6,
+   "trade_value": 0.3
+  },
+  {
+   "id": "rb39",
+   "name": "Sample RB 39",
+   "pos": "RB",
+   "nfl_team": "T12",
+   "bye": 11,
+   "ros_points": 58.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb40",
+   "name": "Sample RB 40",
+   "pos": "RB",
+   "nfl_team": "T01",
+   "bye": 6,
+   "ros_points": 63.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb41",
+   "name": "Sample RB 41",
+   "pos": "RB",
+   "nfl_team": "T29",
+   "bye": 7,
+   "ros_points": 62.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb42",
+   "name": "Sample RB 42",
+   "pos": "RB",
+   "nfl_team": "T03",
+   "bye": 10,
+   "ros_points": 60.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb43",
+   "name": "Sample RB 43",
+   "pos": "RB",
+   "nfl_team": "T15",
+   "bye": 14,
+   "ros_points": 56.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb44",
+   "name": "Sample RB 44",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 9,
+   "ros_points": 63.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb45",
+   "name": "Sample RB 45",
+   "pos": "RB",
+   "nfl_team": "T30",
+   "bye": 6,
+   "ros_points": 58.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb46",
+   "name": "Sample RB 46",
+   "pos": "RB",
+   "nfl_team": "T20",
+   "bye": 7,
+   "ros_points": 59.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb47",
+   "name": "Sample RB 47",
+   "pos": "RB",
+   "nfl_team": "T05",
+   "bye": 5,
+   "ros_points": 59.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb48",
+   "name": "Sample RB 48",
+   "pos": "RB",
+   "nfl_team": "T13",
+   "bye": 11,
+   "ros_points": 45.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb49",
+   "name": "Sample RB 49",
+   "pos": "RB",
+   "nfl_team": "T26",
+   "bye": 11,
+   "ros_points": 51.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb50",
+   "name": "Sample RB 50",
+   "pos": "RB",
+   "nfl_team": "T03",
+   "bye": 13,
+   "ros_points": 49.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb51",
+   "name": "Sample RB 51",
+   "pos": "RB",
+   "nfl_team": "T25",
+   "bye": 11,
+   "ros_points": 50.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb52",
+   "name": "Sample RB 52",
+   "pos": "RB",
+   "nfl_team": "T16",
+   "bye": 13,
+   "ros_points": 49.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb53",
+   "name": "Sample RB 53",
+   "pos": "RB",
+   "nfl_team": "T01",
+   "bye": 7,
+   "ros_points": 55.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb54",
+   "name": "Sample RB 54",
+   "pos": "RB",
+   "nfl_team": "T00",
+   "bye": 9,
+   "ros_points": 45.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb55",
+   "name": "Sample RB 55",
+   "pos": "RB",
+   "nfl_team": "T07",
+   "bye": 12,
+   "ros_points": 40.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb56",
+   "name": "Sample RB 56",
+   "pos": "RB",
+   "nfl_team": "T18",
+   "bye": 14,
+   "ros_points": 39.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb57",
+   "name": "Sample RB 57",
+   "pos": "RB",
+   "nfl_team": "T18",
+   "bye": 8,
+   "ros_points": 42.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb58",
+   "name": "Sample RB 58",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 6,
+   "ros_points": 42.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb59",
+   "name": "Sample RB 59",
+   "pos": "RB",
+   "nfl_team": "T09",
+   "bye": 9,
+   "ros_points": 40.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb60",
+   "name": "Sample RB 60",
+   "pos": "RB",
+   "nfl_team": "T17",
+   "bye": 13,
+   "ros_points": 41.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb61",
+   "name": "Sample RB 61",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 9,
+   "ros_points": 45.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb62",
+   "name": "Sample RB 62",
+   "pos": "RB",
+   "nfl_team": "T06",
+   "bye": 7,
+   "ros_points": 42.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb63",
+   "name": "Sample RB 63",
+   "pos": "RB",
+   "nfl_team": "T01",
+   "bye": 8,
+   "ros_points": 41.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb64",
+   "name": "Sample RB 64",
+   "pos": "RB",
+   "nfl_team": "T30",
+   "bye": 9,
+   "ros_points": 42.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb65",
+   "name": "Sample RB 65",
+   "pos": "RB",
+   "nfl_team": "T01",
+   "bye": 5,
+   "ros_points": 41.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb66",
+   "name": "Sample RB 66",
+   "pos": "RB",
+   "nfl_team": "T10",
+   "bye": 13,
+   "ros_points": 32.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb67",
+   "name": "Sample RB 67",
+   "pos": "RB",
+   "nfl_team": "T20",
+   "bye": 8,
+   "ros_points": 34.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb68",
+   "name": "Sample RB 68",
+   "pos": "RB",
+   "nfl_team": "T10",
+   "bye": 8,
+   "ros_points": 38.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb69",
+   "name": "Sample RB 69",
+   "pos": "RB",
+   "nfl_team": "T25",
+   "bye": 9,
+   "ros_points": 38.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb70",
+   "name": "Sample RB 70",
+   "pos": "RB",
+   "nfl_team": "T24",
+   "bye": 13,
+   "ros_points": 28.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb71",
+   "name": "Sample RB 71",
+   "pos": "RB",
+   "nfl_team": "T06",
+   "bye": 9,
+   "ros_points": 36.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb72",
+   "name": "Sample RB 72",
+   "pos": "RB",
+   "nfl_team": "T20",
+   "bye": 8,
+   "ros_points": 34.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb73",
+   "name": "Sample RB 73",
+   "pos": "RB",
+   "nfl_team": "T03",
+   "bye": 12,
+   "ros_points": 29.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb74",
+   "name": "Sample RB 74",
+   "pos": "RB",
+   "nfl_team": "T20",
+   "bye": 5,
+   "ros_points": 33.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb75",
+   "name": "Sample RB 75",
+   "pos": "RB",
+   "nfl_team": "T25",
+   "bye": 11,
+   "ros_points": 29.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb76",
+   "name": "Sample RB 76",
+   "pos": "RB",
+   "nfl_team": "T23",
+   "bye": 5,
+   "ros_points": 29.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb77",
+   "name": "Sample RB 77",
+   "pos": "RB",
+   "nfl_team": "T28",
+   "bye": 9,
+   "ros_points": 32.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb78",
+   "name": "Sample RB 78",
+   "pos": "RB",
+   "nfl_team": "T00",
+   "bye": 8,
+   "ros_points": 27.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb79",
+   "name": "Sample RB 79",
+   "pos": "RB",
+   "nfl_team": "T06",
+   "bye": 11,
+   "ros_points": 25.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb80",
+   "name": "Sample RB 80",
+   "pos": "RB",
+   "nfl_team": "T30",
+   "bye": 11,
+   "ros_points": 24.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb81",
+   "name": "Sample RB 81",
+   "pos": "RB",
+   "nfl_team": "T08",
+   "bye": 6,
+   "ros_points": 26.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb82",
+   "name": "Sample RB 82",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 14,
+   "ros_points": 23.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb83",
+   "name": "Sample RB 83",
+   "pos": "RB",
+   "nfl_team": "T12",
+   "bye": 10,
+   "ros_points": 21.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb84",
+   "name": "Sample RB 84",
+   "pos": "RB",
+   "nfl_team": "T21",
+   "bye": 6,
+   "ros_points": 23.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb85",
+   "name": "Sample RB 85",
+   "pos": "RB",
+   "nfl_team": "T12",
+   "bye": 10,
+   "ros_points": 23.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb86",
+   "name": "Sample RB 86",
+   "pos": "RB",
+   "nfl_team": "T17",
+   "bye": 11,
+   "ros_points": 21.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb87",
+   "name": "Sample RB 87",
+   "pos": "RB",
+   "nfl_team": "T07",
+   "bye": 12,
+   "ros_points": 19.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb88",
+   "name": "Sample RB 88",
+   "pos": "RB",
+   "nfl_team": "T14",
+   "bye": 13,
+   "ros_points": 19.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb89",
+   "name": "Sample RB 89",
+   "pos": "RB",
+   "nfl_team": "T24",
+   "bye": 8,
+   "ros_points": 21.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "rb90",
+   "name": "Sample RB 90",
+   "pos": "RB",
+   "nfl_team": "T09",
+   "bye": 13,
+   "ros_points": 20.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr1",
+   "name": "Sample WR 1",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 6,
+   "ros_points": 139.2,
+   "trade_value": 35.4
+  },
+  {
+   "id": "wr2",
+   "name": "Sample WR 2",
+   "pos": "WR",
+   "nfl_team": "T04",
+   "bye": 10,
+   "ros_points": 121.2,
+   "trade_value": 30.7
+  },
+  {
+   "id": "wr3",
+   "name": "Sample WR 3",
+   "pos": "WR",
+   "nfl_team": "T02",
+   "bye": 11,
+   "ros_points": 119.3,
+   "trade_value": 29.7
+  },
+  {
+   "id": "wr4",
+   "name": "Sample WR 4",
+   "pos": "WR",
+   "nfl_team": "T08",
+   "bye": 12,
+   "ros_points": 137.1,
+   "trade_value": 38.6
+  },
+  {
+   "id": "wr5",
+   "name": "Sample WR 5",
+   "pos": "WR",
+   "nfl_team": "T26",
+   "bye": 12,
+   "ros_points": 119.9,
+   "trade_value": 30.0
+  },
+  {
+   "id": "wr6",
+   "name": "Sample WR 6",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 13,
+   "ros_points": 125.7,
+   "trade_value": 32.9
+  },
+  {
+   "id": "wr7",
+   "name": "Sample WR 7",
+   "pos": "WR",
+   "nfl_team": "T28",
+   "bye": 6,
+   "ros_points": 136.3,
+   "trade_value": 33.9
+  },
+  {
+   "id": "wr8",
+   "name": "Sample WR 8",
+   "pos": "WR",
+   "nfl_team": "T22",
+   "bye": 8,
+   "ros_points": 132.5,
+   "trade_value": 32.1
+  },
+  {
+   "id": "wr9",
+   "name": "Sample WR 9",
+   "pos": "WR",
+   "nfl_team": "T23",
+   "bye": 11,
+   "ros_points": 107.6,
+   "trade_value": 23.9
+  },
+  {
+   "id": "wr10",
+   "name": "Sample WR 10",
+   "pos": "WR",
+   "nfl_team": "T26",
+   "bye": 10,
+   "ros_points": 121.5,
+   "trade_value": 30.8
+  },
+  {
+   "id": "wr11",
+   "name": "Sample WR 11",
+   "pos": "WR",
+   "nfl_team": "T11",
+   "bye": 8,
+   "ros_points": 134.0,
+   "trade_value": 32.8
+  },
+  {
+   "id": "wr12",
+   "name": "Sample WR 12",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 7,
+   "ros_points": 116.4,
+   "trade_value": 24.0
+  },
+  {
+   "id": "wr13",
+   "name": "Sample WR 13",
+   "pos": "WR",
+   "nfl_team": "T06",
+   "bye": 13,
+   "ros_points": 115.4,
+   "trade_value": 27.8
+  },
+  {
+   "id": "wr14",
+   "name": "Sample WR 14",
+   "pos": "WR",
+   "nfl_team": "T17",
+   "bye": 12,
+   "ros_points": 103.0,
+   "trade_value": 21.6
+  },
+  {
+   "id": "wr15",
+   "name": "Sample WR 15",
+   "pos": "WR",
+   "nfl_team": "T28",
+   "bye": 11,
+   "ros_points": 111.6,
+   "trade_value": 25.9
+  },
+  {
+   "id": "wr16",
+   "name": "Sample WR 16",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 13,
+   "ros_points": 96.8,
+   "trade_value": 18.5
+  },
+  {
+   "id": "wr17",
+   "name": "Sample WR 17",
+   "pos": "WR",
+   "nfl_team": "T20",
+   "bye": 9,
+   "ros_points": 124.7,
+   "trade_value": 28.2
+  },
+  {
+   "id": "wr18",
+   "name": "Sample WR 18",
+   "pos": "WR",
+   "nfl_team": "T31",
+   "bye": 9,
+   "ros_points": 120.9,
+   "trade_value": 26.3
+  },
+  {
+   "id": "wr19",
+   "name": "Sample WR 19",
+   "pos": "WR",
+   "nfl_team": "T26",
+   "bye": 12,
+   "ros_points": 108.5,
+   "trade_value": 24.3
+  },
+  {
+   "id": "wr20",
+   "name": "Sample WR 20",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 11,
+   "ros_points": 103.6,
+   "trade_value": 21.9
+  },
+  {
+   "id": "wr21",
+   "name": "Sample WR 21",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 6,
+   "ros_points": 113.5,
+   "trade_value": 22.5
+  },
+  {
+   "id": "wr22",
+   "name": "Sample WR 22",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 10,
+   "ros_points": 100.0,
+   "trade_value": 20.1
+  },
+  {
+   "id": "wr23",
+   "name": "Sample WR 23",
+   "pos": "WR",
+   "nfl_team": "T14",
+   "bye": 7,
+   "ros_points": 111.6,
+   "trade_value": 21.6
+  },
+  {
+   "id": "wr24",
+   "name": "Sample WR 24",
+   "pos": "WR",
+   "nfl_team": "T13",
+   "bye": 8,
+   "ros_points": 102.6,
+   "trade_value": 17.1
+  },
+  {
+   "id": "wr25",
+   "name": "Sample WR 25",
+   "pos": "WR",
+   "nfl_team": "T27",
+   "bye": 8,
+   "ros_points": 93.9,
+   "trade_value": 12.7
+  },
+  {
+   "id": "wr26",
+   "name": "Sample WR 26",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 6,
+   "ros_points": 102.8,
+   "trade_value": 17.2
+  },
+  {
+   "id": "wr27",
+   "name": "Sample WR 27",
+   "pos": "WR",
+   "nfl_team": "T23",
+   "bye": 5,
+   "ros_points": 101.2,
+   "trade_value": 16.4
+  },
+  {
+   "id": "wr28",
+   "name": "Sample WR 28",
+   "pos": "WR",
+   "nfl_team": "T26",
+   "bye": 5,
+   "ros_points": 96.3,
+   "trade_value": 14.0
+  },
+  {
+   "id": "wr29",
+   "name": "Sample WR 29",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 8,
+   "ros_points": 105.3,
+   "trade_value": 18.4
+  },
+  {
+   "id": "wr30",
+   "name": "Sample WR 30",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 5,
+   "ros_points": 88.6,
+   "trade_value": 10.1
+  },
+  {
+   "id": "wr31",
+   "name": "Sample WR 31",
+   "pos": "WR",
+   "nfl_team": "T04",
+   "bye": 6,
+   "ros_points": 103.3,
+   "trade_value": 17.5
+  },
+  {
+   "id": "wr32",
+   "name": "Sample WR 32",
+   "pos": "WR",
+   "nfl_team": "T26",
+   "bye": 14,
+   "ros_points": 84.4,
+   "trade_value": 12.3
+  },
+  {
+   "id": "wr33",
+   "name": "Sample WR 33",
+   "pos": "WR",
+   "nfl_team": "T03",
+   "bye": 7,
+   "ros_points": 98.8,
+   "trade_value": 15.2
+  },
+  {
+   "id": "wr34",
+   "name": "Sample WR 34",
+   "pos": "WR",
+   "nfl_team": "T31",
+   "bye": 11,
+   "ros_points": 72.0,
+   "trade_value": 6.1
+  },
+  {
+   "id": "wr35",
+   "name": "Sample WR 35",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 6,
+   "ros_points": 81.5,
+   "trade_value": 6.5
+  },
+  {
+   "id": "wr36",
+   "name": "Sample WR 36",
+   "pos": "WR",
+   "nfl_team": "T14",
+   "bye": 14,
+   "ros_points": 77.1,
+   "trade_value": 8.6
+  },
+  {
+   "id": "wr37",
+   "name": "Sample WR 37",
+   "pos": "WR",
+   "nfl_team": "T06",
+   "bye": 13,
+   "ros_points": 78.5,
+   "trade_value": 9.3
+  },
+  {
+   "id": "wr38",
+   "name": "Sample WR 38",
+   "pos": "WR",
+   "nfl_team": "T06",
+   "bye": 12,
+   "ros_points": 79.7,
+   "trade_value": 9.9
+  },
+  {
+   "id": "wr39",
+   "name": "Sample WR 39",
+   "pos": "WR",
+   "nfl_team": "T02",
+   "bye": 6,
+   "ros_points": 87.2,
+   "trade_value": 9.4
+  },
+  {
+   "id": "wr40",
+   "name": "Sample WR 40",
+   "pos": "WR",
+   "nfl_team": "T01",
+   "bye": 6,
+   "ros_points": 81.0,
+   "trade_value": 6.3
+  },
+  {
+   "id": "wr41",
+   "name": "Sample WR 41",
+   "pos": "WR",
+   "nfl_team": "T09",
+   "bye": 8,
+   "ros_points": 77.2,
+   "trade_value": 4.4
+  },
+  {
+   "id": "wr42",
+   "name": "Sample WR 42",
+   "pos": "WR",
+   "nfl_team": "T14",
+   "bye": 7,
+   "ros_points": 82.3,
+   "trade_value": 7.0
+  },
+  {
+   "id": "wr43",
+   "name": "Sample WR 43",
+   "pos": "WR",
+   "nfl_team": "T31",
+   "bye": 14,
+   "ros_points": 61.9,
+   "trade_value": 1.0
+  },
+  {
+   "id": "wr44",
+   "name": "Sample WR 44",
+   "pos": "WR",
+   "nfl_team": "T29",
+   "bye": 7,
+   "ros_points": 82.3,
+   "trade_value": 7.0
+  },
+  {
+   "id": "wr45",
+   "name": "Sample WR 45",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 5,
+   "ros_points": 71.4,
+   "trade_value": 1.5
+  },
+  {
+   "id": "wr46",
+   "name": "Sample WR 46",
+   "pos": "WR",
+   "nfl_team": "T03",
+   "bye": 10,
+   "ros_points": 61.2,
+   "trade_value": 0.7
+  },
+  {
+   "id": "wr47",
+   "name": "Sample WR 47",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 14,
+   "ros_points": 57.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr48",
+   "name": "Sample WR 48",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 6,
+   "ros_points": 66.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr49",
+   "name": "Sample WR 49",
+   "pos": "WR",
+   "nfl_team": "T15",
+   "bye": 11,
+   "ros_points": 66.2,
+   "trade_value": 3.2
+  },
+  {
+   "id": "wr50",
+   "name": "Sample WR 50",
+   "pos": "WR",
+   "nfl_team": "T21",
+   "bye": 6,
+   "ros_points": 65.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr51",
+   "name": "Sample WR 51",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 7,
+   "ros_points": 65.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr52",
+   "name": "Sample WR 52",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 13,
+   "ros_points": 56.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr53",
+   "name": "Sample WR 53",
+   "pos": "WR",
+   "nfl_team": "T17",
+   "bye": 9,
+   "ros_points": 67.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr54",
+   "name": "Sample WR 54",
+   "pos": "WR",
+   "nfl_team": "T25",
+   "bye": 14,
+   "ros_points": 55.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr55",
+   "name": "Sample WR 55",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 8,
+   "ros_points": 68.8,
+   "trade_value": 0.2
+  },
+  {
+   "id": "wr56",
+   "name": "Sample WR 56",
+   "pos": "WR",
+   "nfl_team": "T03",
+   "bye": 8,
+   "ros_points": 58.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr57",
+   "name": "Sample WR 57",
+   "pos": "WR",
+   "nfl_team": "T30",
+   "bye": 14,
+   "ros_points": 59.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr58",
+   "name": "Sample WR 58",
+   "pos": "WR",
+   "nfl_team": "T31",
+   "bye": 11,
+   "ros_points": 50.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr59",
+   "name": "Sample WR 59",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 12,
+   "ros_points": 49.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr60",
+   "name": "Sample WR 60",
+   "pos": "WR",
+   "nfl_team": "T29",
+   "bye": 10,
+   "ros_points": 51.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr61",
+   "name": "Sample WR 61",
+   "pos": "WR",
+   "nfl_team": "T10",
+   "bye": 12,
+   "ros_points": 46.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr62",
+   "name": "Sample WR 62",
+   "pos": "WR",
+   "nfl_team": "T02",
+   "bye": 14,
+   "ros_points": 51.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr63",
+   "name": "Sample WR 63",
+   "pos": "WR",
+   "nfl_team": "T14",
+   "bye": 14,
+   "ros_points": 46.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr64",
+   "name": "Sample WR 64",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 6,
+   "ros_points": 59.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr65",
+   "name": "Sample WR 65",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 14,
+   "ros_points": 50.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr66",
+   "name": "Sample WR 66",
+   "pos": "WR",
+   "nfl_team": "T27",
+   "bye": 7,
+   "ros_points": 56.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr67",
+   "name": "Sample WR 67",
+   "pos": "WR",
+   "nfl_team": "T23",
+   "bye": 14,
+   "ros_points": 47.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr68",
+   "name": "Sample WR 68",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 8,
+   "ros_points": 50.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr69",
+   "name": "Sample WR 69",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 12,
+   "ros_points": 47.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr70",
+   "name": "Sample WR 70",
+   "pos": "WR",
+   "nfl_team": "T19",
+   "bye": 13,
+   "ros_points": 47.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr71",
+   "name": "Sample WR 71",
+   "pos": "WR",
+   "nfl_team": "T29",
+   "bye": 13,
+   "ros_points": 41.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr72",
+   "name": "Sample WR 72",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 7,
+   "ros_points": 45.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr73",
+   "name": "Sample WR 73",
+   "pos": "WR",
+   "nfl_team": "T30",
+   "bye": 6,
+   "ros_points": 44.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr74",
+   "name": "Sample WR 74",
+   "pos": "WR",
+   "nfl_team": "T25",
+   "bye": 9,
+   "ros_points": 48.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr75",
+   "name": "Sample WR 75",
+   "pos": "WR",
+   "nfl_team": "T25",
+   "bye": 10,
+   "ros_points": 38.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr76",
+   "name": "Sample WR 76",
+   "pos": "WR",
+   "nfl_team": "T20",
+   "bye": 13,
+   "ros_points": 41.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr77",
+   "name": "Sample WR 77",
+   "pos": "WR",
+   "nfl_team": "T13",
+   "bye": 7,
+   "ros_points": 49.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr78",
+   "name": "Sample WR 78",
+   "pos": "WR",
+   "nfl_team": "T22",
+   "bye": 5,
+   "ros_points": 43.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr79",
+   "name": "Sample WR 79",
+   "pos": "WR",
+   "nfl_team": "T10",
+   "bye": 12,
+   "ros_points": 40.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr80",
+   "name": "Sample WR 80",
+   "pos": "WR",
+   "nfl_team": "T06",
+   "bye": 9,
+   "ros_points": 44.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr81",
+   "name": "Sample WR 81",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 10,
+   "ros_points": 37.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr82",
+   "name": "Sample WR 82",
+   "pos": "WR",
+   "nfl_team": "T23",
+   "bye": 12,
+   "ros_points": 33.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr83",
+   "name": "Sample WR 83",
+   "pos": "WR",
+   "nfl_team": "T30",
+   "bye": 11,
+   "ros_points": 32.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr84",
+   "name": "Sample WR 84",
+   "pos": "WR",
+   "nfl_team": "T13",
+   "bye": 9,
+   "ros_points": 40.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr85",
+   "name": "Sample WR 85",
+   "pos": "WR",
+   "nfl_team": "T16",
+   "bye": 10,
+   "ros_points": 36.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr86",
+   "name": "Sample WR 86",
+   "pos": "WR",
+   "nfl_team": "T02",
+   "bye": 14,
+   "ros_points": 35.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr87",
+   "name": "Sample WR 87",
+   "pos": "WR",
+   "nfl_team": "T17",
+   "bye": 9,
+   "ros_points": 38.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr88",
+   "name": "Sample WR 88",
+   "pos": "WR",
+   "nfl_team": "T01",
+   "bye": 11,
+   "ros_points": 35.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr89",
+   "name": "Sample WR 89",
+   "pos": "WR",
+   "nfl_team": "T20",
+   "bye": 6,
+   "ros_points": 36.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr90",
+   "name": "Sample WR 90",
+   "pos": "WR",
+   "nfl_team": "T02",
+   "bye": 12,
+   "ros_points": 32.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr91",
+   "name": "Sample WR 91",
+   "pos": "WR",
+   "nfl_team": "T07",
+   "bye": 8,
+   "ros_points": 36.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr92",
+   "name": "Sample WR 92",
+   "pos": "WR",
+   "nfl_team": "T28",
+   "bye": 7,
+   "ros_points": 33.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr93",
+   "name": "Sample WR 93",
+   "pos": "WR",
+   "nfl_team": "T14",
+   "bye": 12,
+   "ros_points": 28.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr94",
+   "name": "Sample WR 94",
+   "pos": "WR",
+   "nfl_team": "T22",
+   "bye": 14,
+   "ros_points": 31.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr95",
+   "name": "Sample WR 95",
+   "pos": "WR",
+   "nfl_team": "T25",
+   "bye": 9,
+   "ros_points": 34.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr96",
+   "name": "Sample WR 96",
+   "pos": "WR",
+   "nfl_team": "T19",
+   "bye": 13,
+   "ros_points": 28.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr97",
+   "name": "Sample WR 97",
+   "pos": "WR",
+   "nfl_team": "T21",
+   "bye": 8,
+   "ros_points": 34.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr98",
+   "name": "Sample WR 98",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 9,
+   "ros_points": 33.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr99",
+   "name": "Sample WR 99",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 7,
+   "ros_points": 32.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr100",
+   "name": "Sample WR 100",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 14,
+   "ros_points": 28.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr101",
+   "name": "Sample WR 101",
+   "pos": "WR",
+   "nfl_team": "T24",
+   "bye": 5,
+   "ros_points": 30.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr102",
+   "name": "Sample WR 102",
+   "pos": "WR",
+   "nfl_team": "T10",
+   "bye": 5,
+   "ros_points": 30.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr103",
+   "name": "Sample WR 103",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 13,
+   "ros_points": 27.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr104",
+   "name": "Sample WR 104",
+   "pos": "WR",
+   "nfl_team": "T25",
+   "bye": 5,
+   "ros_points": 31.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr105",
+   "name": "Sample WR 105",
+   "pos": "WR",
+   "nfl_team": "T22",
+   "bye": 12,
+   "ros_points": 24.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr106",
+   "name": "Sample WR 106",
+   "pos": "WR",
+   "nfl_team": "T12",
+   "bye": 12,
+   "ros_points": 22.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr107",
+   "name": "Sample WR 107",
+   "pos": "WR",
+   "nfl_team": "T18",
+   "bye": 7,
+   "ros_points": 29.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr108",
+   "name": "Sample WR 108",
+   "pos": "WR",
+   "nfl_team": "T21",
+   "bye": 13,
+   "ros_points": 24.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr109",
+   "name": "Sample WR 109",
+   "pos": "WR",
+   "nfl_team": "T18",
+   "bye": 7,
+   "ros_points": 28.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr110",
+   "name": "Sample WR 110",
+   "pos": "WR",
+   "nfl_team": "T05",
+   "bye": 6,
+   "ros_points": 26.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr111",
+   "name": "Sample WR 111",
+   "pos": "WR",
+   "nfl_team": "T09",
+   "bye": 11,
+   "ros_points": 21.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr112",
+   "name": "Sample WR 112",
+   "pos": "WR",
+   "nfl_team": "T31",
+   "bye": 10,
+   "ros_points": 22.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr113",
+   "name": "Sample WR 113",
+   "pos": "WR",
+   "nfl_team": "T14",
+   "bye": 8,
+   "ros_points": 24.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr114",
+   "name": "Sample WR 114",
+   "pos": "WR",
+   "nfl_team": "T18",
+   "bye": 7,
+   "ros_points": 24.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr115",
+   "name": "Sample WR 115",
+   "pos": "WR",
+   "nfl_team": "T28",
+   "bye": 7,
+   "ros_points": 26.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr116",
+   "name": "Sample WR 116",
+   "pos": "WR",
+   "nfl_team": "T08",
+   "bye": 8,
+   "ros_points": 23.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr117",
+   "name": "Sample WR 117",
+   "pos": "WR",
+   "nfl_team": "T15",
+   "bye": 8,
+   "ros_points": 25.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr118",
+   "name": "Sample WR 118",
+   "pos": "WR",
+   "nfl_team": "T02",
+   "bye": 6,
+   "ros_points": 24.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr119",
+   "name": "Sample WR 119",
+   "pos": "WR",
+   "nfl_team": "T10",
+   "bye": 7,
+   "ros_points": 24.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "wr120",
+   "name": "Sample WR 120",
+   "pos": "WR",
+   "nfl_team": "T06",
+   "bye": 5,
+   "ros_points": 22.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te1",
+   "name": "Sample TE 1",
+   "pos": "TE",
+   "nfl_team": "T26",
+   "bye": 7,
+   "ros_points": 110.2,
+   "trade_value": 29.9
+  },
+  {
+   "id": "te2",
+   "name": "Sample TE 2",
+   "pos": "TE",
+   "nfl_team": "T15",
+   "bye": 6,
+   "ros_points": 115.2,
+   "trade_value": 32.4
+  },
+  {
+   "id": "te3",
+   "name": "Sample TE 3",
+   "pos": "TE",
+   "nfl_team": "T14",
+   "bye": 11,
+   "ros_points": 96.3,
+   "trade_value": 26.1
+  },
+  {
+   "id": "te4",
+   "name": "Sample TE 4",
+   "pos": "TE",
+   "nfl_team": "T17",
+   "bye": 11,
+   "ros_points": 86.0,
+   "trade_value": 20.9
+  },
+  {
+   "id": "te5",
+   "name": "Sample TE 5",
+   "pos": "TE",
+   "nfl_team": "T10",
+   "bye": 10,
+   "ros_points": 80.1,
+   "trade_value": 18.0
+  },
+  {
+   "id": "te6",
+   "name": "Sample TE 6",
+   "pos": "TE",
+   "nfl_team": "T24",
+   "bye": 13,
+   "ros_points": 85.7,
+   "trade_value": 20.8
+  },
+  {
+   "id": "te7",
+   "name": "Sample TE 7",
+   "pos": "TE",
+   "nfl_team": "T23",
+   "bye": 6,
+   "ros_points": 82.7,
+   "trade_value": 16.2
+  },
+  {
+   "id": "te8",
+   "name": "Sample TE 8",
+   "pos": "TE",
+   "nfl_team": "T14",
+   "bye": 9,
+   "ros_points": 93.2,
+   "trade_value": 21.4
+  },
+  {
+   "id": "te9",
+   "name": "Sample TE 9",
+   "pos": "TE",
+   "nfl_team": "T21",
+   "bye": 6,
+   "ros_points": 77.2,
+   "trade_value": 13.4
+  },
+  {
+   "id": "te10",
+   "name": "Sample TE 10",
+   "pos": "TE",
+   "nfl_team": "T20",
+   "bye": 8,
+   "ros_points": 77.6,
+   "trade_value": 13.6
+  },
+  {
+   "id": "te11",
+   "name": "Sample TE 11",
+   "pos": "TE",
+   "nfl_team": "T20",
+   "bye": 7,
+   "ros_points": 77.0,
+   "trade_value": 13.3
+  },
+  {
+   "id": "te12",
+   "name": "Sample TE 12",
+   "pos": "TE",
+   "nfl_team": "T15",
+   "bye": 7,
+   "ros_points": 72.5,
+   "trade_value": 11.1
+  },
+  {
+   "id": "te13",
+   "name": "Sample TE 13",
+   "pos": "TE",
+   "nfl_team": "T20",
+   "bye": 13,
+   "ros_points": 64.7,
+   "trade_value": 10.3
+  },
+  {
+   "id": "te14",
+   "name": "Sample TE 14",
+   "pos": "TE",
+   "nfl_team": "T30",
+   "bye": 5,
+   "ros_points": 66.8,
+   "trade_value": 8.2
+  },
+  {
+   "id": "te15",
+   "name": "Sample TE 15",
+   "pos": "TE",
+   "nfl_team": "T09",
+   "bye": 13,
+   "ros_points": 57.5,
+   "trade_value": 6.7
+  },
+  {
+   "id": "te16",
+   "name": "Sample TE 16",
+   "pos": "TE",
+   "nfl_team": "T02",
+   "bye": 8,
+   "ros_points": 63.0,
+   "trade_value": 6.3
+  },
+  {
+   "id": "te17",
+   "name": "Sample TE 17",
+   "pos": "TE",
+   "nfl_team": "T24",
+   "bye": 14,
+   "ros_points": 55.1,
+   "trade_value": 5.5
+  },
+  {
+   "id": "te18",
+   "name": "Sample TE 18",
+   "pos": "TE",
+   "nfl_team": "T06",
+   "bye": 13,
+   "ros_points": 56.3,
+   "trade_value": 6.1
+  },
+  {
+   "id": "te19",
+   "name": "Sample TE 19",
+   "pos": "TE",
+   "nfl_team": "T10",
+   "bye": 5,
+   "ros_points": 55.3,
+   "trade_value": 2.5
+  },
+  {
+   "id": "te20",
+   "name": "Sample TE 20",
+   "pos": "TE",
+   "nfl_team": "T15",
+   "bye": 8,
+   "ros_points": 60.7,
+   "trade_value": 5.1
+  },
+  {
+   "id": "te21",
+   "name": "Sample TE 21",
+   "pos": "TE",
+   "nfl_team": "T21",
+   "bye": 7,
+   "ros_points": 60.3,
+   "trade_value": 5.0
+  },
+  {
+   "id": "te22",
+   "name": "Sample TE 22",
+   "pos": "TE",
+   "nfl_team": "T24",
+   "bye": 13,
+   "ros_points": 48.1,
+   "trade_value": 2.0
+  },
+  {
+   "id": "te23",
+   "name": "Sample TE 23",
+   "pos": "TE",
+   "nfl_team": "T11",
+   "bye": 5,
+   "ros_points": 54.5,
+   "trade_value": 2.0
+  },
+  {
+   "id": "te24",
+   "name": "Sample TE 24",
+   "pos": "TE",
+   "nfl_team": "T14",
+   "bye": 14,
+   "ros_points": 41.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te25",
+   "name": "Sample TE 25",
+   "pos": "TE",
+   "nfl_team": "T04",
+   "bye": 5,
+   "ros_points": 48.2,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te26",
+   "name": "Sample TE 26",
+   "pos": "TE",
+   "nfl_team": "T20",
+   "bye": 7,
+   "ros_points": 46.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te27",
+   "name": "Sample TE 27",
+   "pos": "TE",
+   "nfl_team": "T04",
+   "bye": 13,
+   "ros_points": 36.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te28",
+   "name": "Sample TE 28",
+   "pos": "TE",
+   "nfl_team": "T09",
+   "bye": 14,
+   "ros_points": 35.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te29",
+   "name": "Sample TE 29",
+   "pos": "TE",
+   "nfl_team": "T00",
+   "bye": 7,
+   "ros_points": 45.9,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te30",
+   "name": "Sample TE 30",
+   "pos": "TE",
+   "nfl_team": "T05",
+   "bye": 9,
+   "ros_points": 38.0,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te31",
+   "name": "Sample TE 31",
+   "pos": "TE",
+   "nfl_team": "T00",
+   "bye": 13,
+   "ros_points": 34.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te32",
+   "name": "Sample TE 32",
+   "pos": "TE",
+   "nfl_team": "T05",
+   "bye": 6,
+   "ros_points": 37.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te33",
+   "name": "Sample TE 33",
+   "pos": "TE",
+   "nfl_team": "T25",
+   "bye": 12,
+   "ros_points": 30.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te34",
+   "name": "Sample TE 34",
+   "pos": "TE",
+   "nfl_team": "T19",
+   "bye": 9,
+   "ros_points": 33.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te35",
+   "name": "Sample TE 35",
+   "pos": "TE",
+   "nfl_team": "T13",
+   "bye": 13,
+   "ros_points": 29.3,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te36",
+   "name": "Sample TE 36",
+   "pos": "TE",
+   "nfl_team": "T05",
+   "bye": 11,
+   "ros_points": 30.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te37",
+   "name": "Sample TE 37",
+   "pos": "TE",
+   "nfl_team": "T28",
+   "bye": 7,
+   "ros_points": 34.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te38",
+   "name": "Sample TE 38",
+   "pos": "TE",
+   "nfl_team": "T01",
+   "bye": 8,
+   "ros_points": 31.7,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te39",
+   "name": "Sample TE 39",
+   "pos": "TE",
+   "nfl_team": "T19",
+   "bye": 14,
+   "ros_points": 26.8,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te40",
+   "name": "Sample TE 40",
+   "pos": "TE",
+   "nfl_team": "T06",
+   "bye": 14,
+   "ros_points": 26.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te41",
+   "name": "Sample TE 41",
+   "pos": "TE",
+   "nfl_team": "T28",
+   "bye": 5,
+   "ros_points": 30.1,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te42",
+   "name": "Sample TE 42",
+   "pos": "TE",
+   "nfl_team": "T10",
+   "bye": 7,
+   "ros_points": 24.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te43",
+   "name": "Sample TE 43",
+   "pos": "TE",
+   "nfl_team": "T26",
+   "bye": 13,
+   "ros_points": 20.4,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te44",
+   "name": "Sample TE 44",
+   "pos": "TE",
+   "nfl_team": "T31",
+   "bye": 14,
+   "ros_points": 23.6,
+   "trade_value": 0.0
+  },
+  {
+   "id": "te45",
+   "name": "Sample TE 45",
+   "pos": "TE",
+   "nfl_team": "T21",
+   "bye": 12,
+   "ros_points": 21.5,
+   "trade_value": 0.0
+  },
+  {
+   "id": "k1",
+   "name": "Sample K 1",
+   "pos": "K",
+   "nfl_team": "T18",
+   "bye": 8,
+   "ros_points": 78.7,
+   "trade_value": 22.3
+  },
+  {
+   "id": "k2",
+   "name": "Sample K 2",
+   "pos": "K",
+   "nfl_team": "T19",
+   "bye": 13,
+   "ros_points": 71.8,
+   "trade_value": 20.9
+  },
+  {
+   "id": "k3",
+   "name": "Sample K 3",
+   "pos": "K",
+   "nfl_team": "T16",
+   "bye": 8,
+   "ros_points": 72.0,
+   "trade_value": 18.9
+  },
+  {
+   "id": "k4",
+   "name": "Sample K 4",
+   "pos": "K",
+   "nfl_team": "T23",
+   "bye": 8,
+   "ros_points": 66.7,
+   "trade_value": 16.2
+  },
+  {
+   "id": "k5",
+   "name": "Sample K 5",
+   "pos": "K",
+   "nfl_team": "T13",
+   "bye": 10,
+   "ros_points": 66.4,
+   "trade_value": 18.2
+  },
+  {
+   "id": "k6",
+   "name": "Sample K 6",
+   "pos": "K",
+   "nfl_team": "T24",
+   "bye": 14,
+   "ros_points": 67.7,
+   "trade_value": 18.9
+  },
+  {
+   "id": "k7",
+   "name": "Sample K 7",
+   "pos": "K",
+   "nfl_team": "T02",
+   "bye": 10,
+   "ros_points": 60.6,
+   "trade_value": 15.3
+  },
+  {
+   "id": "k8",
+   "name": "Sample K 8",
+   "pos": "K",
+   "nfl_team": "T05",
+   "bye": 10,
+   "ros_points": 57.4,
+   "trade_value": 13.8
+  },
+  {
+   "id": "k9",
+   "name": "Sample K 9",
+   "pos": "K",
+   "nfl_team": "T14",
+   "bye": 14,
+   "ros_points": 59.0,
+   "trade_value": 14.5
+  },
+  {
+   "id": "k10",
+   "name": "Sample K 10",
+   "pos": "K",
+   "nfl_team": "T08",
+   "bye": 5,
+   "ros_points": 75.4,
+   "trade_value": 20.6
+  },
+  {
+   "id": "k11",
+   "name": "Sample K 11",
+   "pos": "K",
+   "nfl_team": "T21",
+   "bye": 12,
+   "ros_points": 65.0,
+   "trade_value": 17.5
+  },
+  {
+   "id": "k12",
+   "name": "Sample K 12",
+   "pos": "K",
+   "nfl_team": "T12",
+   "bye": 6,
+   "ros_points": 72.9,
+   "trade_value": 19.3
+  },
+  {
+   "id": "k13",
+   "name": "Sample K 13",
+   "pos": "K",
+   "nfl_team": "T25",
+   "bye": 5,
+   "ros_points": 60.7,
+   "trade_value": 13.3
+  },
+  {
+   "id": "k14",
+   "name": "Sample K 14",
+   "pos": "K",
+   "nfl_team": "T04",
+   "bye": 5,
+   "ros_points": 63.3,
+   "trade_value": 14.6
+  },
+  {
+   "id": "k15",
+   "name": "Sample K 15",
+   "pos": "K",
+   "nfl_team": "T21",
+   "bye": 5,
+   "ros_points": 70.0,
+   "trade_value": 17.9
+  },
+  {
+   "id": "k16",
+   "name": "Sample K 16",
+   "pos": "K",
+   "nfl_team": "T08",
+   "bye": 7,
+   "ros_points": 61.7,
+   "trade_value": 13.7
+  },
+  {
+   "id": "k17",
+   "name": "Sample K 17",
+   "pos": "K",
+   "nfl_team": "T08",
+   "bye": 12,
+   "ros_points": 61.6,
+   "trade_value": 15.9
+  },
+  {
+   "id": "k18",
+   "name": "Sample K 18",
+   "pos": "K",
+   "nfl_team": "T04",
+   "bye": 9,
+   "ros_points": 66.7,
+   "trade_value": 16.3
+  },
+  {
+   "id": "k19",
+   "name": "Sample K 19",
+   "pos": "K",
+   "nfl_team": "T03",
+   "bye": 10,
+   "ros_points": 59.0,
+   "trade_value": 14.6
+  },
+  {
+   "id": "k20",
+   "name": "Sample K 20",
+   "pos": "K",
+   "nfl_team": "T01",
+   "bye": 8,
+   "ros_points": 63.1,
+   "trade_value": 14.4
+  },
+  {
+   "id": "k21",
+   "name": "Sample K 21",
+   "pos": "K",
+   "nfl_team": "T27",
+   "bye": 6,
+   "ros_points": 62.8,
+   "trade_value": 14.3
+  },
+  {
+   "id": "k22",
+   "name": "Sample K 22",
+   "pos": "K",
+   "nfl_team": "T08",
+   "bye": 6,
+   "ros_points": 56.5,
+   "trade_value": 11.1
+  },
+  {
+   "id": "k23",
+   "name": "Sample K 23",
+   "pos": "K",
+   "nfl_team": "T19",
+   "bye": 13,
+   "ros_points": 56.2,
+   "trade_value": 13.1
+  },
+  {
+   "id": "k24",
+   "name": "Sample K 24",
+   "pos": "K",
+   "nfl_team": "T20",
+   "bye": 10,
+   "ros_points": 50.9,
+   "trade_value": 10.5
+  },
+  {
+   "id": "k25",
+   "name": "Sample K 25",
+   "pos": "K",
+   "nfl_team": "T27",
+   "bye": 12,
+   "ros_points": 51.8,
+   "trade_value": 11.0
+  },
+  {
+   "id": "k26",
+   "name": "Sample K 26",
+   "pos": "K",
+   "nfl_team": "T24",
+   "bye": 12,
+   "ros_points": 49.6,
+   "trade_value": 9.9
+  },
+  {
+   "id": "k27",
+   "name": "Sample K 27",
+   "pos": "K",
+   "nfl_team": "T23",
+   "bye": 7,
+   "ros_points": 60.2,
+   "trade_value": 13.0
+  },
+  {
+   "id": "k28",
+   "name": "Sample K 28",
+   "pos": "K",
+   "nfl_team": "T23",
+   "bye": 9,
+   "ros_points": 56.6,
+   "trade_value": 11.2
+  },
+  {
+   "id": "k29",
+   "name": "Sample K 29",
+   "pos": "K",
+   "nfl_team": "T12",
+   "bye": 6,
+   "ros_points": 59.7,
+   "trade_value": 12.8
+  },
+  {
+   "id": "k30",
+   "name": "Sample K 30",
+   "pos": "K",
+   "nfl_team": "T30",
+   "bye": 8,
+   "ros_points": 51.5,
+   "trade_value": 8.6
+  },
+  {
+   "id": "k31",
+   "name": "Sample K 31",
+   "pos": "K",
+   "nfl_team": "T06",
+   "bye": 7,
+   "ros_points": 58.7,
+   "trade_value": 12.3
+  },
+  {
+   "id": "k32",
+   "name": "Sample K 32",
+   "pos": "K",
+   "nfl_team": "T08",
+   "bye": 9,
+   "ros_points": 58.3,
+   "trade_value": 12.1
+  },
+  {
+   "id": "def1",
+   "name": "Sample DEF 1",
+   "pos": "DEF",
+   "nfl_team": "T27",
+   "bye": 5,
+   "ros_points": 79.5,
+   "trade_value": 21.8
+  },
+  {
+   "id": "def2",
+   "name": "Sample DEF 2",
+   "pos": "DEF",
+   "nfl_team": "T09",
+   "bye": 8,
+   "ros_points": 78.1,
+   "trade_value": 21.0
+  },
+  {
+   "id": "def3",
+   "name": "Sample DEF 3",
+   "pos": "DEF",
+   "nfl_team": "T02",
+   "bye": 10,
+   "ros_points": 65.4,
+   "trade_value": 17.0
+  },
+  {
+   "id": "def4",
+   "name": "Sample DEF 4",
+   "pos": "DEF",
+   "nfl_team": "T08",
+   "bye": 11,
+   "ros_points": 63.4,
+   "trade_value": 15.9
+  },
+  {
+   "id": "def5",
+   "name": "Sample DEF 5",
+   "pos": "DEF",
+   "nfl_team": "T02",
+   "bye": 12,
+   "ros_points": 61.9,
+   "trade_value": 15.2
+  },
+  {
+   "id": "def6",
+   "name": "Sample DEF 6",
+   "pos": "DEF",
+   "nfl_team": "T06",
+   "bye": 9,
+   "ros_points": 74.1,
+   "trade_value": 19.0
+  },
+  {
+   "id": "def7",
+   "name": "Sample DEF 7",
+   "pos": "DEF",
+   "nfl_team": "T29",
+   "bye": 13,
+   "ros_points": 67.4,
+   "trade_value": 18.0
+  },
+  {
+   "id": "def8",
+   "name": "Sample DEF 8",
+   "pos": "DEF",
+   "nfl_team": "T18",
+   "bye": 5,
+   "ros_points": 69.2,
+   "trade_value": 16.6
+  },
+  {
+   "id": "def9",
+   "name": "Sample DEF 9",
+   "pos": "DEF",
+   "nfl_team": "T02",
+   "bye": 10,
+   "ros_points": 62.7,
+   "trade_value": 15.6
+  },
+  {
+   "id": "def10",
+   "name": "Sample DEF 10",
+   "pos": "DEF",
+   "nfl_team": "T28",
+   "bye": 13,
+   "ros_points": 57.1,
+   "trade_value": 12.8
+  },
+  {
+   "id": "def11",
+   "name": "Sample DEF 11",
+   "pos": "DEF",
+   "nfl_team": "T25",
+   "bye": 13,
+   "ros_points": 60.5,
+   "trade_value": 14.5
+  },
+  {
+   "id": "def12",
+   "name": "Sample DEF 12",
+   "pos": "DEF",
+   "nfl_team": "T19",
+   "bye": 13,
+   "ros_points": 54.8,
+   "trade_value": 11.7
+  },
+  {
+   "id": "def13",
+   "name": "Sample DEF 13",
+   "pos": "DEF",
+   "nfl_team": "T27",
+   "bye": 14,
+   "ros_points": 63.5,
+   "trade_value": 16.0
+  },
+  {
+   "id": "def14",
+   "name": "Sample DEF 14",
+   "pos": "DEF",
+   "nfl_team": "T16",
+   "bye": 9,
+   "ros_points": 60.1,
+   "trade_value": 12.0
+  },
+  {
+   "id": "def15",
+   "name": "Sample DEF 15",
+   "pos": "DEF",
+   "nfl_team": "T24",
+   "bye": 10,
+   "ros_points": 56.0,
+   "trade_value": 12.3
+  },
+  {
+   "id": "def16",
+   "name": "Sample DEF 16",
+   "pos": "DEF",
+   "nfl_team": "T08",
+   "bye": 8,
+   "ros_points": 59.3,
+   "trade_value": 11.7
+  },
+  {
+   "id": "def17",
+   "name": "Sample DEF 17",
+   "pos": "DEF",
+   "nfl_team": "T15",
+   "bye": 9,
+   "ros_points": 67.9,
+   "trade_value": 16.0
+  },
+  {
+   "id": "def18",
+   "name": "Sample DEF 18",
+   "pos": "DEF",
+   "nfl_team": "T30",
+   "bye": 12,
+   "ros_points": 54.7,
+   "trade_value": 11.6
+  },
+  {
+   "id": "def19",
+   "name": "Sample DEF 19",
+   "pos": "DEF",
+   "nfl_team": "T01",
+   "bye": 9,
+   "ros_points": 59.9,
+   "trade_value": 12.0
+  },
+  {
+   "id": "def20",
+   "name": "Sample DEF 20",
+   "pos": "DEF",
+   "nfl_team": "T04",
+   "bye": 5,
+   "ros_points": 60.0,
+   "trade_value": 12.0
+  },
+  {
+   "id": "def21",
+   "name": "Sample DEF 21",
+   "pos": "DEF",
+   "nfl_team": "T18",
+   "bye": 5,
+   "ros_points": 55.4,
+   "trade_value": 9.7
+  },
+  {
+   "id": "def22",
+   "name": "Sample DEF 22",
+   "pos": "DEF",
+   "nfl_team": "T18",
+   "bye": 10,
+   "ros_points": 56.9,
+   "trade_value": 12.7
+  },
+  {
+   "id": "def23",
+   "name": "Sample DEF 23",
+   "pos": "DEF",
+   "nfl_team": "T10",
+   "bye": 12,
+   "ros_points": 53.0,
+   "trade_value": 10.7
+  },
+  {
+   "id": "def24",
+   "name": "Sample DEF 24",
+   "pos": "DEF",
+   "nfl_team": "T24",
+   "bye": 11,
+   "ros_points": 51.5,
+   "trade_value": 10.0
+  },
+  {
+   "id": "def25",
+   "name": "Sample DEF 25",
+   "pos": "DEF",
+   "nfl_team": "T25",
+   "bye": 5,
+   "ros_points": 58.2,
+   "trade_value": 11.1
+  },
+  {
+   "id": "def26",
+   "name": "Sample DEF 26",
+   "pos": "DEF",
+   "nfl_team": "T06",
+   "bye": 9,
+   "ros_points": 56.9,
+   "trade_value": 10.5
+  },
+  {
+   "id": "def27",
+   "name": "Sample DEF 27",
+   "pos": "DEF",
+   "nfl_team": "T15",
+   "bye": 12,
+   "ros_points": 49.4,
+   "trade_value": 9.0
+  },
+  {
+   "id": "def28",
+   "name": "Sample DEF 28",
+   "pos": "DEF",
+   "nfl_team": "T19",
+   "bye": 10,
+   "ros_points": 44.8,
+   "trade_value": 6.6
+  },
+  {
+   "id": "def29",
+   "name": "Sample DEF 29",
+   "pos": "DEF",
+   "nfl_team": "T04",
+   "bye": 10,
+   "ros_points": 50.3,
+   "trade_value": 9.4
+  },
+  {
+   "id": "def30",
+   "name": "Sample DEF 30",
+   "pos": "DEF",
+   "nfl_team": "T23",
+   "bye": 13,
+   "ros_points": 47.1,
+   "trade_value": 7.8
+  },
+  {
+   "id": "def31",
+   "name": "Sample DEF 31",
+   "pos": "DEF",
+   "nfl_team": "T08",
+   "bye": 9,
+   "ros_points": 51.5,
+   "trade_value": 7.8
+  },
+  {
+   "id": "def32",
+   "name": "Sample DEF 32",
+   "pos": "DEF",
+   "nfl_team": "T17",
+   "bye": 11,
+   "ros_points": 44.2,
+   "trade_value": 6.3
+  }
+ ]
+}

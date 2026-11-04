@@ -52,3 +52,8 @@ temp/
 
 # Claude Code local settings (session-specific, not for version control)
 .claude/settings.local.json
+
+# League data pulled from APIs (may contain league/personal info)
+data/
+__pycache__/
+.pytest_cache/
