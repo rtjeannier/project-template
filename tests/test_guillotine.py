@@ -69,13 +69,21 @@ def test_forced_award_is_applied(state, sim):
     assert all(t == state.my_team_id and a == 1 for _, _, t, a in first_round)
 
 
-def test_calibration_matches_pacing_plan(sim):
-    actual = planned = 0.0
-    for s in range(40):
-        a, p = sim._run_one(50_000 + s, UserPolicy("auto"), sim._scratch_results(), probe=True)
-        actual += a
-        planned += p
-    assert actual == pytest.approx(planned, rel=0.35)
+def test_last_round_bid_uses_most_of_budget():
+    from guillotine.bidding import BidModel
+    m = BidModel(bid_noise_sd=0.0)
+    # No future rounds left: an upgrade is worth (almost) the whole budget.
+    assert m.bid(value=10, opportunity=0, faab=500, aggression=1, noise=1, min_bid=0) == int(500 * m.shade)
+    # Plenty of future opportunity: same player gets a smaller share.
+    assert m.bid(value=10, opportunity=90, faab=500, aggression=1, noise=1, min_bid=0) == int(50 * m.shade)
+
+
+def test_replacement_level_rises_as_teams_are_cut(state, sim):
+    vb = sim.proj.value_basis[0]
+    universe = set(range(len(sim.proj.ids)))
+    many, few = sim._replacement(vb, universe, 10), sim._replacement(vb, universe, 3)
+    assert all(few[p] >= many[p] for p in many)
+    assert few["RB"] > many["RB"]
 
 
 def test_bid_curve_helpers():

@@ -27,6 +27,8 @@ from .models import LeagueState
 from .projections import Projections
 
 FA_POOL_KEEP = 30  # leftover free agents carried between weeks (by projection)
+ROS_ERROR_SD = 0.20  # lognormal sd of a player's season-long deviation from his projection
+FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by position
 
 
 @dataclass
@@ -77,30 +79,7 @@ class Simulator:
         # Keep the initial free-agent list small: only the best by value matter.
         self.init_fa.sort(key=lambda i: -self.proj.value_basis[0][i])
         self.init_fa = self.init_fa[:FA_POOL_KEEP]
-        self.kappa = self.model.pace_scale if self.model.pace_scale is not None else 1.0
-        if self.model.pace_scale is None:
-            self.calibrate()
-
-    def calibrate(self, n_probe: int = 60, iters: int = 4) -> float:
-        """Pick the bid scale so the first round's actual spend matches the pacing plan."""
-        for _ in range(iters):
-            actual = planned = 0.0
-            for s in range(n_probe):
-                a, p = self._run_one(10_000 + s, UserPolicy("auto"), self._scratch_results(), probe=True)
-                actual += a
-                planned += p
-            if actual <= 0 or planned <= 0:
-                break
-            self.kappa *= float(np.clip(planned / actual, 0.25, 4.0))
-        return self.kappa
-
-    def _scratch_results(self) -> SimResults:
-        n_weeks = len(self.proj.weeks)
-        return SimResults(
-            n_sims=0, team_ids=[], weeks=self.proj.weeks,
-            elim_counts={t.id: np.zeros(n_weeks) for t in self.state.teams},
-            champion_counts=defaultdict(int), opp_max_bid=defaultdict(list), user_gain_now={},
-        )
+        self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
 
     # ------------------------------------------------------------------ public
 
@@ -124,12 +103,16 @@ class Simulator:
 
     # --------------------------------------------------------------- one season
 
-    def _run_one(self, sim: int, policy: UserPolicy, res: SimResults, probe: bool = False):
+    def _run_one(self, sim: int, policy: UserPolicy, res: SimResults):
         rng = np.random.default_rng((self.seed, sim, 0))  # bidding / manager noise
         # Player game outcomes come from a separate stream so every scenario sees the
         # same "luck" for each player-week; scenarios then differ only by decisions.
-        z = np.random.default_rng((self.seed, sim, 1)).standard_normal(self.proj.means.shape)
-        points = np.clip(self.proj.means + self.proj.sd * z, 0, None)
+        luck = np.random.default_rng((self.seed, sim, 1))
+        z = luck.standard_normal(self.proj.means.shape)
+        # Season-long projection error: a player's true level differs from his projection
+        # for the whole season (breakouts, busts, role changes), on top of weekly noise.
+        true_level = luck.lognormal(-ROS_ERROR_SD**2 / 2, ROS_ERROR_SD, size=(self.proj.means.shape[0], 1))
+        points = np.clip(self.proj.means * true_level + self.proj.sd * z, 0, None)
         proj, spec, model = self.proj, self.spec, self.model
         rosters = {tid: list(r) for tid, r in self.init_rosters.items()}
         faab = {t.id: t.faab for t in self.state.teams}
@@ -145,12 +128,9 @@ class Simulator:
         for j in range(len(proj.weeks)):
             if len(active) <= 1:
                 break
-            start_money = sum(faab[t] for t in active)
             pool, fa_pool = self._waiver_round(
                 sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res
             )
-            if probe:
-                return start_money - sum(faab[t] for t in active), self._planned_spend
 
             # Games
             scores = {}
@@ -186,43 +166,81 @@ class Simulator:
         proj, spec, model = self.proj, self.spec, self.model
         settings = self.state.settings
         vb = proj.value_basis[j]
-        gv = proj.generic_value[:, j]
-        weeks_left = len(proj.weeks) - j
+        n_weeks = len(proj.weeks)
+        weeks_left = n_weeks - j
 
         candidates = sorted(set(pool) | set(fa_pool), key=lambda p: -vb[p])[: model.pool_consider]
         remaining = set(candidates)
 
-        baselines = {tid: spec.total(rosters[tid], vb, proj.pos) for tid in active}
-        order = sorted(active, key=lambda t: baselines[t])
-        danger = {tid: model.danger(order.index(tid), len(active)) for tid in active}
-        avg_faab = float(np.mean([faab[t] for t in active])) if active else 0.0
-        price = self._price_per_unit(j, candidates, rosters, active, faab, baselines)
+        universe = set(pool) | set(fa_pool) | {p for t in active for p in rosters[t]}
+        e = settings.eliminations_per_week
+        # Rounds still to play (this week = r 0), with the number of teams alive in each.
+        n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
+        repl = {n: self._replacement(vb, universe, n) for n in set(n_alive)}
+        totals_now = {tid: spec.total(rosters[tid], proj.means[:, j], proj.pos) for tid in active}
+        weight = self._elimination_weights(model.p_cut(totals_now), n_alive)
+        future = self._future_pool(vb, rosters, active, totals_now)
         priority = {tid: r for r, tid in enumerate(rng.permutation(active))}
         claimed: set[int] = set()
+
+        def free_gains(tid: str, base: float) -> list[dict[str, float]]:
+            """Per round: lineup gain from the best player at each position nobody will
+            pay for (the replacement level for that many teams alive)."""
+            vals = {p: vb[p] for p in rosters[tid]}
+            pos = {p: proj.pos[p] for p in rosters[tid]}
+            cache = {}
+            for n in set(n_alive):
+                out = {}
+                for ps, v in repl[n].items():
+                    vals[-1], pos[-1] = v, ps
+                    out[ps] = spec.total(list(rosters[tid]) + [-1], vals, pos) - base
+                cache[n] = out
+            return [cache[n] for n in n_alive]
+
+        def weighted_par(tid: str, gain: float, ps: str, free: list[dict[str, float]], start: int = 0) -> float:
+            """Points above replacement in each round, weighted by P(this team is the one
+            cut that round). Points only matter when they decide who is eliminated."""
+            w = weight[tid]
+            return float(sum(w[r] * max(0.0, gain - free[r].get(ps, 0.0)) for r in range(start, len(n_alive))))
+
+        def opportunity(tid: str, base: float, free: list[dict[str, float]]) -> float:
+            """Weighted upgrades this team expects to buy in later rounds instead."""
+            best, best_pos = 0.0, None
+            for p in future:
+                g = spec.total(rosters[tid] + [p], vb, proj.pos) - base
+                if g > best:
+                    best, best_pos = g, proj.pos[p]
+            if best_pos is None:
+                return 0.0
+            return sum(min(1.0, model.future_share / n_alive[r]) * weighted_par(tid, best, best_pos, free, r)
+                       for r in range(1, len(n_alive)))
 
         def team_bids(tid: str) -> dict[int, int]:
             out = {}
             base = spec.total(rosters[tid], vb, proj.pos)
+            free = free_gains(tid, base)
+            opp = opportunity(tid, base, free)
             for p in remaining:
                 gain = spec.total(rosters[tid] + [p], vb, proj.pos) - base
                 if tid == self.user and j > 0:
                     self._note_user_gain(res, sim, j, proj.ids[p], gain)
-                if gain < model.min_gain:
+                if gain - free[0].get(proj.pos[p], 0.0) < model.min_gain and gain - free[-1].get(proj.pos[p], 0.0) < model.min_gain:
+                    continue
+                value = weighted_par(tid, gain, proj.pos[p], free)
+                if value <= 0:
                     continue
                 amt = model.bid(
-                    price_per_unit=price,
-                    generic_value=gv[p],
-                    need=model.need(gain, proj.weekly_vor[j, p]),
-                    danger=danger[tid],
+                    value=value,
+                    opportunity=opp,
                     faab=faab[tid],
-                    avg_faab=avg_faab,
                     aggression=aggression[tid],
                     noise=rng.lognormal(0, model.bid_noise_sd),
-                    weeks_left=weeks_left,
                     min_bid=settings.min_bid,
                 )
                 if amt >= 0:
                     out[p] = amt
+                    if self.bid_log is not None:
+                        self.bid_log.append((sim, j, proj.ids[p], tid, amt, faab[tid]))
             return out
 
         bids = {tid: team_bids(tid) for tid in active}
@@ -288,27 +306,53 @@ class Simulator:
         if entries and entries[-1][0] == sim and entries[-1][1] == j and np.isnan(entries[-1][2]):
             entries[-1] = (sim, j, gain)
 
-    def _price_per_unit(self, j, candidates, rosters, active, faab, baselines) -> float:
-        """Dollars per unit of generic value, given money left vs value still to come."""
-        proj = self.proj
-        money = sum(faab[t] for t in active)
-        supply = float(sum(proj.generic_value[p, j] for p in candidates))
-        n_weeks = len(proj.weeks)
-        if j + 1 < n_weeks and len(active) > 2:
-            # Future pools look like the rosters of the currently weakest teams.
-            weak = sorted(active, key=lambda t: baselines[t])[: max(1, len(active) // 3)]
-            n_keep = self.spec.n_starters + 2
-            for k in range(j + 1, n_weeks):
-                if len(active) - (k - j) * self.state.settings.eliminations_per_week < 2:
-                    break
-                vals = []
-                for t in weak:
-                    top = sorted((proj.generic_value[p, k] for p in rosters[t]), reverse=True)
-                    vals.append(sum(top[:n_keep]))
-                supply += float(np.mean(vals)) * self.state.settings.eliminations_per_week
-        if supply <= 0:
-            self._planned_spend = 0.0
-            return 0.0
-        now = float(sum(proj.generic_value[p, j] for p in candidates))
-        self._planned_spend = self.model.spend_ratio * money * now / supply
-        return self.kappa * self.model.spend_ratio * money / supply
+    def _replacement(self, vb, universe, n_active: int) -> dict[str, float]:
+        """Dynamic replacement level: the best player at each position the remaining
+        teams won't start. It rises as teams are cut and their rosters hit waivers."""
+        slots = self.state.settings.roster_slots
+        flex = sum(c for s, c in slots.items() if s in ("FLEX", "W/R/T", "W/R", "W/T", "R/W"))
+        superflex = sum(c for s, c in slots.items() if s in ("SUPERFLEX", "Q/W/R/T"))
+        by_pos: dict[str, list[float]] = {}
+        for p in universe:
+            by_pos.setdefault(self.proj.pos[p], []).append(vb[p])
+        out = {}
+        for pos, vals in by_pos.items():
+            starters = slots.get(pos, 0) + flex * FLEX_SHARE.get(pos, 0)
+            starters += superflex * (0.8 if pos == "QB" else 0.07)
+            k = int(round(n_active * starters))
+            vals.sort(reverse=True)
+            out[pos] = vals[k] if k < len(vals) else 0.0
+        return out
+
+    @staticmethod
+    def _elimination_weights(p_cut: dict[str, float], n_alive: list[int]) -> dict[str, list[float]]:
+        """P(team t is the one eliminated in round r), for each remaining round.
+
+        This week's elimination chances carry forward: each later round removes the
+        teams most likely to have been cut and renormalizes the rest. The last round
+        (two teams) is the final, where "eliminated" means losing it.
+        """
+        order = sorted(p_cut, key=lambda t: -p_cut[t])
+        out = {}
+        for t in p_cut:
+            others = [u for u in order if u != t]
+            alive, w = 1.0, []
+            for n in n_alive:
+                rivals = others[len(others) - (n - 1):] if n - 1 > 0 else []
+                denom = p_cut[t] + sum(p_cut[u] for u in rivals)
+                q = p_cut[t] / denom if denom > 0 else 0.0
+                w.append(alive * q)
+                alive *= 1 - q
+            out[t] = w
+        return out
+
+    def _future_pool(self, vb, rosters, active, totals) -> list[int]:
+        """Players likely to hit waivers later: the weakest teams' best players."""
+        if len(active) <= 2:
+            return []
+        weak = sorted(active, key=lambda t: totals[t])[: max(1, len(active) // 3)]
+        n_keep = self.spec.n_starters + 2
+        out = []
+        for t in weak:
+            out += sorted(rosters[t], key=lambda p: -vb[p])[:n_keep]
+        return out

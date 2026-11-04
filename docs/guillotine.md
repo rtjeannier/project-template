@@ -36,30 +36,50 @@ See `examples/sample_report.md` for output from the synthetic league.
 
 ## How managers bid (`guillotine/bidding.py`)
 
+Before the final, points only matter if they decide who gets cut. So each manager
+values a player by **elimination-weighted points above replacement**:
+
 ```
-bid = price_per_unit × value(player) × need(team) × danger(team) × wealth(team)
-      × aggressiveness(manager) × noise × pace_scale
+value(player, team) = Σ over remaining rounds r of
+      P(team is the one cut in round r) × max(0, lineup gain − free gain at that point)
 ```
 
-- **value**: trade value (decays as weeks run out) or value over replacement.
-- **price_per_unit** = 85% of active teams' FAAB ÷ (value in this pool + expected
-  value of future pools). Future pools are estimated from the weakest teams' rosters.
-  This is the "save money for later" mechanism: with many pools still to come, each
-  dollar has to stretch further.
-- **need**: how much the player improves *that team's* starting lineup, relative to
-  a generic team. Best-in-slot: zero if he wouldn't start.
-- **danger**: teams projected near the bottom pay up to 50% more for points now.
-- **wealth**: √(team FAAB ÷ league average FAAB).
-- **aggressiveness/noise**: per-manager and per-bid lognormal randomness.
-- **cap**: at most 1.5/√(weeks left) of the remaining budget on one player, and no
-  cap in the last two weeks.
-- **pace_scale**: the winning bid is the *maximum* of several noisy bids, so it runs
-  hot. `pace_scale` is auto-calibrated so actual first-round spending matches the
-  pacing plan.
+- **Lineup gain**: how much the player raises *that team's* starting lineup. Walker
+  replacing Henry counts even though both are good RBs.
+- **Free gain / dynamic replacement**: what the team could add for $0. The
+  replacement level at a position is the best player the remaining teams won't
+  start. It rises every round as eliminated rosters flood waivers. With few teams
+  left, a solid starter can be at or below replacement.
+- **P(cut in round r)**: this week's elimination odds come from projected lineups
+  (`cut_sd` = 10 matches FantasyPros' week 9 safe %). For later rounds, the team most
+  likely to be cut is removed and the rest renormalized. The last round (two teams)
+  is the final, and "cut" means losing it. A safe team's weight sits in the final,
+  where replacement is highest, so it waits for studs. A team on the bubble values
+  points now.
 
-Knobs live on `BidModel`. If your league has a history (e.g. "studs go for 30–40%
-of budget in week 2"), these are what to tune, or set `aggression` per team in the
-league file for known big spenders or hoarders.
+A manager then spends a share of **their own budget**:
+
+```
+willingness = FAAB × value / (value + future opportunity)
+bid         = willingness × shade × aggressiveness × noise        (capped at FAAB)
+```
+
+**Future opportunity** is the same weighted value for the best upgrade expected in
+later pools (from the weakest teams' rosters), scaled by competition
+(`future_share / teams alive`). FAAB is use-it-or-lose-it, so it disappears when a
+team is cut. In the last round there's no future, so a team will spend its whole
+budget on an upgrade.
+
+`shade`, `manager_sd` and `bid_noise_sd` are fit to a real league's FAB offers:
+every bid on each round's top player, as a share of the bidder's remaining FAAB,
+was p25 0.10, median 0.23, p75 0.41, p90 0.56. The simulator matches that within
+about 0.02 for weeks 9–12. Its 90th percentile is a bit high (0.67), because a few
+managers go all-in. For a known big spender or hoarder, set `aggression` per team in
+the league file. Set `Simulator.bid_log = []` to record every simulated bid for
+re-calibration.
+
+Scores include a season-long projection error per player (`ROS_ERROR_SD` = 20%) on
+top of weekly noise, so breakouts and busts happen and long shots keep a real chance.
 
 ## Decisions (`guillotine/analysis.py`)
 
