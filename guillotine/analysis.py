@@ -3,7 +3,8 @@
 Compares scenarios on the same random draws:
   * baseline — everyone, including you, bids using the model
   * pass     — you sit out this week's waivers
-  * force X  — you win player X this week at a price likely to beat the field
+  * bid $Y on X — your sealed bid enters the auction; you win X only if it beats the field
+  * bid sheet — all recommended bids at once (you never skip a player: a $1 bid can steal one)
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from .models import LeagueState
 from .simulate import SimResults, Simulator, UserPolicy
 
 WIN_TARGETS = (0.5, 0.75, 0.9)  # bid levels reported: P(beat every opponent)
+GRID_TARGETS = (0.25, 0.5, 0.75, 0.9)  # bid levels tried, besides $1
 
 
 @dataclass
@@ -23,8 +25,9 @@ class Candidate:
     player_id: str
     gain: float  # weekly starting-lineup points you'd gain
     bid_for: dict[float, int]  # target win probability -> bid needed
-    suggested_bid: int
+    suggested_bid: int  # the bid (of those tried) with the best P(win league)
     p_win_at_suggested: float
+    curve: list[tuple[int, float, float]] = field(default_factory=list)  # (bid, P(win bid), P(win league))
     d_champion: float = 0.0  # change in P(win league) vs passing
     d_survive_3: float = 0.0  # change in P(alive after the next 3 weeks) vs passing
     champion: float = 0.0
@@ -38,6 +41,8 @@ class Analysis:
     baseline: SimResults
     passed: SimResults
     candidates: list[Candidate] = field(default_factory=list)
+    sheet: dict[str, int] = field(default_factory=dict)
+    sheet_result: SimResults | None = None
     holes: list[dict] = field(default_factory=list)
     future_targets: list[dict] = field(default_factory=list)
     opponents: list[dict] = field(default_factory=list)
@@ -77,20 +82,30 @@ def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0
             continue
         opp = np.array(baseline.opp_max_bid[pid])
         bid_for = {t: bid_needed(opp, t) for t in WIN_TARGETS}
-        suggested = min(bid_for[0.75], my_faab)
-        forced = sim.run(n_sims, UserPolicy("force", pid, suggested))
+        levels = sorted({max(1, state.settings.min_bid)} | {min(bid_needed(opp, t), my_faab) for t in GRID_TARGETS})
+        curve = []
+        for amt in levels:
+            r = sim.run(n_sims, UserPolicy("bid", bids={pid: amt}))
+            curve.append((amt, p_win_at(opp, amt), r.p_champion(me), survive_through(r, me, 3)))
+        best = max(curve, key=lambda c: (round(c[2], 4), -c[0]))
         c = Candidate(
             player_id=pid,
             gain=gain,
             bid_for=bid_for,
-            suggested_bid=suggested,
-            p_win_at_suggested=p_win_at(opp, suggested),
-            champion=forced.p_champion(me),
-            survive_3=survive_through(forced, me, 3),
+            suggested_bid=best[0],
+            p_win_at_suggested=best[1],
+            curve=[(a_, pw, ch) for a_, pw, ch, _ in curve],
+            champion=best[2],
+            survive_3=best[3],
         )
         c.d_champion = c.champion - passed.p_champion(me)
         c.d_survive_3 = c.survive_3 - survive_through(passed, me, 3)
         out.candidates.append(c)
+
+    # Never skip: bid on every candidate at its best level, then run the whole sheet.
+    out.sheet = {c.player_id: c.suggested_bid for c in out.candidates}
+    if out.sheet:
+        out.sheet_result = sim.run(n_sims, UserPolicy("bid", bids=out.sheet))
 
     out.holes = roster_holes(sim)
     out.future_targets = future_targets(sim, baseline)

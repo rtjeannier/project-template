@@ -96,3 +96,22 @@ def test_analyze_end_to_end(state):
     a = analyze(state, n_sims=30, top_k=2, seed=0)
     assert a.holes and a.opponents
     assert len(a.candidates) <= 2
+
+
+def test_sealed_bid_only_wins_when_highest(state, sim):
+    base = sim.run(20)
+    pid = max(base.user_gain_now.items(), key=lambda kv: kv[1])[0]
+    res = sim.run(20, UserPolicy("bid", bids={pid: 1}))
+    opp = base.opp_max_bid[pid]
+    won = {s for s, j, p, t, a in res.awards if j == 0 and p == pid and t == state.my_team_id}
+    # A $1 bid wins exactly in the sims where nobody else bid more than $1 (ties may go either way).
+    assert all(opp[s] <= 1 for s in won)
+    assert all(s in won for s in range(20) if opp[s] < 1)
+
+
+def test_elimination_weights_sum_to_at_most_one():
+    w = Simulator._elimination_weights({"a": 0.5, "b": 0.3, "c": 0.2}, [3, 2])
+    for t, ws in w.items():
+        assert 0 <= sum(ws) <= 1 + 1e-9
+    # Someone is cut every round: the weights for each round sum to 1 across teams.
+    assert abs(sum(w[t][0] for t in w) - 1) < 1e-9

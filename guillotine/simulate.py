@@ -35,9 +35,10 @@ FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by posit
 class UserPolicy:
     """What your team does in the first waiver round. Later rounds always use the model."""
 
-    mode: str = "auto"  # "auto" | "pass" | "force"
+    mode: str = "auto"  # "auto" | "pass" | "force" | "bid"
     player: str | None = None
     price: int = 0
+    bids: dict[str, int] | None = None  # mode "bid": your sealed bids {player_id: amount}; others bid as modeled
 
 
 @dataclass
@@ -124,13 +125,24 @@ class Simulator:
         fa_pool = list(self.init_fa)
         pool = list(self.init_pool)
         last_scores: dict[str, float] = {}
+        odds: dict[str, float] | None = None
 
         for j in range(len(proj.weeks)):
             if len(active) <= 1:
                 break
+            # Bidding uses the odds known *before* waivers: last week's post-waiver odds with
+            # the eliminated team removed and the rest renormalized. Week 0 has no previous
+            # week, so it uses the current rosters.
+            if odds is None:
+                odds = self._cut_odds(rosters, active, j)
+            else:
+                z = sum(odds[t] for t in active)
+                odds = {t: odds[t] / z for t in active} if z > 0 else self._cut_odds(rosters, active, j)
             pool, fa_pool = self._waiver_round(
-                sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res
+                sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res, odds
             )
+            # ...then the odds are recalculated from the lineups after this week's pickups.
+            odds = self._cut_odds(rosters, active, j)
 
             # Games
             scores = {}
@@ -162,7 +174,11 @@ class Simulator:
 
     # ------------------------------------------------------------ waiver round
 
-    def _waiver_round(self, sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res):
+    def _cut_odds(self, rosters, active, j) -> dict[str, float]:
+        totals = {t: self.spec.total(rosters[t], self.proj.means[:, j], self.proj.pos) for t in active}
+        return self.model.p_cut(totals)
+
+    def _waiver_round(self, sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res, odds):
         proj, spec, model = self.proj, self.spec, self.model
         settings = self.state.settings
         vb = proj.value_basis[j]
@@ -177,9 +193,8 @@ class Simulator:
         # Rounds still to play (this week = r 0), with the number of teams alive in each.
         n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
         repl = {n: self._replacement(vb, universe, n) for n in set(n_alive)}
-        totals_now = {tid: spec.total(rosters[tid], proj.means[:, j], proj.pos) for tid in active}
-        weight = self._elimination_weights(model.p_cut(totals_now), n_alive)
-        future = self._future_pool(vb, rosters, active, totals_now)
+        weight = self._elimination_weights(odds, n_alive)
+        future = self._future_pool(vb, rosters, active, {t: -odds[t] for t in active})
         priority = {tid: r for r, tid in enumerate(rng.permutation(active))}
         claimed: set[int] = set()
 
@@ -255,8 +270,11 @@ class Simulator:
                 opp = [bids[t][p] for t in active if t != self.user and p in bids[t]]
                 res.opp_max_bid[proj.ids[p]].append(max(opp) if opp else -1)
 
-            if policy.mode in ("pass", "force") and self.user in bids:
+            if policy.mode in ("pass", "force", "bid") and self.user in bids:
                 bids[self.user] = {}
+            if policy.mode == "bid" and self.user in active:
+                bids[self.user] = {proj.index[pid]: amt for pid, amt in (policy.bids or {}).items()
+                                   if proj.index[pid] in remaining}
             if policy.mode == "force" and self.user in active:
                 p = proj.index[policy.player]
                 if p in remaining and faab[self.user] >= policy.price:

@@ -50,12 +50,16 @@ value(player, team) = Σ over remaining rounds r of
   replacement level at a position is the best player the remaining teams won't
   start. It rises every round as eliminated rosters flood waivers. With few teams
   left, a solid starter can be at or below replacement.
-- **P(cut in round r)**: this week's elimination odds come from projected lineups
-  (`cut_sd` = 10 matches FantasyPros' week 9 safe %). For later rounds, the team most
-  likely to be cut is removed and the rest renormalized. The last round (two teams)
-  is the final, and "cut" means losing it. A safe team's weight sits in the final,
-  where replacement is highest, so it waits for studs. A team on the bubble values
-  points now.
+- **P(cut in round r)**: nobody knows next week's odds before waivers run, so bids
+  use last week's post-waiver elimination odds, with the eliminated team removed and
+  the rest renormalized. After the round's pickups, the odds are recalculated from
+  the new lineups, and those carry into next week's bidding. Week 1 of the
+  simulation has no previous week, so it uses the current rosters (`cut_sd` = 10
+  matches FantasyPros' week 9 safe %). Later rounds within one valuation repeat the
+  same rule: remove the team most likely to be cut, then renormalize. The last round
+  (two teams) is the final, and "cut" means losing it. A safe team's weight sits in
+  the final, where replacement is highest, so it waits for studs. A team on the
+  bubble values points now.
 
 A manager then spends a share of **their own budget**:
 
@@ -86,12 +90,16 @@ top of weekly noise, so breakouts and busts happen and long shots keep a real ch
 Scenarios run on **common random numbers**: each simulated season gets the same
 player outcomes in every scenario, so differences come from decisions, not luck.
 
-- **pass**: you skip this week's waivers.
+- **pass**: you skip this week's waivers (the baseline for comparisons).
 - **auto**: you bid like the model.
-- **force X at $Y**: you win X at the bid that beats the field 75% of the time.
+- **bid $Y on X**: your sealed bid enters the auction like everyone else's. You win X
+  only if it beats the field (ties go to waiver priority).
 
-The waiver table reports the bid needed to beat every opponent 50/75/90% of the
-time, and the change in P(win league) and P(alive in 3 weeks) vs passing.
+You never skip a player: for each candidate the analysis tries $1 and the bids that
+beat the field 25/50/75/90% of the time. It recommends the bid with the highest
+P(win league), even if that's a $1 lottery ticket. All recommended bids are then
+submitted together as a **bid sheet**, with its own P(win league). Budgets are
+enforced the way Yahoo does it: a claim you can no longer afford is skipped.
 
 ## League state file
 

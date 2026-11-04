@@ -49,11 +49,12 @@ def render(a: Analysis) -> str:
 
     add("## This week's waiver targets")
     add("")
-    add("**Bid for X%** = the bid that beats every other manager in X% of simulations. "
-        "Effects compare winning the player at the suggested bid against passing on waivers this week.")
+    add("**Bid for X%** = the bid that beats every other manager in X% of simulations. Each tried bid "
+        "($1 and the 25/50/75/90% levels) is entered into the auction for real: you only win the player if it "
+        "beats the field. **Best bid** = the one with the highest P(win league). Effects are vs passing.")
     add("")
     hdr = " | ".join(f"Bid for {int(t * 100)}%" for t in WIN_TARGETS)
-    add(f"| Player | Pos | +pts/wk for you | {hdr} | Suggested | Δ P(win league) | Δ P(alive 3 wks) |")
+    add(f"| Player | Pos | +pts/wk for you | {hdr} | Best bid (P win bid) | Δ P(win league) | Δ P(alive 3 wks) |")
     add("|---|---|---:|" + "---:|" * len(WIN_TARGETS) + "---:|---:|---:|")
     for c in a.candidates:
         p = players[c.player_id]
@@ -63,6 +64,20 @@ def render(a: Analysis) -> str:
     if not a.candidates:
         add("| (nobody in the pool would start for you) |")
     add("")
+    if a.candidates:
+        add("P(win league) at each bid tried:")
+        add("")
+        for c in a.candidates:
+            add(f"- {players[c.player_id].name}: " + ", ".join(
+                f"${amt} → {_pct(ch)} (win bid {_pct(pw)})" for amt, pw, ch in c.curve))
+        add("")
+    if a.sheet_result is not None:
+        sheet = ", ".join(f"{players[pid].name} ${amt}" for pid, amt in
+                          sorted(a.sheet.items(), key=lambda kv: -kv[1]))
+        add(f"**Bid sheet:** {sheet}. Submitted together: P(win league) "
+            f"**{_pct(a.sheet_result.p_champion(me))}**, P(alive after 3 wks) "
+            f"{_pct(survive_through(a.sheet_result, me, 3))}.")
+        add("")
     add(f"Baseline if you pass this week: P(win league) {_pct(a.passed.p_champion(me))}, "
         f"P(alive after 3 wks) {_pct(survive_through(a.passed, me, 3))}.")
     p = a.passed.p_champion(me)
