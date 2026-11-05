@@ -846,10 +846,10 @@ class Simulator:
                     det = lock
                     m, amt = 1.0, int(det)
                 elif model.bid_sd is not None:
-                    # Every bid is fair x a random multiplier, normal around 1. Bidding is free
-                    # (you only pay if you win), so a draw at or below 0 is a $0 claim.
-                    m = float(rng.normal(1.0, model.bid_sd))
-                    amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
+                    # Every bid is fair x a random multiplier: lognormal, median 1, always
+                    # positive. Overpays (up to 2x and beyond) are as likely as matching lowballs.
+                    m = float(rng.lognormal(0.0, model.bid_sd))
+                    amt = int(min(m * det * aggression[tid], faab[tid]))
                 else:
                     m = None
                     amt = int(min(det * aggression[tid] * rng.lognormal(0, model.bid_noise_sd), faab[tid]))

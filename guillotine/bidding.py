@@ -5,7 +5,7 @@
     money(m) = what m dollars still buy later (each slot's best returning player x the
                team's share of claims, plus injury cover), weighted by P(lose the final)
     fair bid = the most b with  V + money(FAAB - b | won)  >=  money(FAAB | lost)
-    bid      = fair bid x multiplier ~ Normal(1, bid_sd) x aggression   (capped at FAAB)
+    bid      = fair bid x multiplier ~ Lognormal(0, bid_sd) x aggression   (capped at FAAB)
 """
 
 from __future__ import annotations
@@ -17,9 +17,10 @@ from dataclasses import dataclass
 class BidModel:
     manager_sd: float = 0.0  # lognormal sd of per-manager aggressiveness; 0 = every manager is rational
     bid_noise_sd: float = 0.3  # lognormal noise on each bid, used only when bid_sd is None
-    # Every bid = fair bid x a multiplier drawn from Normal(1, bid_sd). 0.61 puts the 95th
-    # percentile at 2x fair; a draw at or below 0 is a $0 bid. None = old lognormal noise.
-    bid_sd: float | None = 0.61
+    # Every bid = fair bid x a multiplier drawn from Lognormal(0, bid_sd): median 1x, always
+    # positive. 0.42 = ln 2 / 1.645 puts the 95th percentile at 2x fair and the 5th at 0.5x.
+    # None = old per-manager lognormal noise.
+    bid_sd: float | None = 0.42
     pool_consider: int = 15  # only the top-N pool players (this week + week 17) get bids
     min_gain: float = 0.1  # weekly points gain over the free alternative below which a team doesn't bother
 

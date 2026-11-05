@@ -3,8 +3,8 @@
 ``python -m guillotine simulate-data LEAGUE.json --seasons 5000 --out sim_data``
 
 Every season is played straight through from the league file. Every team bids its fair
-bid (the rational bid, no noise) times a random multiplier drawn from Normal(1, bid_sd)
-(a draw at or below 0 is a $0 bid),
+bid (the rational bid, no noise) times a random multiplier drawn from Lognormal(0, bid_sd)
+(median 1x, always positive),
 independently for each bid, so there is no fixed strategy and the same cut sequence
 produces different waivers each time. Nothing is analyzed here: the files are the raw
 record, to crawl afterwards.

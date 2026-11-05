@@ -52,7 +52,7 @@ money(m)   = best title chance m dollars can still buy: split the budget across
              value × P(winning him with that much)
 reserve    = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
 fair bid   = min(reserve, the highest rival's reserve + $1)   (no need to pay more than that)
-bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
+bid        = fair bid × multiplier ~ Lognormal(0, 0.42) × aggression   (capped at FAAB)
 ```
 
 - **This week:** P(cut) is computed from every team's score distribution, with and
@@ -202,8 +202,8 @@ python -m guillotine simulate-data league.json --seasons 20000 --out sim_data
 ```
 
 Plays every season straight through. Every team bids its fair bid times a random
-multiplier drawn from Normal(1, 0.61), so the 95th percentile is 2× fair. Bidding is
-free, so a draw at or below 0 (about 5%) is a $0 bid, not a skipped one. Each bid is drawn independently: there is no fixed strategy, and
+multiplier drawn from a lognormal with median 1×: always positive, with the 95th
+percentile at 2× fair and the 5th at 0.5× fair. Each bid is drawn independently: there is no fixed strategy, and
 the same cut sequence produces different waivers in each season. Since the multipliers
 are random, comparing outcomes across them later is a fair experiment.
 
