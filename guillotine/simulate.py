@@ -53,6 +53,9 @@ SHORT_INJURY_WEEKS = (1, 4)
 BENCH_MAX = {"QB": 1, "TE": 2}
 BENCH_MIN = {"RB": 1, "WR": 1}
 FLEX_POS = ("RB", "WR", "TE")
+# Backups a team typically holds at each position (7 bench spots: 1 QB, 1 TE, the rest
+# RB/WR). Used to scale how many players below the starters are blocked.
+BACKUPS_PER_TEAM = {"QB": 1.0, "TE": 1.0, "RB": 2.5, "WR": 2.5}
 # A backup is only worth a claim if he's clearly better than who he replaces: at least
 # 10% and half a point a week. Stops swapping near-identical backups week after week.
 BENCH_MARGIN_PCT, BENCH_MARGIN_PTS = 0.10, 0.5
@@ -476,6 +479,7 @@ class Simulator:
                 if submitting and self.trace is not None:
                     self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
                 fair_all[(tid, p)] = det
+                kinds[(tid, p)] = kind
                 if tid != self.user:
                     expected[(tid, p)] = det
                 else:
@@ -489,6 +493,7 @@ class Simulator:
         expected: dict[tuple[str, int], int] = {}
         fair: dict[int, int] = {}
         fair_all: dict[tuple[str, int], int] = {}
+        kinds: dict[tuple[str, int], str] = {}
         rival_sd = float(np.hypot(model.manager_sd, model.bid_noise_sd))
         submitting = True  # bids are logged once, when submitted; later re-checks only cancel claims
 
@@ -560,6 +565,15 @@ class Simulator:
         # Every claim is "add X / drop Y", planned once, after all bids are in.
         drops = {tid: self._plan_drops(rosters[tid], bids[tid], fair_all, tid, vb, repl[n_alive[-1]])
                  for tid in active}
+        # A backup-only claim must be clearly better for week 17 than the player it drops.
+        # Planning several claims together can assign a different drop than the one the
+        # claim was judged against, so check again and withdraw the claim if not.
+        for tid in active:
+            for p, d in list(drops[tid].items()):
+                if (kinds.get((tid, p)) == "bench" and isinstance(d, (int, np.integer))
+                        and not _clearly_better(self._final[p], self._final[d])):
+                    bids[tid].pop(p, None)
+                    del drops[tid][p]
         if self.trace is not None:
             for tid in active:
                 for p, d in drops[tid].items():
@@ -731,10 +745,10 @@ class Simulator:
 
     def _replacement(self, vb, universe, n_active: int) -> dict[str, float]:
         """Dynamic replacement level: what a team can expect to get for free at each
-        position: the average of the (teams alive + 1) players just below the ones the
-        remaining teams would start (with 2 teams left, QBs 3-5), because backups held by
-        the other teams block some of them. It rises as teams are cut and their rosters hit
-        waivers.
+        position. Every team alive starts some players and holds backups, so the free
+        player is somewhere below all of them: this averages from the first non-starter
+        down through (teams alive x backups per team) more (with 2 teams left, QBs 3-5).
+        It rises as teams are cut and their rosters hit waivers.
 
         No "breakout" adjustment: an earlier version took the expected k-th best of
         randomly perturbed projections, which at deep positions put replacement above
@@ -752,10 +766,11 @@ class Simulator:
             starters += superflex * (0.8 if pos == "QB" else 0.07)
             k = int(round(n_active * starters))
             ranked = sorted(vals, reverse=True)
-            # Not just the first player below the starters: teams also hold backups, which
-            # blocks some of them. Average the next (teams alive + 1): with 2 teams left,
-            # QBs 3-5.
-            below = ranked[k:k + n_active + 1]
+            # Every team alive also holds backups, which blocks some of the players below
+            # the starters. Average from the first non-starter down through everyone's
+            # backups: with 2 teams left, QBs 3-5; with 10, QBs 11-21.
+            depth = int(round(n_active * BACKUPS_PER_TEAM.get(pos, 1.0)))
+            below = ranked[k:k + depth + 1]
             out[pos] = float(np.mean(below)) if below else 0.0
         return out
 
