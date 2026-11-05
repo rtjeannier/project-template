@@ -18,8 +18,8 @@ Each manager prices a player in *their own budget*, not in a league-wide currenc
   disappears when the team is cut and is worthless after the final round. So
   opportunity shrinks as the season runs out, and in the last round a team will
   spend everything on an upgrade.
-- **Survival** is a smooth function of how far the team's projected score is above
-  the league's weakest: teams in danger discount the future more and spend now.
+- **Survival**: P(cut) comes from each team's score distribution (see
+  ``Simulator._cut_odds``). Teams in danger discount the future more and spend now.
 - **shade**: in a sealed first-price auction people bid below what the player is
   worth to them. **aggressiveness** is drawn once per manager per season, **noise**
   once per bid.
@@ -31,7 +31,6 @@ league file for known big spenders or hoarders.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 
@@ -44,16 +43,8 @@ class BidModel:
     manager_sd: float = 0.75  # lognormal sd of a manager's aggressiveness (drawn once per sim)
     bid_noise_sd: float = 0.4  # lognormal sd of noise on each individual bid
     future_share: float = 3.0  # a team expects to land about future_share / n_alive of each future pool's best upgrade
-    cut_sd: float = 10.0  # points scale for P(cut); 10 matches FantasyPros week-9 safe % within ~4 pts
     pool_consider: int = 15  # only the top-N pool players by projection get bids
     min_gain: float = 0.1  # weekly points gain over the free alternative below which a team doesn't bother
-
-    def p_cut(self, team_totals: dict[str, float]) -> dict[str, float]:
-        """Rough weekly elimination chance per team from projected lineup totals."""
-        lo = min(team_totals.values())
-        w = {t: math.exp(-(v - lo) / self.cut_sd) for t, v in team_totals.items()}
-        z = sum(w.values())
-        return {t: x / z for t, x in w.items()}
 
     def bid(self, *, value: float, opportunity: float, faab: float, aggression: float,
             noise: float, min_bid: int) -> int:

@@ -50,16 +50,19 @@ value(player, team) = Σ over remaining rounds r of
   replacement level at a position is the best player the remaining teams won't
   start. It rises every round as eliminated rosters flood waivers. With few teams
   left, a solid starter can be at or below replacement.
-- **P(cut in round r)**: nobody knows next week's odds before waivers run, so bids
-  use last week's post-waiver elimination odds, with the eliminated team removed and
-  the rest renormalized. After the round's pickups, the odds are recalculated from
-  the new lineups, and those carry into next week's bidding. Week 1 of the
-  simulation has no previous week, so it uses the current rosters (`cut_sd` = 10
-  matches FantasyPros' week 9 safe %). Later rounds within one valuation repeat the
-  same rule: remove the team most likely to be cut, then renormalize. The last round
-  (two teams) is the final, and "cut" means losing it. A safe team's weight sits in
-  the final, where replacement is highest, so it waits for studs. A team on the
-  bubble values points now.
+- **P(cut in round r)**: each team's weekly score is treated as roughly normal. The
+  mean is its best lineup's projection. The spread comes from its starters' weekly
+  variance plus season-long projection error, so a boom-or-bust lineup carries more
+  cut risk than a steady one with the same projection. P(cut) is the chance of
+  posting the lowest score, from 2,000 fixed draws. Given FantasyPros' own team
+  projections, this reproduces their week 9 safe % within 0.9 points on average,
+  with no tuning. Odds are computed before waivers from current rosters and this
+  week's projections, so byes and injuries known ahead of time count. They're
+  recalculated after every pickup, so later claims in the same round see the new
+  odds. For later rounds, the team most likely to be cut is removed and the rest
+  renormalized. The last round (two teams) is the final, and "cut" means losing it.
+  A safe team's weight sits in the final, where replacement is highest, so it waits
+  for studs. A team on the bubble values points now.
 
 A manager then spends a share of **their own budget**:
 

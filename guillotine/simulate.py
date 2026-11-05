@@ -28,6 +28,7 @@ from .projections import Projections
 
 FA_POOL_KEEP = 30  # leftover free agents carried between weeks (by projection)
 ROS_ERROR_SD = 0.20  # lognormal sd of a player's season-long deviation from his projection
+ODDS_DRAWS = np.random.default_rng(20261104).standard_normal((2000, 32))  # fixed draws for P(lowest score)
 FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by position
 
 
@@ -125,24 +126,13 @@ class Simulator:
         fa_pool = list(self.init_fa)
         pool = list(self.init_pool)
         last_scores: dict[str, float] = {}
-        odds: dict[str, float] | None = None
 
         for j in range(len(proj.weeks)):
             if len(active) <= 1:
                 break
-            # Bidding uses the odds known *before* waivers: last week's post-waiver odds with
-            # the eliminated team removed and the rest renormalized. Week 0 has no previous
-            # week, so it uses the current rosters.
-            if odds is None:
-                odds = self._cut_odds(rosters, active, j)
-            else:
-                z = sum(odds[t] for t in active)
-                odds = {t: odds[t] / z for t in active} if z > 0 else self._cut_odds(rosters, active, j)
             pool, fa_pool = self._waiver_round(
-                sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res, odds
+                sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res
             )
-            # ...then the odds are recalculated from the lineups after this week's pickups.
-            odds = self._cut_odds(rosters, active, j)
 
             # Games
             scores = {}
@@ -175,10 +165,25 @@ class Simulator:
     # ------------------------------------------------------------ waiver round
 
     def _cut_odds(self, rosters, active, j) -> dict[str, float]:
-        totals = {t: self.spec.total(rosters[t], self.proj.means[:, j], self.proj.pos) for t in active}
-        return self.model.p_cut(totals)
+        """P(each team posts the lowest score in week j), from score distributions.
 
-    def _waiver_round(self, sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res, odds):
+        Each team's score is approximately normal: the mean is its best lineup's
+        projection, and the variance comes from its starters' weekly spread plus
+        season-long projection error. A boom-or-bust lineup carries more cut risk
+        than a steady one with the same projection.
+        """
+        proj = self.proj
+        mu, sd = [], []
+        for t in active:
+            _, starters = self.spec.best(rosters[t], proj.means[:, j], proj.pos)
+            m = proj.means[starters, j]
+            mu.append(m.sum())
+            sd.append(float(np.sqrt((proj.sd[starters, j] ** 2).sum() + ((m * ROS_ERROR_SD) ** 2).sum())))
+        scores = np.array(mu) + np.array(sd) * ODDS_DRAWS[:, : len(active)]
+        counts = np.bincount(scores.argmin(axis=1), minlength=len(active)) + 0.5  # floor: never exactly 0
+        return {t: float(c) / counts.sum() for t, c in zip(active, counts)}
+
+    def _waiver_round(self, sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res):
         proj, spec, model = self.proj, self.spec, self.model
         settings = self.state.settings
         vb = proj.value_basis[j]
@@ -193,6 +198,9 @@ class Simulator:
         # Rounds still to play (this week = r 0), with the number of teams alive in each.
         n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
         repl = {n: self._replacement(vb, universe, n) for n in set(n_alive)}
+        # Odds as they stand before waivers (this week's projections, current rosters).
+        # They're recalculated after every pickup below.
+        odds = self._cut_odds(rosters, active, j)
         weight = self._elimination_weights(odds, n_alive)
         future = self._future_pool(vb, rosters, active, {t: -odds[t] for t in active})
         priority = {tid: r for r, tid in enumerate(rng.permutation(active))}
@@ -293,6 +301,9 @@ class Simulator:
                 break
             (amt, _), tid, p = best
             self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb)
+            # The pickup changes everyone's elimination odds: recalculate before more claims.
+            odds = self._cut_odds(rosters, active, j)
+            weight = self._elimination_weights(odds, n_alive)
             # Priority rolls to the back after a successful claim.
             priority[tid] = max(priority.values()) + 1
             if not (j == 0 and tid == self.user and policy.mode != "auto"):
