@@ -19,6 +19,9 @@ Files (gzip CSV):
   after waivers.
 - ``drops.csv.gz``: players released to make room after a pickup.
 - ``seasons.csv.gz``: the champion and the order teams were cut.
+- ``injuries.csv.gz``: every injury to a rostered player: the week he got hurt (he plays
+  that game), his team, how many remaining weeks he misses, and whether it ends his
+  season.
 - ``players.csv``, ``teams.csv``, ``league.json``: lookup tables and the starting state,
   so any roster at any point can be rebuilt from the starting rosters plus awards and drops.
 """
@@ -51,7 +54,7 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
     """Play seasons [a, b) and turn their traces into rows (runs in a worker)."""
     sim = _SIM
     weeks = sim.proj.weeks
-    out = {"bids": [], "weeks": [], "drops": [], "seasons": []}
+    out = {"bids": [], "weeks": [], "drops": [], "seasons": [], "injuries": []}
     for s in range(*season_range):
         sim.trace = []
         sim._run_one(s, UserPolicy("auto"), _scratch(sim))
@@ -70,6 +73,9 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
                 cuts += [f"{weeks[j]}:{t}" for t in losers]
             elif e[0] == "drop":
                 out["drops"].append((s, weeks[e[2]], e[3], e[4]))
+            elif e[0] == "injury":
+                _, _, j, pid, tid, weeks_out, ending = e
+                out["injuries"].append((s, weeks[j], tid, pid, weeks_out, ending))
             elif e[0] == "champ":
                 champ = e[2]
         for e in sim.trace:
@@ -90,6 +96,7 @@ HEADERS = {
     "weeks": ("season", "week", "team_id", "score", "cut", "faab_after_waivers"),
     "drops": ("season", "week", "team_id", "player_id"),
     "seasons": ("season", "champion_id", "cuts"),
+    "injuries": ("season", "week", "team_id", "player_id", "weeks_out", "season_ending"),
 }
 
 

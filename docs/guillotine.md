@@ -193,7 +193,8 @@ are random, comparing outcomes across them later is a fair experiment.
 
 It writes the raw record and analyzes nothing: `bids.csv.gz` (every bid, with fair
 bid, multiplier, FAAB, cut odds, won/price), `weeks.csv.gz` (scores, cuts, FAAB),
-`drops.csv.gz`, `seasons.csv.gz` (champion, cut order), plus `players.csv`,
+`drops.csv.gz`, `seasons.csv.gz` (champion, cut order), `injuries.csv.gz` (every
+injury to a rostered player: week, team, weeks missed, season-ending), plus `players.csv`,
 `teams.csv` and the starting `league.json`. Rosters at any point can be rebuilt from
 the starting rosters plus awards and drops.
 

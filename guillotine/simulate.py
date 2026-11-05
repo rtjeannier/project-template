@@ -207,6 +207,14 @@ class Simulator:
                 _, starters = spec.best(rosters[tid], means, proj.pos)
                 scores[tid] = float(points[starters, j].sum())
             last_scores = scores
+            if self.trace is not None:
+                n_w = len(proj.weeks)
+                for tid in active:
+                    for p in rosters[tid]:
+                        if self._hurt_week[p] == j:
+                            out = int(min(self._hurt_len[p], n_w - 1 - j))
+                            ending = bool(j + self._hurt_len[p] >= n_w - 1)
+                            self.trace.append(("injury", sim, j, proj.ids[p], tid, out, ending))
 
             n_elim = min(self.state.settings.eliminations_per_week, len(active) - 1)
             losers = sorted(active, key=lambda t: scores[t])[:n_elim]
@@ -247,6 +255,7 @@ class Simulator:
         out = (k > s[:, None]) & (k <= (s + d)[:, None])
         self._avail = (~out).astype(float)
         self._back = np.where(s < n_w, np.minimum(s + d + 1, n_w), 0)
+        self._hurt_week, self._hurt_len = s, d  # week index hurt (n_w = never) and weeks out
 
     def _known_value(self, j: int) -> np.ndarray:
         """Waiver value basis at week j, given injuries that have already happened: a hurt

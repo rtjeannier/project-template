@@ -187,6 +187,9 @@ def test_simulated_dataset_is_consistent(state, tmp_path):
     generate(state, league, n_seasons=8, out_dir=tmp_path / "data", chunk=3)
     read = lambda n: list(csv.DictReader(gzip.open(tmp_path / "data" / n, "rt")))
     bids, seasons = read("bids.csv.gz"), read("seasons.csv.gz")
+    injuries = read("injuries.csv.gz")
+    for r in injuries:  # a hurt player misses only weeks that are left
+        assert 0 <= int(r["weeks_out"]) <= 17 - int(r["week"])
     assert len(seasons) == 8 and bids
     for b in bids:
         assert int(b["bid"]) <= float(b["faab"])

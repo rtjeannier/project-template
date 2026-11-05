@@ -217,6 +217,9 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     bids = pd.read_csv(d / "bids.csv.gz", dtype={"player_id": str, "team_id": str, "drop_id": str})
     weeks = pd.read_csv(d / "weeks.csv.gz", dtype={"team_id": str})
     seasons = pd.read_csv(d / "seasons.csv.gz", dtype={"champion_id": str})
+    inj_path = d / "injuries.csv.gz"
+    injuries = (pd.read_csv(inj_path, dtype={"team_id": str, "player_id": str}) if inj_path.exists()
+                else pd.DataFrame(columns=["season", "week", "team_id", "player_id", "weeks_out", "season_ending"]))
     players = pd.read_csv(d / "players.csv", dtype={"player_id": str})
     teams = pd.read_csv(d / "teams.csv", dtype={"team_id": str})
     you = str(meta["you"])
@@ -319,7 +322,10 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
                                "bids": [[names[str(r.team_id)], int(r.bid), int(r.fair_bid), round(float(r.multiplier), 2)]
                                         for r in g.itertuples()]})
             awards.sort(key=lambda a: -(a["price"] or 0))
-            wk.append({"week": int(w), "awards": awards,
+            hurt = injuries[(injuries.season == s) & (injuries.week == w)]
+            inj = [[pn.get(r.player_id, r.player_id), names[str(r.team_id)], int(r.weeks_out), bool(r.season_ending)]
+                   for r in hurt.itertuples()]
+            wk.append({"week": int(w), "awards": awards, "injuries": inj,
                        "scores": [[names[str(r.team_id)], round(float(r.score), 1), bool(r.cut), int(r.faab_after_waivers)]
                                   for r in ww.sort_values("score", ascending=False).itertuples()]})
         samp.append({"season": s, "champion": names[champ], "weeks": wk})
