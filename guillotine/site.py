@@ -218,78 +218,99 @@ MIN_SEASONS = 200  # a condition needs this many seasons on each side to be show
 def _scenarios(weeks, seasons, bids, injuries, players, teams, names, week_list, start_rosters) -> dict:
     """What has to go right for each team: the conditions that move its title odds most.
 
-    Candidates per team: each rival is cut by week k (the k that matters most), each
-    notable player gets hurt (a rival's) or stays healthy (the team's own), and the team
-    lands each notable player. For each: how often it happens and the team's title odds
-    with and without it. The top N_CONDITIONS by swing x uncertainty are kept, with a
-    per-season bitmask so the page can check any combination.
+    Each condition is judged only on the seasons where it could matter to the team, so
+    the plain benefit of surviving long doesn't get credited to it:
+    - "Rival U is cut by week k": seasons where the team is still alive after week k.
+    - "Team lands player X": seasons where X hit waivers while the team was alive.
+    - Injuries (rivals' players get hurt, the team's own stay healthy): all seasons.
+    For each: how often it happens within those seasons, and the team's title odds when it
+    does vs when it doesn't. The top N_CONDITIONS by swing x uncertainty are kept, with
+    per-season bitmasks (where it counts, and whether it happened) so the page can check
+    any combination.
     """
     season_ids = seasons.season.values
     n = len(season_ids)
     pos_of = {sid: i for i, sid in enumerate(season_ids)}
     champ = seasons.set_index("season").champion_id.reindex(season_ids).values
     team_ids = list(teams.team_id)
+    big = max(week_list) + 1
     cut = weeks[weeks.cut].groupby(["season", "team_id"]).week.min().unstack()
-    cut = cut.reindex(index=season_ids, columns=team_ids)  # NaN = never cut (the champion)
+    cut = cut.reindex(index=season_ids, columns=team_ids).fillna(big)  # never cut = alive to the end
     edge = dict(zip(players.player_id, players.final_edge))
     pname = dict(zip(players.player_id, players.name))
     notable = [pid for pid, e in edge.items() if e > -3]  # elite and starter tiers
     owner = {pid: t for t, pids in start_rosters.items() for pid in pids}
 
-    def mask_of(pairs):
+    def mask_of(sids):
         m = np.zeros(n, dtype=bool)
-        idx = [pos_of[sid] for sid in pairs]
-        m[idx] = True
+        m[[pos_of[sid] for sid in sids]] = True
         return m
 
+    everywhere = np.ones(n, dtype=bool)
+    nowhere = np.zeros(n, dtype=bool)
     hurt = {pid: mask_of(g.season.unique()) for pid, g in injuries.groupby("player_id")} if len(injuries) else {}
-    won = bids[bids.won]
-    landed = {(t, pid): mask_of(g.season.unique()) for (t, pid), g in won.groupby(["team_id", "player_id"])}
-    none = np.zeros(n, dtype=bool)
+    # first week each notable player hit waivers in each season (np.inf = never)
+    nb = bids[bids.player_id.isin(notable)]
+    first_wk = nb.groupby(["player_id", "season"]).week.min()
+    avail_week = {pid: g.droplevel(0).reindex(season_ids).fillna(np.inf).values for pid, g in first_wk.groupby(level=0)}
+    landed = {(t, pid): mask_of(g.season.unique()) for (t, pid), g in bids[bids.won].groupby(["team_id", "player_id"])}
 
     out = {"seasons": n, "teams": []}
     for t in team_ids:
         win = champ == t
+        my_cut = cut[t].values
         cands = []
 
-        def score(mask):
-            k = int(mask.sum())
-            if k < MIN_SEASONS or n - k < MIN_SEASONS:
+        def score(pop, ev):
+            k, m = int(pop.sum()), int((pop & ev).sum())
+            if m < MIN_SEASONS or k - m < MIN_SEASONS:
                 return None
-            f = k / n
-            return abs(win[mask].mean() - win[~mask].mean()) * (f * (1 - f)) ** 0.5
+            f = m / k
+            return abs(win[pop & ev].mean() - win[pop & ~ev].mean()) * (f * (1 - f)) ** 0.5 * (k / n) ** 0.5
 
-        def add(label, kind, mask):
-            sc = score(mask)
+        def add(label, where, kind, pop, ev):
+            sc = score(pop, ev)
             if sc is not None:
-                cands.append((sc, label, kind, mask))
+                cands.append((sc, label, where, kind, pop, ev))
 
         for u in team_ids:
             if u == t:
                 continue
-            options = [(score(cut[u].values <= k), k) for k in week_list[:-1]]
-            options = [(sc, k) for sc, k in options if sc is not None]
-            if options:
-                _, k = max(options)
-                add(f"{names[u]} is cut by week {k}", "results", cut[u].values <= k)
+            opts = []
+            for k in week_list[:-1]:
+                pop = my_cut > k  # you're still alive after week k
+                sc = score(pop, cut[u].values <= k)
+                if sc is not None:
+                    opts.append((sc, k))
+            if opts:
+                _, k = max(opts)
+                add(f"{names[u]} is cut by week {k}", f"seasons you're alive after week {k}", "results",
+                    my_cut > k, cut[u].values <= k)
         for pid in notable:
-            h = hurt.get(pid, none)
+            h = hurt.get(pid, nowhere)
             if owner.get(pid) == t:
-                add(f"{pname[pid]} (yours) stays healthy", "injury", ~h)
+                add(f"{pname[pid]} (yours) stays healthy", "all seasons", "injury", everywhere, ~h)
             else:
                 who = f" ({names[owner[pid]]})" if pid in owner else ""
-                add(f"{pname[pid]}{who} gets hurt", "injury", h)
-            add(f"{names[t]} lands {pname[pid]}", "pickup", landed.get((t, pid), none))
+                add(f"{pname[pid]}{who} gets hurt", "all seasons", "injury", everywhere, h)
+            aw = avail_week.get(pid)
+            if aw is not None:
+                pop = my_cut >= aw  # he hit waivers while you were alive
+                add(f"{names[t]} lands {pname[pid]}", "seasons he hit waivers while you were alive", "pickup",
+                    pop, landed.get((t, pid), nowhere))
         cands.sort(key=lambda c: -c[0])
         top = cands[:N_CONDITIONS]
-        bits = np.zeros(n, dtype=np.int64)
+        pop_bits = np.zeros(n, dtype=np.int64)
+        ev_bits = np.zeros(n, dtype=np.int64)
         conds = []
-        for i, (_, label, kind, mask) in enumerate(top):
-            bits |= mask.astype(np.int64) << i
-            conds.append({"label": label, "kind": kind, "freq": round(float(mask.mean()), 4),
-                          "p_yes": round(float(win[mask].mean()), 4), "p_no": round(float(win[~mask].mean()), 4)})
+        for i, (_, label, where, kind, pop, ev) in enumerate(top):
+            pop_bits |= pop.astype(np.int64) << i
+            ev_bits |= (pop & ev).astype(np.int64) << i
+            conds.append({"label": label, "where": where, "kind": kind, "share": round(float(pop.mean()), 4),
+                          "freq": round(float(ev[pop].mean()), 4),
+                          "p_yes": round(float(win[pop & ev].mean()), 4), "p_no": round(float(win[pop & ~ev].mean()), 4)})
         out["teams"].append({"name": names[t], "p_win": round(float(win.mean()), 4), "conditions": conds,
-                             "bits": bits.tolist(), "won": np.flatnonzero(win).tolist()})
+                             "pop": pop_bits.tolist(), "ev": ev_bits.tolist(), "won": np.flatnonzero(win).tolist()})
     return out
 
 
@@ -418,10 +439,12 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
         samp.append({"season": s, "champion": names[champ], "weeks": wk})
     (out / "seasons.json").write_text(json.dumps(samp, separators=(",", ":")))
 
-    summary = {"seasons": int(meta["seasons"]), "bids": int(len(bids)), "analyzed_bids": int(len(b)),
+    import datetime as _dt
+    summary = {"built_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "seasons": int(meta["seasons"]), "bids": int(len(bids)), "analyzed_bids": int(len(b)),
                "bid_sd": meta["bid_sd"], "you": names[you],
                "teams": [{"name": names[t], "faab": float(f), "p_champion": float(champs.get(t, 0.0)),
                           "is_you": bool(t == you)} for t, f in zip(teams.team_id, teams.start_faab)]}
     (out / "summary.json").write_text(json.dumps(summary))
-    shutil.copy(Path(__file__).with_name("site_template.html"), out / "index.html")
+    page = Path(__file__).with_name("site_template.html").read_text()
+    (out / "index.html").write_text(page.replace("__BUILD__", summary["built_at"].replace(" ", "_")))
     return sorted(out.iterdir())

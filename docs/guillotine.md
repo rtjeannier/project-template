@@ -206,7 +206,8 @@ python -m guillotine build-site sim_data --out docs/explorer
 
 This builds a static site from the simulated dataset into `docs/explorer/`. It has
 `index.html` plus small pre-aggregated JSON files, because the raw bid log is too big
-for a browser. To host it, go to the repo's Settings → Pages → Deploy from a branch,
+for a browser. The page shows when its data was built. GitHub Pages lets browsers cache
+pages for 10 minutes, so after a push, hard-refresh if you still see the old build time. To host it, go to the repo's Settings → Pages → Deploy from a branch,
 pick this branch, and set the folder to `/docs`. The page is then at
 `https://<user>.github.io/<repo>/explorer/`. Locally, run `python -m http.server`
 in that folder.
@@ -224,8 +225,11 @@ The page has:
   drawn uniformly from 0–100% of FAAB.
 - **What has to go right:** pick a team and see the ~10 conditions that move its title
   odds most: who gets cut and by when, key injuries (its own players staying healthy,
-  rivals' getting hurt), and key pickups. Each shows how often it happens and the
-  title odds with and without it. Tick any combination to see how often it happens
+  rivals' getting hurt), and key pickups. Each condition is judged only on seasons
+  where it could matter, so surviving long isn't credited to it: a pickup only counts
+  seasons where the player hit waivers while the team was alive, and "rival cut by
+  week k" only counts seasons where the team is alive after week k. Each shows how
+  often it happens there and the title odds with and without it. Tick any combination to see how often it happens
   and the title odds when it does.
 - **Week by week, survival by choices:** pick a team and a week. Every season the team
   is alive going into that week is grouped by what it did that week (average bid vs
