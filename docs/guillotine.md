@@ -41,9 +41,15 @@ values a player by **elimination-weighted points above replacement**:
 
 ```
 value(player, team) = Σ over remaining rounds r of
-      P(team is the one cut in round r) × max(0, lineup gain − free gain at that point)
+      P(team is the one cut in round r) × P(player still healthy)
+      × [ max(0, lineup gain − free gain)  +  max(0, points − replacement) / (teams alive − 1) ]
 ```
 
+- **Denial**: every player you hold is one a rival doesn't. Points above the round's
+  replacement level count an extra 1/(teams alive − 1), reaching the full amount in
+  the final. Picture your final opponent as the best team that can be built from
+  everyone else: an irreplaceable player counts twice (for you and against them),
+  and a replaceable one is worth nothing to deny (`denial_weight`).
 - **Lineup gain**: how much the player raises *that team's* starting lineup. Walker
   replacing Henry counts even though both are good RBs.
 - **Free gain / dynamic replacement**: what the team could add for $0. The
