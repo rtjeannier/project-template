@@ -584,9 +584,10 @@ class Simulator:
             chance = win_chance(tid, m_grid)  # options x budget set aside for him
             my_val = opt_reach * val_opt[tid]  # expected title chance from each, if bought
             # Money pots, one per lineup spot that could be upgraded: QB, RB #1, RB #2, WR #1,
-            # WR #2, TE and flex. A second pickup at a position is valued over the lineup after
-            # the best first one (he replaces the weaker starter), and flex over the lineup after
-            # the best RB and WR pickups. All pots draw on the same money.
+            # WR #2, TE, flex #1 and flex #2. A second pickup at a position is valued over the
+            # lineup after the best first one (he replaces the weaker starter); flex #1 over the
+            # lineup after the best RB and WR pickups, flex #2 after flex #1 too. All pots draw
+            # on the same money.
             def marginal(base_roster, positions) -> np.ndarray:
                 b0 = spec.total(base_roster, fin, proj.pos)
                 ratio = np.zeros(n_opt)
@@ -597,7 +598,8 @@ class Simulator:
                 return ratio
 
             pots: dict[str, np.ndarray] = {}
-            pot_pos = {"QB": ("QB",), "TE": ("TE",), "RB1": ("RB",), "RB2": ("RB",), "WR1": ("WR",), "WR2": ("WR",), "FLEX": FLEX_POS}
+            pot_pos = {"QB": ("QB",), "TE": ("TE",), "RB1": ("RB",), "RB2": ("RB",), "WR1": ("WR",), "WR2": ("WR",),
+                       "FLEX1": FLEX_POS, "FLEX2": FLEX_POS}
             first_pick = []
             for ps in ("QB", "TE"):
                 pots[ps] = np.where(opt_pos == ps, my_val, 0.0)
@@ -609,7 +611,11 @@ class Simulator:
                     first_pick.append(opts[best_i][0])
                     pots[ps + "2"] = v1 * marginal(roster + [opts[best_i][0]], (ps,))
             if n_opt:
-                pots["FLEX"] = np.where(np.isin(opt_pos, FLEX_POS), my_val, 0.0) * marginal(roster + first_pick, FLEX_POS)
+                v_flex = np.where(np.isin(opt_pos, FLEX_POS), my_val, 0.0)
+                pots["FLEX1"] = v_flex * marginal(roster + first_pick, FLEX_POS)
+                if pots["FLEX1"].max() > 0:
+                    best_flex = opts[int(pots["FLEX1"].argmax())][0]
+                    pots["FLEX2"] = v_flex * marginal(roster + first_pick + [best_flex], FLEX_POS)
             # Injury cover: the best few replacements for each starter, valued as P(he's out)
             # x the replacement's gain over the next man up (or the best free player).
             cover_items = []  # (starter, positions, option indices, gains)
