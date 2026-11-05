@@ -56,6 +56,8 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
 - **Free alternatives.** Both gains count only above the next-best player at that slot
   on waivers or free agency now: with many free QBs available, none of them is worth
   much, and a one-week fill-in is cheap when others are free.
+  Free agents are kept from week to week as the best 15 at each position (this week +
+  week 17 projection), so deep positions don't crowd out QBs and TEs.
 - **The slot** is the one held by the starter who drops out of the week-17 lineup.
   QB, RB, WR and TE fill first, then flex takes the best of the rest, so with two great
   RBs and two great WRs a new RB or WR replaces the worst flex starter.

@@ -29,7 +29,8 @@ from .projections import Projections
 
 FUTURE_TOP_PLAYERS = 4  # per rival roster and position, players considered as possible future pickups
 MONEY_GRID = 41  # money levels at which a team values what its FAAB can still buy
-FA_POOL_KEEP = 30  # leftover free agents carried between weeks (by projection)
+FA_KEEP_PER_POS = 15  # free agents carried between weeks: the best this many at each position
+ALT_PER_POS = 3  # free players per position checked as the alternative to a claim
 # Projection uncertainty grows with the horizon: a player's true level is a random walk
 # around his projection. About ±10% for this week, growing to about ±25% by week 17.
 PROJ_ERROR_NOW = 0.10  # lognormal sd of this week's true level vs projection
@@ -128,9 +129,8 @@ class Simulator:
         self.init_rosters = {t.id: [idx[p] for p in t.players] for t in state.teams}
         self.init_pool = [idx[p] for p in state.waiver_pool]
         self.init_fa = [idx[p] for p in state.free_agents if p not in set(state.waiver_pool)]
-        # Keep the initial free-agent list small: only the best by value matter.
-        self.init_fa.sort(key=lambda i: -self.proj.value_basis[0][i])
-        self.init_fa = self.init_fa[:FA_POOL_KEEP]
+        # Keep the best free agents at each position (this week + week 17).
+        self.init_fa = self._best_per_pos(self.init_fa, self.proj.means[:, 0] + self.proj.means[:, -1], FA_KEEP_PER_POS)
         self.inj_rate = np.array([INJURY_RATE.get(p, 0.02) for p in self.proj.pos])
         n_w = len(self.proj.weeks)
         self._avail = np.ones((len(self.proj.ids), n_w))  # per-sim: 1 if the player can play week k
@@ -421,6 +421,7 @@ class Simulator:
         SLOTS = {"QB": ("QB",), "RB": ("RB",), "WR": ("WR",), "TE": ("TE",), "FLEX": FLEX_POS}
 
         available = [x for x in set(pool) | set(fa_pool)]
+        alt_fin = self._best_per_pos(available, fin, ALT_PER_POS)  # free week-17 alternatives
 
         def team_bids(tid: str) -> dict[int, int]:
             out = {}
@@ -519,7 +520,8 @@ class Simulator:
                         gain_now[x] = g
             # Week 17 too: a claim only counts above the best other player available now at
             # that slot. With many free QBs on waivers, none of them is worth much.
-            gain_fin = {x: self._final_gain(roster, x, fin, q_out, base_fin, without) for x in remaining}
+            gain_fin = {x: self._final_gain(roster, x, fin, q_out, base_fin, without)
+                        for x in set(remaining) | set(alt_fin)}
             why = self.why_no_bid
             for p in remaining:
                 g_now = gain_now.get(p, 0.0)
@@ -737,8 +739,7 @@ class Simulator:
             priority[tid] = max(priority.values()) + 1
 
         leftovers = [p for p in set(pool) | set(fa_pool) if p not in claimed]
-        leftovers.sort(key=lambda p: -worth[p])
-        return [], leftovers[:FA_POOL_KEEP]
+        return [], self._best_per_pos(leftovers, worth, FA_KEEP_PER_POS)
 
     def _award(self, sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, drop=None):
         proj = self.proj
@@ -756,6 +757,16 @@ class Simulator:
         res.awards.append((sim, j, proj.ids[p], tid, int(amt)))
         self._added_this_round.setdefault(tid, set()).add(p)
         self._enforce_roster(sim, j, tid, p, rosters, fa_pool, protected=self._added_this_round[tid])
+
+    def _best_per_pos(self, players, worth, k: int) -> list[int]:
+        """The best k players at each position, by ``worth``."""
+        by_pos: dict[str, list[int]] = {}
+        for x in players:
+            by_pos.setdefault(self.proj.pos[x], []).append(x)
+        out = []
+        for xs in by_pos.values():
+            out += sorted(xs, key=lambda x: -worth[x])[:k]
+        return sorted(out, key=lambda x: -worth[x])
 
     def _would_cut_new(self, roster: list[int], p: int, drop, added: set) -> bool:
         """Would adding p (dropping ``drop``) force the roster rules to cut p or a player
