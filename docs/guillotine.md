@@ -41,12 +41,12 @@ weeks matter: **this week**, if the team might be cut now, and **week 17**, the 
 The middle weeks don't enter the price, so a bye week doesn't make a player cheaper.
 
 ```
-V        = P(cut this week) × this week's gain over the best other player available now
-         + P(reach the final and lose it) × expected week-17 lineup gain
-O_slot   = P(lose final) × expected best later option for the same slot
-surplus  = V − O_slot                      (no bid if ≤ 0)
-fair bid = FAAB × surplus / (surplus + O of the other slots)
-bid      = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
+V          = P(cut this week) × this week's gain over the best other player available now
+           + P(reach the final and lose it) × expected week-17 lineup gain
+money(m)   = what m dollars can still buy later: for each slot, the best player expected
+             to reach waivers × your share of claims, plus injury cover for each starter
+fair bid   = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
+bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
 ```
 
 - **Lineup gain** is how much the player raises *that team's* best lineup. Week 17 is
@@ -54,20 +54,22 @@ bid      = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at F
   wouldn't start in week 17 is a backup: his value is P(a starter he'd replace is
   out) × how much better he is than the next man up.
 - **This week** only needs the slot filled once (a bye, an injury), so the gain
-  counts only above the next-best player at that slot on waivers or free agency this
-  week. A one-week fill-in is cheap when other options are free.
+  counts only above the next-best player at that slot on waivers or free agency now.
 - **The slot** is the one held by the starter who drops out of the week-17 lineup.
   QB, RB, WR and TE fill first, then flex takes the best of the rest, so with two great
-  RBs and two great WRs a new RB or WR really replaces the worst flex starter, and any
-  RB/WR/TE can fill that slot later.
-- **O (can you do better later in that slot?)**: players at the slot's positions on
-  rival rosters come back only if their team is cut. Each one lands with P(that rival is
-  cut before the final) × P(you win him, about `future_share` / teams alive). O is the
-  expected best one landed, not a sum: a slot needs one player.
-- **Price**: the surplus is this player's share of what the budget can still buy. The
-  rest of the budget is for upgrading the other slots (QB, RB, WR, TE, flex) later. FAAB
-  disappears when a team is cut, so a team likely to be cut now has little future use
-  for it and spends more.
+  RBs and two great WRs a new RB or WR replaces the worst flex starter.
+- **What money buys later.** A rival's player reaches waivers only if his team is cut.
+  You then win the claim with your share of the money still in the league: FAAB kept /
+  (FAAB kept + the FAAB of rivals expected to still be alive then). Losing one claim to a
+  richer team means losing the next too, so the share applies once per slot to the best
+  player expected to come back. Money also buys **injury cover**: if a starter gets hurt
+  before week 17, it buys his replacement. All of it is weighted by P(lose the final).
+- **Win vs lose.** Losing the claim keeps all the money, including for a later player in
+  this slot. Winning gives his value now but leaves FAAB − b: lower odds on every later
+  claim, a later player in this slot only counts above him, and the injury cover he
+  provides no longer has to be bought. The fair bid is the price where the two are equal.
+  If winning isn't better even at $0 (his surplus over waiting), there's no bid. The bid
+  never needs to exceed the lock price (every rival's whole FAAB + 1).
 - **P(cut)**: each team's weekly score is treated as roughly normal (mean = its best
   lineup's projection; spread = starters' weekly variance plus projection error).
   P(cut) is the chance of posting the lowest score, from 2,000 fixed draws. Later

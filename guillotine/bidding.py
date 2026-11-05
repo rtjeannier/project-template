@@ -1,17 +1,11 @@
-"""How managers price a FAAB claim (the valuation itself is in ``Simulator._waiver_round``).
+"""Bid model settings. The valuation is in ``Simulator._waiver_round``:
 
-Each team values a player on its own, without guessing rivals' bids:
-
-    V        = P(cut this week) x this week's gain over the best other player available now
+    V        = P(cut this week) x this week's gain over the best player available now
              + P(reach the final and lose it) x expected week-17 lineup gain
-    O_slot   = expected best player for the same slot the team could land later
-    surplus  = V - O_slot
-    fair bid = FAAB x surplus / (surplus + O of the other slots)
+    money(m) = what m dollars still buy later (each slot's best returning player x the
+               team's share of claims, plus injury cover), weighted by P(lose the final)
+    fair bid = the most b with  V + money(FAAB - b | won)  >=  money(FAAB | lost)
     bid      = fair bid x multiplier ~ Normal(1, bid_sd) x aggression   (capped at FAAB)
-
-``bid()`` is the last line with ``value`` = surplus and ``opportunity`` = the other
-slots' O. Lock: if topping every other team's whole FAAB costs less than the fair bid,
-the team bids exactly that and can't lose.
 """
 
 from __future__ import annotations
@@ -26,7 +20,6 @@ class BidModel:
     # Every bid = fair bid x a multiplier drawn from Normal(1, bid_sd). 0.61 puts the 95th
     # percentile at 2x fair; a draw at or below 0 is a $0 bid. None = old lognormal noise.
     bid_sd: float | None = 0.61
-    future_share: float = 3.0  # P(landing a player who reaches waivers later) = future_share / teams alive
     pool_consider: int = 15  # only the top-N pool players (this week + week 17) get bids
     min_gain: float = 0.1  # weekly points gain over the free alternative below which a team doesn't bother
 
