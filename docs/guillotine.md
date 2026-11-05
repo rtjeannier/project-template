@@ -206,15 +206,15 @@ in that folder.
 
 The page has:
 
-- **When your bid goes through, did the price matter?** Only winning bids. Price is
-  shown as a multiple of fair or as a % of the team's FAAB at the time. By default it
-  shows the **change in win rate vs paying fair, within each team**. For each team, its win rate at a bid level minus
-  its own win rate when bidding fair in the same situation (percentage points), then
-  averaged over teams with each counted equally. Each team is compared only with
-  itself, so its built-in advantage drops out, and teams that survive longer (and
-  bid more) don't dominate. A pooled view is available too. Filters: what the bid was
-  for, final-week edge, position, week, FAAB vs the richest rival, cut risk, fair-bid
-  size, and bidding team.
+- **What a good bid looks like:** every real claim (not $0–2 backup pickups), win or
+  lose, described only by observable things: bid size as a % of the bidder's FAAB,
+  player tier (elite / starter / depth by final-week edge), time window, and FAAB vs
+  the richest rival. For a chosen situation, it shows the change in the bidder's
+  chance of winning the league at each bid size (vs the same team's average in that
+  situation) and how often that bid landed the player, plus a "good bid by
+  situation" table. No model "fair bid" is used. With data where bids were fair ×
+  noise, bid % isn't randomized, so treat it as association until a run with bids
+  drawn uniformly from 0–100% of FAAB.
 - **Week by week, survival by choices:** pick a team and a week. Every season the team
   is alive going into that week is grouped by what it did that week (average bid vs
   fair, FAAB spent, whether it landed a lineup upgrade), and each group gets a survival
@@ -227,9 +227,8 @@ The page has:
   only seasons he hit waivers while it was alive), overall and by when he became
   available. These are associations: unlike bid multipliers, getting a player isn't
   randomized.
-- **Players:** median week bid on, median fair bid and median winning price as a % of
-  the bidder's FAAB, and the within-team change in win rate when the winner paid under
-  vs over fair. Click one to chart him.
+- **Players:** most irreplaceable first: median week bid on, times won, and median
+  winning price as a % of the winner's FAAB.
 - **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
   every award, scores and cuts.
 
