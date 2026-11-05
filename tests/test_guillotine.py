@@ -125,3 +125,23 @@ def test_injured_players_score_zero_and_lose_waiver_value(state, sim):
     assert sim._known_value(k)[p] <= sim.proj.value_basis[k][p]
     # Nobody is out in the first week: an injury happens in a game and costs later weeks.
     assert sim._avail[:, 0].all()
+
+
+def test_lock_rule_tops_every_interested_rival(state, sim):
+    base = sim.run(15)
+    pid = max(base.user_gain_now.items(), key=lambda kv: kv[1])[0]
+    res = sim.run(15, UserPolicy("auto", rules={pid: "lock"}))
+    me = state.my_team_id
+    my_faab = state.team(me).faab
+    rich = max(t.faab for t in state.teams if t.id != me)
+    if my_faab > rich:
+        # Topping the richest rival's whole budget can't lose this week.
+        assert sum(1 for s, j, p, t, a in res.awards if j == 0 and p == pid and t == me) == 15
+    assert all(b <= my_faab for b in res.user_rule_bids.get(pid, []))
+
+
+def test_uncertain_replacement_is_higher_far_out(state, sim):
+    vb = sim.proj.value_basis[-1]
+    universe = set(range(len(sim.proj.ids)))
+    near, far = sim._replacement(vb, universe, 2, 0.1), sim._replacement(vb, universe, 2, 0.3)
+    assert far["RB"] > near["RB"]

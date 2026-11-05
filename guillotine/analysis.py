@@ -5,7 +5,7 @@ Compares scenarios on the same random draws:
   * pass     — you sit out this week's waivers
   * bid $Y on X — your sealed bid enters the auction; you win X only if it beats the field
   * targets — for this week's best pool players and the irreplaceable players likely to
-    hit waivers later: "whenever he's available and I'm alive, bid X% of my FAAB", for
+    hit waivers later: "whenever he's available and I'm alive, bid by this rule", for
     several X (X = 0 is never bidding; the smallest is a $1 lottery ticket). The best X
     for each target forms the plan, which is then run as a whole.
 """
@@ -45,7 +45,7 @@ class Analysis:
     passed: SimResults
     candidates: list[Candidate] = field(default_factory=list)
     targets: list[dict] = field(default_factory=list)
-    plan: dict[str, float] = field(default_factory=dict)
+    plan: dict[str, str | float] = field(default_factory=dict)
     plan_result: SimResults | None = None
     holes: list[dict] = field(default_factory=list)
     future_targets: list[dict] = field(default_factory=list)
@@ -69,15 +69,20 @@ def survive_through(res: SimResults, team_id: str, n_weeks: int) -> float:
     return float(alive[min(n_weeks, len(alive)) - 1])
 
 
-TARGET_SHARES = (0.0, 0.002, 0.15, 0.3, 0.5, 0.75)  # share of your FAAB; 0.002 rounds up to a $1 bid
+# Standing rules tried for each target: never, a $1 lottery ticket, enough to beat every
+# interested rival 50/75/90% of the time (estimated from their FAAB and need), or "lock"
+# (top the richest interested rival's whole budget).
+TARGET_RULES = ("none", "$1", 0.5, 0.75, 0.9, "lock")
 
 
 def final_edge(sim: Simulator) -> dict[str, float]:
     """Each player's projected points per week above week-17 replacement (two teams left).
     Positive = irreplaceable in the final: he counts for you and against your opponent."""
+    from .simulate import horizon_sd
+
     proj = sim.proj
     vb = proj.value_basis[-1]
-    repl = sim._replacement(vb, set(range(len(proj.ids))), 2)
+    repl = sim._replacement(vb, set(range(len(proj.ids))), 2, horizon_sd(len(proj.weeks) - 1))
     return {pid: float(vb[i] - repl.get(proj.pos[i], 0.0)) for i, pid in enumerate(proj.ids)}
 
 
@@ -99,24 +104,26 @@ def pick_targets(sim: Simulator, baseline: SimResults, n_now: int, n_future: int
 
 
 def target_analysis(sim: Simulator, targets: list[str], n_sims: int) -> list[dict]:
-    """For each target, the standing rule "whenever he's on waivers and I'm alive, bid X%
-    of my FAAB" at several X, on the same random draws. X = 0 means never bid on him."""
+    """For each target, try each standing rule ("whenever he's on waivers and I'm alive,
+    bid like this") on the same random draws. Rules are relative to what the rivals who
+    want him can bid, like Jeopardy wagering, not to your own budget."""
     me = sim.user
     edge = final_edge(sim)
     rows = []
     for pid in targets:
         curve = []
-        for share in TARGET_SHARES:
-            r = sim.run(n_sims, UserPolicy("auto", future_bids={pid: share}))
+        for rule in TARGET_RULES:
+            r = sim.run(n_sims, UserPolicy("auto", rules={pid: rule}))
             mine = [(j, a) for s, j, p, tid, a in r.awards if p == pid and tid == me]
             could = len(r.user_could_bid.get(pid, ()))
             curve.append({
-                "share": share, "p_champ": r.p_champion(me), "p_alive3": survive_through(r, me, 3),
+                "rule": rule, "p_champ": r.p_champion(me),
+                "bid_median": float(np.median(r.user_rule_bids[pid])) if r.user_rule_bids.get(pid) else 0.0, "p_alive3": survive_through(r, me, 3),
                 "p_get": len(mine) / could if could else 0.0, "p_chance": could / n_sims,
                 "avg_paid": float(np.mean([a for _, a in mine])) if mine else 0.0,
                 "weeks": [r.weeks[j] for j, _ in mine],
             })
-        best = max(curve, key=lambda c: (round(c["p_champ"], 4), -c["share"]))
+        best = max(curve, key=lambda c: (round(c["p_champ"], 4), -TARGET_RULES.index(c["rule"])))
         owner = next((t.name for t in sim.state.teams if pid in t.players), "waivers now")
         rows.append({"player_id": pid, "owner": owner, "edge": edge.get(pid, 0.0), "curve": curve,
                      "best": best, "gain_vs_pass": best["p_champ"] - curve[0]["p_champ"]})
@@ -147,8 +154,8 @@ def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0
     # Who to target, and how much of your FAAB to bid whenever each one is available
     targets = pick_targets(sim, baseline, n_now=3, n_future=n_future)
     out.targets = target_analysis(sim, targets, n_sims)
-    out.plan = {t["player_id"]: t["best"]["share"] for t in out.targets if t["best"]["share"] > 0}
-    out.plan_result = sim.run(n_sims, UserPolicy("auto", future_bids=dict(out.plan)))
+    out.plan = {t["player_id"]: t["best"]["rule"] for t in out.targets}
+    out.plan_result = sim.run(n_sims, UserPolicy("auto", rules=dict(out.plan)))
 
     out.holes = roster_holes(sim)
     out.future_targets = future_targets(sim, baseline)

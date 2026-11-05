@@ -13,16 +13,18 @@ def _signed_pct(x: float) -> str:
     return f"{100 * x:+.1f} pts"
 
 
-def _share(s: float, faab: float) -> str:
-    if s <= 0:
+def _rule(r) -> str:
+    if r == "none":
         return "don't bid"
-    if s < 0.01:
-        return "$1"
-    return f"{100 * s:.0f}% of FAAB (${s * faab:.0f} today)"
+    if r == "$1":
+        return "$1 lottery ticket"
+    if r == "lock":
+        return "lock: top richest rival's budget"
+    return f"beat the field {100 * float(r):.0f}%"
 
 
-def _level(s: float) -> str:
-    return "none" if s <= 0 else "$1" if s < 0.01 else f"{100 * s:.0f}%"
+def _level(r) -> str:
+    return r if isinstance(r, str) else f"beat {100 * float(r):.0f}%"
 
 
 def render(a: Analysis) -> str:
@@ -53,28 +55,32 @@ def render(a: Analysis) -> str:
 
     add("## Who to target, and how much to bid")
     add("")
-    add("Each row is a standing rule: **whenever he's on waivers and you're still alive, bid this much**. "
+    add("Each row is a standing rule: **whenever he's on waivers and you're still alive, bid this way**. "
+        "Rules are set against what the rivals who want him can bid, like Jeopardy wagering: *beat the field X%* "
+        "= enough to top every interested rival X% of the time, judged from their FAAB and needs (not their actual "
+        "bids); *lock* = top the richest interested rival's whole budget. "
         "Candidates are this week's best pool players plus the players on other rosters who are irreplaceable in "
         "the final (projected above week-17 replacement) and likely to hit waivers while you can bid. "
-        "**Final edge** = his projected points/week above week-17 replacement: in the final he counts for you "
-        "*and* against your opponent. Effects are vs never bidding on him.")
+        "**Final edge** = his projected points/week above week-17 replacement (allowing for how uncertain week 17 "
+        "is from here): in the final he counts for you *and* against your opponent. Effects are vs never bidding on him.")
     add("")
-    add("| Player | Pos | Now on | Final edge | Bid | Δ P(win league) | P(you get him, when you can bid) | Typical price | Usually available |")
-    add("|---|---|---|---:|---|---:|---:|---:|---|")
+    add("| Player | Pos | Now on | Final edge | Rule | Median bid placed | Δ P(win league) | P(you get him, when you can bid) | Typical price paid | Usually available |")
+    add("|---|---|---|---:|---|---:|---:|---:|---:|---|")
     for t in a.targets:
         pl = players[t["player_id"]]
         b = t["best"]
         wk = f"wk {sorted(b['weeks'])[len(b['weeks']) // 2]}" if b["weeks"] else "-"
-        add(f"| {pl.name} | {pl.pos} | {t['owner']} | {t['edge']:+.1f} | {_share(b['share'], my.faab)} | "
+        bid = f"${b['bid_median']:.0f}" if b["rule"] != "none" else "-"
+        add(f"| {pl.name} | {pl.pos} | {t['owner']} | {t['edge']:+.1f} | {_rule(b['rule'])} | {bid} | "
             f"{_signed_pct(t['gain_vs_pass'])} | {_pct(b['p_get'])} | "
             f"{'$' + format(b['avg_paid'], '.0f') if b['avg_paid'] else '-'} | {wk} "
             f"({_pct(b['p_chance'])} of seasons) |")
     add("")
-    add("P(win league) at each bid level tried (share of your FAAB at the time):")
+    add("P(win league) under each rule tried:")
     add("")
     for t in a.targets:
         add(f"- {players[t['player_id']].name}: " + ", ".join(
-            f"{_level(c['share'])} → {_pct(c['p_champ'])}" for c in t["curve"]))
+            f"{_level(c['rule'])} → {_pct(c['p_champ'])}" for c in t["curve"]))
     add("")
 
     add("## This week's pool: what it takes to win each player")

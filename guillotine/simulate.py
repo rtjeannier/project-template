@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from statistics import NormalDist
 
 import numpy as np
 
@@ -27,7 +28,19 @@ from .models import LeagueState
 from .projections import Projections
 
 FA_POOL_KEEP = 30  # leftover free agents carried between weeks (by projection)
-ROS_ERROR_SD = 0.20  # lognormal sd of a player's season-long deviation from his projection
+# Projection uncertainty grows with the horizon: a player's true level is a random walk
+# around his projection. About ±10% for this week, growing to about ±25% by week 17.
+PROJ_ERROR_NOW = 0.10  # lognormal sd of this week's true level vs projection
+PROJ_ERROR_STEP = 0.08  # extra lognormal sd added per week further out
+
+
+def horizon_sd(weeks_ahead: int) -> float:
+    """Projection uncertainty (lognormal sd) for a week this many weeks ahead."""
+    return float(np.sqrt(PROJ_ERROR_NOW**2 + max(weeks_ahead, 0) * PROJ_ERROR_STEP**2))
+
+
+_NORMAL = NormalDist()
+REPL_DRAWS = np.random.default_rng(7).standard_normal((40, 400))  # fixed draws for uncertain replacement levels
 # Injuries: weekly chance a player gets hurt in a game. A share of injuries end his
 # season; the rest keep him out 1-4 weeks. Kept modest because ROS projections already
 # price in some missed time.
@@ -46,9 +59,12 @@ class UserPolicy:
     player: str | None = None
     price: int = 0
     bids: dict[str, int] | None = None  # mode "bid": your sealed bids {player_id: amount}; others bid as modeled
-    # Later rounds: whenever one of these players is on waivers, bid this share of your FAAB
-    # (0 = never bid on him). Applies on top of any mode.
-    future_bids: dict[str, float] | None = None
+    # Standing rules: whenever one of these players is on waivers (and you're alive), bid by
+    # the rule: "none" (never bid), "$1", a number q in (0, 1) = enough to beat every
+    # interested rival with probability q, estimated from what you can see (their FAAB,
+    # their need, typical bidding; not their actual bids), or "lock" = top the richest
+    # interested rival's whole budget. Applies on top of any mode.
+    rules: dict[str, str | float] | None = None
     embargo: frozenset[str] = frozenset()  # players removed from the game when they hit waivers
 
 
@@ -69,6 +85,7 @@ class SimResults:
     user_final_faab: list[float] = field(default_factory=list)
     # player -> sims where he was on waivers in a later round while you were still alive to bid
     user_could_bid: dict[str, set[int]] = field(default_factory=dict)
+    user_rule_bids: dict[str, list[int]] = field(default_factory=dict)  # what your standing rules bid
 
     def p_alive_after(self, team_id: str) -> np.ndarray:
         """P(team still alive after each week)."""
@@ -129,7 +146,10 @@ class Simulator:
         z = luck.standard_normal(self.proj.means.shape)
         # Season-long projection error: a player's true level differs from his projection
         # for the whole season (breakouts, busts, role changes), on top of weekly noise.
-        true_level = luck.lognormal(-ROS_ERROR_SD**2 / 2, ROS_ERROR_SD, size=(self.proj.means.shape[0], 1))
+        n_p, n_w = self.proj.means.shape
+        steps = np.concatenate([luck.normal(-PROJ_ERROR_NOW**2 / 2, PROJ_ERROR_NOW, (n_p, 1)),
+                                luck.normal(-PROJ_ERROR_STEP**2 / 2, PROJ_ERROR_STEP, (n_p, n_w - 1))], axis=1)
+        true_level = np.exp(np.cumsum(steps, axis=1))  # random walk: later weeks are less certain
         points = np.clip(self.proj.means * true_level + self.proj.sd * z, 0, None)
         self._draw_injuries(luck)
         points *= self._avail
@@ -206,6 +226,29 @@ class Simulator:
             vb[hurt_now] *= np.clip(len(self.proj.weeks) - self._back[hurt_now], 0, left) / left
         return vb
 
+    @staticmethod
+    def _beat_field(q: float, rivals: list[tuple[float, float]], sd: float, cap: int) -> int:
+        """Smallest bid that tops every rival with probability q. Each rival's bid is
+        lognormal around your estimate of it (sd = manager + bid noise) and can't exceed
+        that rival's FAAB."""
+        def p_top_all(b: int) -> float:
+            p = 1.0
+            for est, budget in rivals:
+                if b > budget or est <= 0:
+                    continue  # can't outbid you, or isn't really bidding
+                p *= _NORMAL.cdf(np.log(b / est) / sd)
+            return p
+        lo, hi = 1, max(cap, 1)
+        if p_top_all(hi) < q:
+            return hi
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if p_top_all(mid) >= q:
+                hi = mid
+            else:
+                lo = mid + 1
+        return lo
+
     def _cut_odds(self, rosters, active, j) -> dict[str, float]:
         """P(each team posts the lowest score in week j), from score distributions.
 
@@ -221,7 +264,7 @@ class Simulator:
             _, starters = self.spec.best(rosters[t], means, proj.pos)
             m = means[starters]
             mu.append(m.sum())
-            sd.append(float(np.sqrt((proj.sd[starters, j] ** 2).sum() + ((m * ROS_ERROR_SD) ** 2).sum())))
+            sd.append(float(np.sqrt((proj.sd[starters, j] ** 2).sum() + ((m * PROJ_ERROR_NOW) ** 2).sum())))
         scores = np.array(mu) + np.array(sd) * ODDS_DRAWS[:, : len(active)]
         counts = np.bincount(scores.argmin(axis=1), minlength=len(active)) + 0.5  # floor: never exactly 0
         return {t: float(c) / counts.sum() for t, c in zip(active, counts)}
@@ -247,7 +290,9 @@ class Simulator:
         e = settings.eliminations_per_week
         # Rounds still to play (this week = r 0), with the number of teams alive in each.
         n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
-        repl = {n: self._replacement(vb, universe, n) for n in set(n_alive)}
+        # Replacement level for each round, as seen from now: further-out rounds are less
+        # certain, so the best free player is likelier to be someone who broke out.
+        repl = {n: self._replacement(vb, universe, n, horizon_sd(r)) for r, n in enumerate(n_alive)}
         # Odds as they stand before waivers (this week's projections, current rosters).
         # They're recalculated after every pickup below.
         odds = self._cut_odds(rosters, active, j)
@@ -333,17 +378,42 @@ class Simulator:
                     out[p] = amt
                     if self.bid_log is not None:
                         self.bid_log.append((sim, j, proj.ids[p], tid, amt, faab[tid]))
-            if tid == self.user and policy.future_bids and (j > 0 or policy.mode == "auto"):
-                for pid, share in policy.future_bids.items():
-                    p = proj.index[pid]
-                    if p in remaining:
-                        if share <= 0:
-                            out.pop(p, None)
-                        else:
-                            out[p] = min(int(faab[tid]), max(1, int(share * faab[tid])))
+                    if tid != self.user:
+                        # What you could estimate about this rival's bid: no noise, typical aggression.
+                        expected[(tid, p)] = model.bid(value=value, opportunity=opp, faab=faab[tid],
+                                                       aggression=1.0, noise=1.0, min_bid=settings.min_bid)
+            return out
+
+        expected: dict[tuple[str, int], int] = {}
+        rival_sd = float(np.hypot(model.manager_sd, model.bid_noise_sd))
+
+        def apply_rules(out: dict[int, int]) -> dict[int, int]:
+            if not policy.rules or (j == 0 and policy.mode != "auto"):
+                return out
+            for pid, rule in policy.rules.items():
+                p = proj.index[pid]
+                if p not in remaining:
+                    continue
+                res.user_rule_bids.setdefault(pid, [])
+                if rule == "none":
+                    out.pop(p, None)
+                    continue
+                rivals = [(t, expected[(t, p)]) for t in active if t != self.user and (t, p) in expected]
+                if rule == "$1" or not rivals:
+                    amt = 1
+                elif rule == "lock":
+                    amt = int(max(faab[t] for t, _ in rivals)) + 1
+                else:
+                    amt = self._beat_field(float(rule), [(e, faab[t]) for t, e in rivals], rival_sd,
+                                           int(faab[self.user]))
+                amt = int(min(max(amt, 1), faab[self.user]))
+                out[p] = amt
+                res.user_rule_bids[pid].append(amt)
             return out
 
         bids = {tid: team_bids(tid) for tid in active}
+        if self.user in bids:
+            bids[self.user] = apply_rules(bids[self.user])
 
         if j == 0:
             if sim == 0:
@@ -385,6 +455,8 @@ class Simulator:
             priority[tid] = max(priority.values()) + 1
             if not (j == 0 and tid == self.user and policy.mode != "auto"):
                 bids[tid] = team_bids(tid)
+                if tid == self.user:
+                    bids[tid] = apply_rules(bids[tid])
 
         leftovers = [p for p in set(pool) | set(fa_pool) if p not in claimed]
         leftovers.sort(key=lambda p: -vb[p])
@@ -412,9 +484,14 @@ class Simulator:
         if entries and entries[-1][0] == sim and entries[-1][1] == j and np.isnan(entries[-1][2]):
             entries[-1] = (sim, j, gain)
 
-    def _replacement(self, vb, universe, n_active: int) -> dict[str, float]:
+    def _replacement(self, vb, universe, n_active: int, sigma: float = 0.0) -> dict[str, float]:
         """Dynamic replacement level: the best player at each position the remaining
-        teams won't start. It rises as teams are cut and their rosters hit waivers."""
+        teams won't start. It rises as teams are cut and their rosters hit waivers.
+
+        With projection uncertainty ``sigma`` (for a round that far ahead), it is the
+        expected value of that order statistic: among many uncertain players, the k-th
+        best is likely to be someone outperforming his projection. So a stud's edge over
+        replacement is smaller far out, and firms up as the final approaches."""
         slots = self.state.settings.roster_slots
         flex = sum(c for s, c in slots.items() if s in ("FLEX", "W/R/T", "W/R", "W/T", "R/W"))
         superflex = sum(c for s, c in slots.items() if s in ("SUPERFLEX", "Q/W/R/T"))
@@ -426,8 +503,14 @@ class Simulator:
             starters = slots.get(pos, 0) + flex * FLEX_SHARE.get(pos, 0)
             starters += superflex * (0.8 if pos == "QB" else 0.07)
             k = int(round(n_active * starters))
-            vals.sort(reverse=True)
-            out[pos] = vals[k] if k < len(vals) else 0.0
+            if k >= len(vals):
+                out[pos] = 0.0
+            elif sigma <= 0:
+                out[pos] = sorted(vals, reverse=True)[k]
+            else:
+                v = np.array(vals)
+                drawn = v * np.exp(sigma * REPL_DRAWS[:, : len(v)] - sigma**2 / 2)
+                out[pos] = float(np.mean(-np.partition(-drawn, k, axis=1)[:, k]))
         return out
 
     @staticmethod
