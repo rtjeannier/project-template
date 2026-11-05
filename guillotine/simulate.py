@@ -763,13 +763,3 @@ class Simulator:
             out[t] = w
         return out
 
-    def _future_pool(self, vb, rosters, active, totals) -> list[int]:
-        """Players likely to hit waivers later: the weakest teams' best players."""
-        if len(active) <= 2:
-            return []
-        weak = sorted(active, key=lambda t: totals[t])[: max(1, len(active) // 3)]
-        n_keep = self.spec.n_starters + 2
-        out = []
-        for t in weak:
-            out += sorted(rosters[t], key=lambda p: -vb[p])[:n_keep]
-        return out

@@ -16,9 +16,12 @@ Each manager prices a player in *their own budget*, not in a league-wide currenc
   round's replacement level count 1/(teams alive − 1) extra, reaching the full amount
   in the final, where an irreplaceable player counts twice (for you and against your
   opponent) and a replaceable one is worth nothing to deny.
-- **Future opportunity** = upgrades the team expects to buy from later pools
-  (estimated from the weakest teams' rosters), discounted by the chance the team
-  survives to use them, and by competition for them. FAAB is use-it-or-lose-it: it
+- **Future opportunity** = the expected value of the best replacement the team can
+  still get later. A player only comes back if the rival holding him is cut, so for
+  each rival's best upgrade: P(that rival is cut in round r) x P(this team is still
+  alive) x P(it wins him), combined as the best one it ends up with, not a sum. A
+  player on a team likely to reach the end never comes back, so elite players are
+  hard to replace. FAAB is use-it-or-lose-it: it
   disappears when the team is cut and is worthless after the final round. So
   opportunity shrinks as the season runs out, and in the last round a team will
   spend everything on an upgrade.

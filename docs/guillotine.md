@@ -77,11 +77,17 @@ willingness = FAAB × value / (value + future opportunity)
 bid         = willingness × shade × aggressiveness × noise        (capped at FAAB)
 ```
 
-**Future opportunity** is the same weighted value for the best upgrade expected in
-later pools (from the weakest teams' rosters), scaled by competition
-(`future_share / teams alive`). FAAB is use-it-or-lose-it, so it disappears when a
-team is cut. In the last round there's no future, so a team will spend its whole
-budget on an upgrade.
+**Future opportunity** is the expected value of the best replacement the team can
+still get later. A player only comes back to waivers if the rival holding him is cut.
+For each rival's best upgrade for this team: P(that rival is cut in round r) × P(this
+team is still alive then) × P(it wins him, about `future_share` / teams alive). These
+are combined as the best replacement the team ends up with, not a sum, because it
+only needs one. A player on a team likely to reach the end never comes back, so elite
+players like Gibbs are hard to replace and get bid up. With this, elite players'
+winning price is a median 61% of the winner's FAAB (middle half 42–84%), in line
+with the real league (elite RBs 50–96%). FAAB is use-it-or-lose-it, so it disappears
+when a team is cut. In the last round there's no future, so a team will spend its
+whole budget on an upgrade.
 
 Managers are **rational with noise**: everyone uses this valuation, and each bid gets
 random noise (`bid_noise_sd`) so it isn't predictable. There are no per-manager
