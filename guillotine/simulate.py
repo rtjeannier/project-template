@@ -516,7 +516,49 @@ class Simulator:
         # What each one is worth to each team, in title chances if he lands there: how much he
         # improves its lineup in week 17 (the final, and the weeks he'd play before it), and
         # this week too for a player on waivers now.
-        gain_opt, gnow_opt, val_opt = {}, {}, {}
+        # Weeks between now and the final, week by week, with each team's lineup for that
+        # week (byes = 0; injuries count only once they've happened). A player's value in
+        # those weeks = how much he lowers the team's chance of being cut each week, against
+        # every rival's lineup that week. This is where bye-week exposure shows up: a player
+        # who's off the same week as your other starters doesn't help then, and one who
+        # covers a hole helps a lot.
+        mid_weeks = [j + r for r in range(1, n_mid + 1)]
+        known = np.ones_like(self._avail)
+        hurt_now = self._avail[:, j] == 0
+        for w in mid_weeks:
+            known[hurt_now & (self._back > w), w] = 0.0
+        wk_means = {w: proj.means[:, w] * known[:, w] for w in mid_weeks}
+        wk_mu, wk_sd, wk_min = {}, {}, {}
+        for w in mid_weeks:
+            err = horizon_sd(w - j)
+            dr = {}
+            for t in active:
+                _, stw = spec.best(rosters[t], wk_means[w], proj.pos)
+                m = wk_means[w][stw]
+                wk_mu[(t, w)] = float(m.sum())
+                wk_sd[(t, w)] = float(np.sqrt((proj.sd[stw, w] ** 2).sum() + ((m * err) ** 2).sum()))
+                dr[t] = wk_mu[(t, w)] + wk_sd[(t, w)] * ODDS_DRAWS[:, col[t]]
+            for t in active:
+                # 500 draws are plenty for a weekly cut chance
+                wk_min[(t, w)] = np.min(np.vstack([dr[u][:500] for u in active if u != t]), axis=0)
+        wk_c0 = {k: float(_phi((wk_min[k] - wk_mu[k]) / max(wk_sd[k], 1e-6)).mean()) for k in wk_min}
+
+        def mid_value(t: str, x: int) -> float:
+            """Title chance from holding x in the weeks before the final (byes included)."""
+            total = 0.0
+            for w in mid_weeks:
+                if wk_means[w][x] <= 0:
+                    continue  # bye or hurt that week: no help
+                mu0, sd = wk_mu[(t, w)], max(wk_sd[(t, w)], 1e-6)
+                mu1 = spec.total(rosters[t] + [x], wk_means[w], proj.pos)
+                if mu1 <= mu0 + 1e-9:
+                    continue
+                c0 = wk_c0[(t, w)]
+                c1 = float(_phi((wk_min[(t, w)] - mu1) / sd).mean())
+                total += (c0 - c1) * p_title[t] / max(1.0 - c0, 1e-9)
+            return total
+
+        gain_opt, gnow_opt, val_opt, mid_opt = {}, {}, {}, {}
         for t in active:
             base17 = spec.total(rosters[t], fin, proj.pos)
             base0 = spec.total(rosters[t], now, proj.pos)
@@ -524,8 +566,11 @@ class Simulator:
                           for o in opts], dtype=float)
             g0 = np.array([max(0.0, spec.total(rosters[t] + [o[0]], now, proj.pos) - base0) if o[1] is None else 0.0
                            for o in opts], dtype=float)
-            gain_opt[t], gnow_opt[t] = g, g0
-            val_opt[t] = g * (pp_fin[t] + pp_mid[t] * opt_mid) + g0 * pp_now[t]
+            # Players on waivers now: their weeks before the final week by week. Players who
+            # might come back later: their week-17 gain for the weeks they'd play.
+            mv = np.array([mid_value(t, o[0]) if o[1] is None else 0.0 for o in opts], dtype=float)
+            gain_opt[t], gnow_opt[t], mid_opt[t] = g, g0, mv
+            val_opt[t] = g * pp_fin[t] + np.where(is_now, mv, g * pp_mid[t] * opt_mid) + g0 * pp_now[t]
         # Each team's willingness to pay for each of them, in dollars: his value x what a
         # dollar is worth to that team (its FAAB / the value of the best player it could hope
         # to add in each slot), capped by its FAAB.
@@ -693,10 +738,8 @@ class Simulator:
                         why.append((sim, j, proj.ids[p], tid, "blocked by roster limits", g_now, g_fin, 0.0, 0.0))
                     continue  # he'd be the backup dropped to stay within the QB/TE limits
                 v_now = (cut0 - p_cut(g_now)) * title_if_survive if (g_now > 0 and not one_left) else 0.0
-                # Weeks before the final count only if he'd start: a backup's value is injury
-                # cover for the final, not points every week.
-                starts17 = spec.total(roster + [p], fin, proj.pos) > base_fin + 1e-9
-                v_mid = per_point_mid * n_mid * g_fin if starts17 else 0.0
+                # Weeks before the final, week by week with byes (see mid_value).
+                v_mid = float(mid_opt[tid][pool_idx[p]]) if p in pool_idx else mid_value(tid, p)
                 v_fin = per_point_final * g_fin
                 value = v_now + v_mid + v_fin
                 group = self._slot_group(roster, p, fin)
@@ -712,7 +755,10 @@ class Simulator:
                 me = pool_idx.get(p)
                 g_after = np.maximum(gain_opt[tid] - g_p, 0.0)
                 g0_after = np.maximum(gnow_opt[tid] - g_p_now, 0.0)
-                after_val = opt_reach * (g_after * (per_point_final + per_point_mid * opt_mid) + g0_after * pp_now[tid])
+                shrink = np.where(gain_opt[tid] > 0, g_after / np.maximum(gain_opt[tid], 1e-12), 0.0)
+                after_val = opt_reach * (g_after * per_point_final
+                                         + np.where(is_now, mid_opt[tid] * shrink, g_after * per_point_mid * opt_mid)
+                                         + g0_after * pp_now[tid])
                 factor = np.where(my_val > 0, after_val / np.maximum(my_val, 1e-15), 0.0)
                 slot_vals = {name: v * factor for name, v in pots.items() if set(pot_pos[name]) & set(group)}
                 cover_vals = {}

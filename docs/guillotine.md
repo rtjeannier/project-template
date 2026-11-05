@@ -45,7 +45,7 @@ adds to P(this team wins the league).
 
 ```
 V          = [P(cut this week) − P(cut this week with him)] × P(title | survive this week)
-           + weeks between now and the final × title chance per point those weeks × his gain
+           + Σ weeks before the final: [P(cut that week) − P(cut that week with him)] × P(title)
            + P(reach the final) × title chance per week-17 point × his week-17 gain
 money(m)   = best title chance m dollars can still buy: split the budget across
              positions (and injury cover); each part goes to the later player with the most
@@ -58,8 +58,11 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
 - **This week:** P(cut) is computed from every team's score distribution, with and
   without his points. A third of a point barely moves it; a starter on a team at risk
   moves it a lot.
-- **The weeks in between** use his week-17 projection as his weekly level (byes don't
-  count against him), and a point there is worth about what a point is worth this week.
+- **The weeks in between** are valued week by week: how much he lowers your chance of
+  being cut each week, using every team's lineup for that week (byes count, and so do
+  injuries that have already happened). A player off the same week as your other
+  starters doesn't help then; one who covers a bye hole helps a lot. Players who might
+  come back to waivers later use their week-17 level for the weeks they'd play.
 - **The final:** P(win) = P(your week-17 score beats your likely opponent's), where the
   opponent is the rivals' average weighted by their chance of reaching the final.
 - **Rest-of-season odds** (P(cut in each week), P(reach the final), P(title)) come from
