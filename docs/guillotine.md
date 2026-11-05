@@ -69,17 +69,19 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
   judged on week-17 projections, with P(he's hurt before then) taken off. A player who
   wouldn't start in week 17 is a backup: his value is P(a starter he'd replace is
   out) × how much better he is than the next man up.
-- **Free alternatives.** Both gains count only above the next-best player at that slot
-  on waivers or free agency now: with many free QBs available, none of them is worth
-  much, and a one-week fill-in is cheap when others are free.
+- **No player is assumed free.** A claim's gains are over the current roster. What else
+  the team could add instead (the best few at each position on waivers now, and players
+  who could come back later) is on the "lose" side, priced by what rivals would pay. With
+  13 QBs on waivers few rivals want any one of them, so losing Caleb costs little (Penix
+  is cheap); Swift is wanted by many, so he isn't a cheap fallback for St. Brown.
   Free agents are kept from week to week as the best 15 at each position (this week +
   week 17 projection), so deep positions don't crowd out QBs and TEs.
 - **The slot** is the one held by the starter who drops out of the week-17 lineup.
   QB, RB, WR and TE fill first, then flex takes the best of the rest, so with two great
   RBs and two great WRs a new RB or WR replaces the worst flex starter.
-- **What money buys later.** Every manager values every player who could come back
-  (the best few at each position on each roster), in its own title chances, above the
-  better of its starter and the best free player. Its willingness to pay = that value ×
+- **What money buys.** Every manager values every player it could add (on waivers now,
+  or able to come back later: the best few at each position on each roster), in its own
+  title chances, by how much he improves its lineup. Its willingness to pay = that value ×
   what a dollar is worth to it (its FAAB ÷ the best it could hope to add at each
   position), capped by its FAAB. You win him if the money you set aside beats the willingness
   of every rival still alive when he comes back (bid noise affects only the actual bids,
