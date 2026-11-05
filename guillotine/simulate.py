@@ -48,6 +48,7 @@ def revealed_sd(weeks_ahead: int) -> float:
 
 
 _NORMAL = NormalDist()
+
 REPL_DRAWS = np.random.default_rng(7).standard_normal((40, 400))  # fixed draws for uncertain replacement levels
 # Injuries: weekly chance a player gets hurt in a game. A share of injuries end his
 # season; the rest keep him out 1-4 weeks. Kept modest because ROS projections already
@@ -60,6 +61,13 @@ SHORT_INJURY_WEEKS = (1, 4)
 BENCH_MAX = {"QB": 1, "TE": 2}
 BENCH_MIN = {"RB": 1, "WR": 1}
 FLEX_POS = ("RB", "WR", "TE")
+# A backup is only worth a claim if he's clearly better than who he replaces: at least
+# 10% and half a point a week. Stops swapping near-identical backups week after week.
+BENCH_MARGIN_PCT, BENCH_MARGIN_PTS = 0.10, 0.5
+
+
+def _clearly_better(new: float, old: float) -> bool:
+    return new >= old * (1 + BENCH_MARGIN_PCT) and new - old >= BENCH_MARGIN_PTS
 ODDS_DRAWS = np.random.default_rng(20261104).standard_normal((2000, 32))  # fixed draws for P(lowest score)
 FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by position
 
@@ -133,6 +141,7 @@ class Simulator:
         self._back = np.zeros(len(self.proj.ids), dtype=int)  # per-sim: first week index he's healthy again
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
         self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
+        self._added_this_round: dict = {}  # players each team added in the current waiver round
 
     # ------------------------------------------------------------------ public
 
@@ -496,6 +505,7 @@ class Simulator:
             if policy.mode == "bid" and self.user in active:
                 bids[self.user] = {proj.index[pid]: amt for pid, amt in (policy.bids or {}).items()
                                    if proj.index[pid] in remaining}
+            self._added_this_round = {}
             if policy.mode == "force" and self.user in active:
                 p = proj.index[policy.player]
                 if p in remaining and faab[self.user] >= policy.price:
@@ -510,6 +520,7 @@ class Simulator:
                     self.trace.append(("claim", sim, j, proj.ids[p], tid,
                                        proj.ids[d] if isinstance(d, (int, np.integer)) else None))
         gone: dict[str, set] = {tid: set() for tid in active}  # drops already used by a processed claim
+        self._added_this_round = {}
 
         while True:
             best = None
@@ -518,7 +529,7 @@ class Simulator:
                     if p not in remaining or amt > faab[tid]:
                         continue  # taken already, or the team can no longer afford it
                     d = drops[tid].get(p)
-                    if d in gone[tid]:
+                    if d in gone[tid] or (isinstance(d, (int, np.integer)) and d not in rosters[tid]):
                         continue  # invalid claim due to previous transaction: its drop is gone
                     key = (amt, -priority[tid])
                     if best is None or key > best[0]:
@@ -558,7 +569,8 @@ class Simulator:
         if p in fa_pool:
             fa_pool.remove(p)
         res.awards.append((sim, j, proj.ids[p], tid, int(amt)))
-        self._enforce_roster(sim, j, tid, p, rosters, fa_pool, vb)
+        self._added_this_round.setdefault(tid, set()).add(p)
+        self._enforce_roster(sim, j, tid, p, rosters, fa_pool, vb, protected=self._added_this_round[tid])
 
     def _drop_for(self, roster: list[int], p: int, vb):
         """Who this team would cut to fit p: the first player _enforce_roster removes, or
@@ -573,25 +585,49 @@ class Simulator:
         return fa[0] if fa else ("open", len(roster))
 
     def _plan_drops(self, roster: list[int], claims: dict[int, int], fair_all, tid, vb, repl_final) -> dict:
-        """Give every claim a drop. Going from the highest fair bid down and assuming the
-        claims above it win: if the player would still help (lineup upgrade, better backup,
-        or worth keeping from rivals), he drops the next player, so both claims can go
-        through. If not, he's a backup claim that shares the drop of the claim he'd replace,
-        so only one of them processes."""
+        """Give every claim a drop, as in Yahoo: a player on the roster right now (or an
+        open roster spot). Never a player the team might add in this same round.
+
+        Going from the highest fair bid down and assuming the claims above it win: if the
+        player would still help (lineup upgrade, better backup, or worth keeping from
+        rivals), he gets a different drop from the claims above, so both can go through.
+        If not, he's a backup claim that shares the drop of the claim he'd replace, so only
+        one of them processes."""
         proj, spec, model = self.proj, self.spec, self.model
         plan: dict[int, object] = {}
-        current = list(roster)
+        n_open = max(0, self.state.settings.roster_size - len(roster))
+        open_used = 0
+        hypothetical = list(roster)  # roster if the claims above win (only to judge usefulness)
+        remaining = list(roster)  # players still free to name as a drop
+        added: set[int] = set()  # players that higher claims would add
         for p in sorted(claims, key=lambda q: -fair_all.get((tid, q), 0)):
-            base = spec.total(current, vb, proj.pos)
-            gain = spec.total(current + [p], vb, proj.pos) - base
-            useful = (gain >= model.min_gain or self._slot_check(current, p, vb) == "upgrade"
+            base = spec.total(hypothetical, vb, proj.pos)
+            gain = spec.total(hypothetical + [p], vb, proj.pos) - base
+            useful = (gain >= model.min_gain or self._slot_check(hypothetical, p, vb) == "upgrade"
                       or vb[p] - repl_final.get(proj.pos[p], 0.0) > 0)
-            if useful:
-                d = self._drop_for(current, p, vb)
-                plan[p] = d
-                current = [q for q in current if q != d] + [p]
+            if not useful:
+                plan[p] = self._drop_for(roster, p, vb)  # backup claim: same drop as the claim it backs up
+                continue
+            d = self._drop_for(hypothetical, p, vb)
+            if isinstance(d, tuple):  # fits in an open roster spot
+                if open_used >= n_open:
+                    plan[p] = self._drop_for(roster, p, vb)
+                    continue
+                d = ("open", open_used)
+                open_used += 1
+            elif d in added:
+                # He'd only fit by cutting a player another claim adds: he's an alternative
+                # to that claim, so he shares its drop and only one of them can process.
+                plan[p] = plan[d]
+                continue
+            elif d in remaining:
+                remaining.remove(d)
             else:
-                plan[p] = self._drop_for(roster, p, vb)  # backup claim against the starting roster
+                plan[p] = self._drop_for(roster, p, vb)
+                continue
+            plan[p] = d
+            added.add(p)
+            hypothetical = [q for q in hypothetical if q != d] + [p]
         return plan
 
     def _slot_check(self, roster: list[int], p: int, vb) -> str:
@@ -608,15 +644,15 @@ class Simulator:
         bench = [q for q in roster if q not in starters]
         same = [q for q in bench if proj.pos[q] == ps]
         if ps in BENCH_MAX and len(same) >= BENCH_MAX[ps]:
-            return "upgrade" if vb[p] > min(vb[q] for q in same) else "blocked"
+            return "upgrade" if _clearly_better(vb[p], min(vb[q] for q in same)) else "blocked"
         if len(roster) < self.state.settings.roster_size:
             return "upgrade"
         group = same if ps == "QB" else [q for q in bench if proj.pos[q] in FLEX_POS]
         if not group:
             return "upgrade"
-        return "upgrade" if vb[p] > min(vb[q] for q in group) else "no"
+        return "upgrade" if _clearly_better(vb[p], min(vb[q] for q in group)) else "no"
 
-    def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, vb) -> None:
+    def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, vb, protected=frozenset()) -> None:
         """Drop bench players until the roster fits: at most 1 backup QB and 2 backup TEs,
         at most roster_size players, keeping at least 1 backup RB and 1 backup WR."""
         proj = self.proj
@@ -628,13 +664,14 @@ class Simulator:
             for pos, cap in BENCH_MAX.items():
                 same = [q for q in bench if proj.pos[q] == pos]
                 if len(same) > cap:
-                    drop = min(same, key=lambda q: vb[q])
+                    pick = [q for q in same if q not in protected] or same
+                    drop = min(pick, key=lambda q: vb[q])
                     break
             if drop is None and len(roster) > self.state.settings.roster_size:
                 count = {pos: sum(proj.pos[q] == pos for q in bench) for pos in BENCH_MIN}
-                ok = [q for q in bench if q != newest
+                ok = [q for q in bench if q != newest and q not in protected
                       and not (proj.pos[q] in BENCH_MIN and count[proj.pos[q]] <= BENCH_MIN[proj.pos[q]])]
-                pool = ok or [q for q in bench if q != newest] or bench
+                pool = ok or [q for q in bench if q != newest and q not in protected] or bench
                 drop = min(pool, key=lambda q: vb[q]) if pool else None
             if drop is None:
                 return

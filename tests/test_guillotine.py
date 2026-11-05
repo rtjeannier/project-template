@@ -283,3 +283,30 @@ def test_claims_sharing_a_drop_process_at_most_once(state):
             assert key not in used, "two claims dropping the same player both processed"
             used[key] = pid
         assert amt <= faab[tid]  # the winning claim was affordable when it processed
+
+
+def test_drops_are_only_players_on_the_roster_at_submission(state):
+    """A claim can't name a player the team doesn't have, and nobody drops a player they
+    picked up in the same round."""
+    sim = Simulator(state, seed=6)
+    sim.trace = []
+    rosters_at = {}
+    orig = sim._waiver_round
+
+    def wr(s, j, rng, rosters, *a, **k):
+        rosters_at[(s, j)] = {t: set(r) for t, r in rosters.items()}
+        return orig(s, j, rng, rosters, *a, **k)
+
+    sim._waiver_round = wr
+    sim.run(10)
+    idx = sim.proj.index
+    added = {}
+    for e in sim.trace:
+        if e[0] == "claim" and e[5] is not None:
+            _, s, j, pid, tid, drop = e
+            assert idx[drop] in rosters_at[(s, j)][tid], "claim names a drop not on the roster"
+        if e[0] == "award":
+            added.setdefault((e[1], e[2], e[4]), set()).add(e[3])
+        if e[0] == "drop":
+            _, s, j, tid, pid = e
+            assert pid not in added.get((s, j, tid), set()), "dropped a player added this same round"
