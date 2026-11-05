@@ -637,7 +637,7 @@ class Simulator:
             future_lost = np.interp(money - m_grid, b_pts, lost_vals)  # by the bid lost: b = money - m_grid
             if self.money_log is not None and submitting:
                 self.money_log.append((sim, j, tid, money, m_grid.copy(), future_all.copy(), per_point_final, per_point_mid,
-                                       [(proj.ids[o[0]], o[2], float(gain_opt[tid][i]), float(opt_reach[i]), float(val_opt[tid][i]), float(chance[i, -1]))
+                                       [(proj.ids[o[0]], o[2], float(gain_opt[tid][i]), float(opt_reach[i]), float(val_opt[tid][i]), chance[i].copy())
                                         for i, o in enumerate(opts)]))
 
             gain_now = {}
