@@ -4,7 +4,10 @@ Compares scenarios on the same random draws:
   * baseline — everyone, including you, bids using the model
   * pass     — you sit out this week's waivers
   * bid $Y on X — your sealed bid enters the auction; you win X only if it beats the field
-  * bid sheet — all recommended bids at once (you never skip a player: a $1 bid can steal one)
+  * targets — for this week's best pool players and the irreplaceable players likely to
+    hit waivers later: "whenever he's available and I'm alive, bid X% of my FAAB", for
+    several X (X = 0 is never bidding; the smallest is a $1 lottery ticket). The best X
+    for each target forms the plan, which is then run as a whole.
 """
 
 from __future__ import annotations
@@ -41,9 +44,9 @@ class Analysis:
     baseline: SimResults
     passed: SimResults
     candidates: list[Candidate] = field(default_factory=list)
-    blocking: list[dict] = field(default_factory=list)
-    sheet: dict[str, int] = field(default_factory=dict)
-    sheet_result: SimResults | None = None
+    targets: list[dict] = field(default_factory=list)
+    plan: dict[str, float] = field(default_factory=dict)
+    plan_result: SimResults | None = None
     holes: list[dict] = field(default_factory=list)
     future_targets: list[dict] = field(default_factory=list)
     opponents: list[dict] = field(default_factory=list)
@@ -66,52 +69,63 @@ def survive_through(res: SimResults, team_id: str, n_weeks: int) -> float:
     return float(alive[min(n_weeks, len(alive)) - 1])
 
 
-FUTURE_SHARES = (0.25, 0.5, 0.75, 1.0)  # share of your FAAB bid when a future target hits waivers
+TARGET_SHARES = (0.0, 0.002, 0.15, 0.3, 0.5, 0.75)  # share of your FAAB; 0.002 rounds up to a $1 bid
 
 
-def blocking_analysis(sim: Simulator, baseline: SimResults, targets: list[dict], n_sims: int) -> list[dict]:
-    """For players likely to hit waivers later: is it worth overbidding to keep them from rivals?
+def final_edge(sim: Simulator) -> dict[str, float]:
+    """Each player's projected points per week above week-17 replacement (two teams left).
+    Positive = irreplaceable in the final: he counts for you and against your opponent."""
+    proj = sim.proj
+    vb = proj.value_basis[-1]
+    repl = sim._replacement(vb, set(range(len(proj.ids))), 2)
+    return {pid: float(vb[i] - repl.get(proj.pos[i], 0.0)) for i, pid in enumerate(proj.ids)}
 
-    Compares, on the same random draws:
-      pass    - you never bid on him; rivals bid as usual
-      embargo - he's removed when he hits waivers (nobody gets him)
-      bid X%  - whenever he hits waivers you bid X% of your FAAB at that time
-    blocking value = P(win | nobody gets him) - P(win | you pass)
-    own-use value  = P(win | best bid) - P(win | nobody gets him)
-    """
+
+def pick_targets(sim: Simulator, baseline: SimResults, n_now: int, n_future: int) -> list[str]:
+    """This week's best pool players for you, plus the irreplaceable players on other
+    rosters most likely to hit waivers while you can still bid."""
     me = sim.user
-    pid_of = {p.name: p.id for p in sim.state.players.values()}
+    edge = final_edge(sim)
+    now = [pid for pid, g in sorted(baseline.user_gain_now.items(), key=lambda kv: -kv[1])
+           if g >= sim.model.min_gain or edge[pid] > 0][:n_now]
+    mine = set(sim.state.team(me).players) | set(sim.state.waiver_pool) | set(sim.state.free_agents)
+    future = []
+    for pid, sims_seen in baseline.user_could_bid.items():
+        if pid in mine or edge.get(pid, 0) <= 0:
+            continue
+        future.append((len(sims_seen) / baseline.n_sims * edge[pid], pid))
+    future = [pid for _, pid in sorted(future, reverse=True)[:n_future]]
+    return now + [p for p in future if p not in now]
+
+
+def target_analysis(sim: Simulator, targets: list[str], n_sims: int) -> list[dict]:
+    """For each target, the standing rule "whenever he's on waivers and I'm alive, bid X%
+    of my FAAB" at several X, on the same random draws. X = 0 means never bid on him."""
+    me = sim.user
+    edge = final_edge(sim)
     rows = []
-    for t in targets:
-        pid = pid_of[t["player"]]
-        passed = sim.run(n_sims, UserPolicy("auto", future_bids={pid: 0.0}))
-        embargo = sim.run(n_sims, UserPolicy("auto", embargo=frozenset({pid})))
+    for pid in targets:
         curve = []
-        for share in FUTURE_SHARES:
+        for share in TARGET_SHARES:
             r = sim.run(n_sims, UserPolicy("auto", future_bids={pid: share}))
-            got = sum(1 for s, j, p, tid, a in r.awards if p == pid and tid == me and j > 0)
-            paid = [a for s, j, p, tid, a in r.awards if p == pid and tid == me and j > 0]
-            could = len(r.user_could_bid.get(pid, ()))  # you can't miss him if you're already out
-            curve.append({"share": share, "p_champ": r.p_champion(me), "p_get": got / could if could else 0.0,
-                          "p_chance": could / n_sims,
-                          "avg_paid": float(np.mean(paid)) if paid else 0.0})
-        # Who ends up with him when you pass, and how strong they are
-        owners = [tid for s, j, p, tid, a in passed.awards if p == pid and j > 0]
-        top_owner = max(set(owners), key=owners.count) if owners else None
-        best = max(curve, key=lambda c: c["p_champ"])
-        rows.append({
-            "player": t["player"], "pos": t["pos"], "typical_week": t["typical_week"],
-            "p_pass": passed.p_champion(me), "p_embargo": embargo.p_champion(me),
-            "block_value": embargo.p_champion(me) - passed.p_champion(me),
-            "own_value": best["p_champ"] - embargo.p_champion(me),
-            "curve": curve, "best_share": best["share"],
-            "usual_owner": next((x.name for x in sim.state.teams if x.id == top_owner), "-"),
-        })
+            mine = [(j, a) for s, j, p, tid, a in r.awards if p == pid and tid == me]
+            could = len(r.user_could_bid.get(pid, ()))
+            curve.append({
+                "share": share, "p_champ": r.p_champion(me), "p_alive3": survive_through(r, me, 3),
+                "p_get": len(mine) / could if could else 0.0, "p_chance": could / n_sims,
+                "avg_paid": float(np.mean([a for _, a in mine])) if mine else 0.0,
+                "weeks": [r.weeks[j] for j, _ in mine],
+            })
+        best = max(curve, key=lambda c: (round(c["p_champ"], 4), -c["share"]))
+        owner = next((t.name for t in sim.state.teams if pid in t.players), "waivers now")
+        rows.append({"player_id": pid, "owner": owner, "edge": edge.get(pid, 0.0), "curve": curve,
+                     "best": best, "gain_vs_pass": best["p_champ"] - curve[0]["p_champ"]})
+    rows.sort(key=lambda r: -r["gain_vs_pass"])
     return rows
 
 
 def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0,
-            sim: Simulator | None = None, n_future: int = 3) -> Analysis:
+            sim: Simulator | None = None, n_future: int = 6) -> Analysis:
     sim = sim or Simulator(state, seed=seed)
     me = state.my_team_id
     my_faab = int(state.team(me).faab)
@@ -127,35 +141,17 @@ def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0
             continue
         opp = np.array(baseline.opp_max_bid[pid])
         bid_for = {t: bid_needed(opp, t) for t in WIN_TARGETS}
-        levels = sorted({max(1, state.settings.min_bid)} | {min(bid_needed(opp, t), my_faab) for t in GRID_TARGETS})
-        curve = []
-        for amt in levels:
-            r = sim.run(n_sims, UserPolicy("bid", bids={pid: amt}))
-            curve.append((amt, p_win_at(opp, amt), r.p_champion(me), survive_through(r, me, 3)))
-        best = max(curve, key=lambda c: (round(c[2], 4), -c[0]))
-        c = Candidate(
-            player_id=pid,
-            gain=gain,
-            bid_for=bid_for,
-            suggested_bid=best[0],
-            p_win_at_suggested=best[1],
-            curve=[(a_, pw, ch) for a_, pw, ch, _ in curve],
-            champion=best[2],
-            survive_3=best[3],
-        )
-        c.d_champion = c.champion - passed.p_champion(me)
-        c.d_survive_3 = c.survive_3 - survive_through(passed, me, 3)
-        out.candidates.append(c)
+        out.candidates.append(Candidate(player_id=pid, gain=gain, bid_for=bid_for,
+                                        suggested_bid=0, p_win_at_suggested=0.0))
 
-    # Never skip: bid on every candidate at its best level, then run the whole sheet.
-    out.sheet = {c.player_id: c.suggested_bid for c in out.candidates}
-    if out.sheet:
-        out.sheet_result = sim.run(n_sims, UserPolicy("bid", bids=out.sheet))
+    # Who to target, and how much of your FAAB to bid whenever each one is available
+    targets = pick_targets(sim, baseline, n_now=3, n_future=n_future)
+    out.targets = target_analysis(sim, targets, n_sims)
+    out.plan = {t["player_id"]: t["best"]["share"] for t in out.targets if t["best"]["share"] > 0}
+    out.plan_result = sim.run(n_sims, UserPolicy("auto", future_bids=dict(out.plan)))
 
     out.holes = roster_holes(sim)
     out.future_targets = future_targets(sim, baseline)
-    if n_future > 0:
-        out.blocking = blocking_analysis(sim, baseline, out.future_targets[:n_future], n_sims)
     out.opponents = opponent_table(sim, baseline)
     return out
 

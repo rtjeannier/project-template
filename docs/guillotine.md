@@ -114,18 +114,16 @@ P(win league), even if that's a $1 lottery ticket. All recommended bids are then
 submitted together as a **bid sheet**, with its own P(win league). Budgets are
 enforced the way Yahoo does it: a claim you can no longer afford is skipped.
 
-**Overbid to block?** For the top future studs (`--future N`, default 3), the
-analysis compares, on the same random draws:
-
-- **pass**: you never bid on him; rivals bid as usual.
-- **embargo**: he's removed when he hits waivers, so nobody gets him.
-- **bid X%**: whenever he hits waivers, you bid 25/50/75/100% of your FAAB at that time.
-
-*Blocking value* = P(win | nobody gets him) − P(win | you pass): what keeping him
-away from rivals is worth. *Own-use value* = P(win | best bid) − P(win | nobody gets
-him). The curve across bid levels shows where overbidding stops paying, because
-FAAB spent here can't buy the next stud. Rival managers don't price blocking into
-their own bids yet.
+**Who to target.** The report's main table is a plan. Candidates are this week's best
+pool players plus the players on other rosters who are **irreplaceable in the final**:
+projected above week-17 replacement (two teams left) and likely to hit waivers while
+you can still bid. For each, the analysis tries the standing rule "whenever he's on
+waivers and I'm alive, bid X% of my FAAB" for X = never, $1, 15, 30, 50, 75%, on the
+same random draws. It keeps the X with the best P(win league), then runs all the
+rules together, since they compete for the same budget. "P(you get him)" only counts
+seasons where he hit waivers while you were still alive. Rivals' budgets and bids come
+from the same simulation. `--future N` sets how many players from other rosters are
+evaluated (default 6).
 
 ## League state file
 

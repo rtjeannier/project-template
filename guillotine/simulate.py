@@ -239,7 +239,7 @@ class Simulator:
             fa_pool = [p for p in fa_pool if p not in gone]
         candidates = sorted(set(pool) | set(fa_pool), key=lambda p: -vb[p])[: model.pool_consider]
         remaining = set(candidates)
-        if j > 0 and self.user in active:
+        if self.user in active:
             for p in candidates:
                 res.user_could_bid.setdefault(proj.ids[p], set()).add(sim)
 
@@ -270,24 +270,38 @@ class Simulator:
                 cache[n] = out
             return [cache[n] for n in n_alive]
 
-        def weighted_par(tid: str, gain: float, ps: str, free: list[dict[str, float]], start: int = 0) -> float:
-            """Points above replacement in each round, weighted by P(this team is the one
-            cut that round). Points only matter when they decide who is eliminated."""
+        def weighted_par(tid: str, gain: float, ps: str, free: list[dict[str, float]], v: float,
+                         start: int = 0) -> float:
+            """Value of holding a player in each round, weighted by P(this team is the one
+            cut that round). Points only matter when they decide who is eliminated.
+
+            Own use: lineup gain over the free replacement.
+            Denial: every player you hold is one a rival doesn't. His points above that
+            round's replacement level would otherwise go to one of the other n-1 teams, so
+            denial counts 1/(n-1) of it. In the final (n = 2) it counts in full: an
+            irreplaceable player is worth his edge twice, once for you and once against
+            your opponent. A replaceable player is worth nothing to deny.
+            """
             # A player bought now has to stay healthy until round r to help then.
             w, healthy = weight[tid], 1.0 - INJURY_RATE.get(ps, 0.02)
-            return float(sum(w[r] * healthy ** (r - start) * max(0.0, gain - free[r].get(ps, 0.0))
-                             for r in range(start, len(n_alive))))
+            total = 0.0
+            for r in range(start, len(n_alive)):
+                own = max(0.0, gain - free[r].get(ps, 0.0))
+                deny = max(0.0, v - repl[n_alive[r]].get(ps, 0.0)) / (n_alive[r] - 1)
+                total += w[r] * healthy ** (r - start) * (own + model.denial_weight * deny)
+            return float(total)
 
         def opportunity(tid: str, base: float, free: list[dict[str, float]]) -> float:
             """Weighted upgrades this team expects to buy in later rounds instead."""
-            best, best_pos = 0.0, None
+            best, best_p = 0.0, None
             for p in future:
                 g = spec.total(rosters[tid] + [p], vb, proj.pos) - base
                 if g > best:
-                    best, best_pos = g, proj.pos[p]
-            if best_pos is None:
+                    best, best_p = g, p
+            if best_p is None:
                 return 0.0
-            return sum(min(1.0, model.future_share / n_alive[r]) * weighted_par(tid, best, best_pos, free, r)
+            return sum(min(1.0, model.future_share / n_alive[r])
+                       * weighted_par(tid, best, proj.pos[best_p], free, vb[best_p], r)
                        for r in range(1, len(n_alive)))
 
         def team_bids(tid: str) -> dict[int, int]:
@@ -299,9 +313,12 @@ class Simulator:
                 gain = spec.total(rosters[tid] + [p], vb, proj.pos) - base
                 if tid == self.user and j > 0:
                     self._note_user_gain(res, sim, j, proj.ids[p], gain)
-                if gain - free[0].get(proj.pos[p], 0.0) < model.min_gain and gain - free[-1].get(proj.pos[p], 0.0) < model.min_gain:
-                    continue
-                value = weighted_par(tid, gain, proj.pos[p], free)
+                ps = proj.pos[p]
+                own = max(gain - free[0].get(ps, 0.0), gain - free[-1].get(ps, 0.0))
+                deny = vb[p] - repl[n_alive[-1]].get(ps, 0.0)
+                if own < model.min_gain and deny <= 0:
+                    continue  # no use to us and replaceable: nothing to deny
+                value = weighted_par(tid, gain, ps, free, vb[p])
                 if value <= 0:
                     continue
                 amt = model.bid(
@@ -316,14 +333,14 @@ class Simulator:
                     out[p] = amt
                     if self.bid_log is not None:
                         self.bid_log.append((sim, j, proj.ids[p], tid, amt, faab[tid]))
-            if tid == self.user and j > 0 and policy.future_bids:
+            if tid == self.user and policy.future_bids and (j > 0 or policy.mode == "auto"):
                 for pid, share in policy.future_bids.items():
                     p = proj.index[pid]
                     if p in remaining:
                         if share <= 0:
                             out.pop(p, None)
                         else:
-                            out[p] = int(share * faab[tid])
+                            out[p] = min(int(faab[tid]), max(1, int(share * faab[tid])))
             return out
 
         bids = {tid: team_bids(tid) for tid in active}

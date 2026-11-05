@@ -13,6 +13,18 @@ def _signed_pct(x: float) -> str:
     return f"{100 * x:+.1f} pts"
 
 
+def _share(s: float, faab: float) -> str:
+    if s <= 0:
+        return "don't bid"
+    if s < 0.01:
+        return "$1"
+    return f"{100 * s:.0f}% of FAAB (${s * faab:.0f} today)"
+
+
+def _level(s: float) -> str:
+    return "none" if s <= 0 else "$1" if s < 0.01 else f"{100 * s:.0f}%"
+
+
 def render(a: Analysis) -> str:
     st = a.state
     me = st.my_team_id
@@ -22,19 +34,59 @@ def render(a: Analysis) -> str:
     lines = []
     add = lines.append
 
-    add(f"# Guillotine analysis: week {st.settings.current_week}, {st.settings.season}")
+    add(f"# Guillotine plan: week {st.settings.current_week}, {st.settings.season}")
     add("")
-    add(f"{len(st.teams)} teams alive, {len(res.weeks)} weeks left, {res.n_sims} simulated seasons. "
-        f"Player values from **{a.sim.proj.value_source}**.")
+    add(f"{len(st.teams)} teams alive, {len(res.weeks)} weeks left, {res.n_sims} simulated seasons per scenario.")
     add("")
-
     add(f"## {my.name}: ${my.faab:.0f} FAAB")
     add("")
-    add(f"- Chance to win the league: **{_pct(res.p_champion(me))}** if you follow the model's bids, "
-        f"{_pct(a.passed.p_champion(me))} if you pass this week")
-    alive = res.p_alive_after(me)
+    if a.plan_result is not None:
+        add(f"- Chance to win the league: **{_pct(a.plan_result.p_champion(me))}** following the plan below, "
+            f"{_pct(res.p_champion(me))} bidding like a typical manager")
+    alive = (a.plan_result or res).p_alive_after(me)
     add("- Chance you're still alive after each week: " + ", ".join(
         f"wk{w} {_pct(p)}" for w, p in zip(res.weeks, alive)))
+    p = res.p_champion(me)
+    noise = 100 * (2 * p * (1 - p) / res.n_sims) ** 0.5
+    add(f"- Differences under about ±{noise:.1f} pts are simulation noise at {res.n_sims} sims.")
+    add("")
+
+    add("## Who to target, and how much to bid")
+    add("")
+    add("Each row is a standing rule: **whenever he's on waivers and you're still alive, bid this much**. "
+        "Candidates are this week's best pool players plus the players on other rosters who are irreplaceable in "
+        "the final (projected above week-17 replacement) and likely to hit waivers while you can bid. "
+        "**Final edge** = his projected points/week above week-17 replacement: in the final he counts for you "
+        "*and* against your opponent. Effects are vs never bidding on him.")
+    add("")
+    add("| Player | Pos | Now on | Final edge | Bid | Δ P(win league) | P(you get him, when you can bid) | Typical price | Usually available |")
+    add("|---|---|---|---:|---|---:|---:|---:|---|")
+    for t in a.targets:
+        pl = players[t["player_id"]]
+        b = t["best"]
+        wk = f"wk {sorted(b['weeks'])[len(b['weeks']) // 2]}" if b["weeks"] else "-"
+        add(f"| {pl.name} | {pl.pos} | {t['owner']} | {t['edge']:+.1f} | {_share(b['share'], my.faab)} | "
+            f"{_signed_pct(t['gain_vs_pass'])} | {_pct(b['p_get'])} | "
+            f"{'$' + format(b['avg_paid'], '.0f') if b['avg_paid'] else '-'} | {wk} "
+            f"({_pct(b['p_chance'])} of seasons) |")
+    add("")
+    add("P(win league) at each bid level tried (share of your FAAB at the time):")
+    add("")
+    for t in a.targets:
+        add(f"- {players[t['player_id']].name}: " + ", ".join(
+            f"{_level(c['share'])} → {_pct(c['p_champ'])}" for c in t["curve"]))
+    add("")
+
+    add("## This week's pool: what it takes to win each player")
+    add("")
+    add("**Bid for X%** = the bid that beats every other manager in X% of simulations.")
+    add("")
+    hdr = " | ".join(f"Bid for {int(t * 100)}%" for t in WIN_TARGETS)
+    add(f"| Player | Pos | +pts/wk for you | {hdr} |")
+    add("|---|---|---:|" + "---:|" * len(WIN_TARGETS))
+    for c in a.candidates:
+        pl = players[c.player_id]
+        add(f"| {pl.name} | {pl.pos} | {c.gain:.1f} | " + " | ".join(f"${c.bid_for[t]}" for t in WIN_TARGETS) + " |")
     add("")
 
     add("### Roster holes (your starter vs the league median at that slot, avg pts/week)")
@@ -46,75 +98,6 @@ def render(a: Analysis) -> str:
         add(f"| {h['slot']} | {h['player']} | {h['you']:.1f} | {h['league_median']:.1f} | "
             f"{h['gap']:+.1f}{flag} | {h['rank']}/{h['of']} |")
     add("")
-
-    add("## This week's waiver targets")
-    add("")
-    add("**Bid for X%** = the bid that beats every other manager in X% of simulations. Each tried bid "
-        "($1 and the 25/50/75/90% levels) is entered into the auction for real: you only win the player if it "
-        "beats the field. **Best bid** = the one with the highest P(win league). Effects are vs passing.")
-    add("")
-    hdr = " | ".join(f"Bid for {int(t * 100)}%" for t in WIN_TARGETS)
-    add(f"| Player | Pos | +pts/wk for you | {hdr} | Best bid (P win bid) | Δ P(win league) | Δ P(alive 3 wks) |")
-    add("|---|---|---:|" + "---:|" * len(WIN_TARGETS) + "---:|---:|---:|")
-    for c in a.candidates:
-        p = players[c.player_id]
-        bids = " | ".join(f"${c.bid_for[t]}" for t in WIN_TARGETS)
-        add(f"| {p.name} | {p.pos} | {c.gain:.1f} | {bids} | ${c.suggested_bid} "
-            f"({_pct(c.p_win_at_suggested)}) | {_signed_pct(c.d_champion)} | {_signed_pct(c.d_survive_3)} |")
-    if not a.candidates:
-        add("| (nobody in the pool would start for you) |")
-    add("")
-    if a.candidates:
-        add("P(win league) at each bid tried:")
-        add("")
-        for c in a.candidates:
-            add(f"- {players[c.player_id].name}: " + ", ".join(
-                f"${amt} → {_pct(ch)} (win bid {_pct(pw)})" for amt, pw, ch in c.curve))
-        add("")
-    if a.sheet_result is not None:
-        sheet = ", ".join(f"{players[pid].name} ${amt}" for pid, amt in
-                          sorted(a.sheet.items(), key=lambda kv: -kv[1]))
-        add(f"**Bid sheet:** {sheet}. Submitted together: P(win league) "
-            f"**{_pct(a.sheet_result.p_champion(me))}**, P(alive after 3 wks) "
-            f"{_pct(survive_through(a.sheet_result, me, 3))}.")
-        add("")
-    add(f"Baseline if you pass this week: P(win league) {_pct(a.passed.p_champion(me))}, "
-        f"P(alive after 3 wks) {_pct(survive_through(a.passed, me, 3))}.")
-    p = a.passed.p_champion(me)
-    noise = 100 * (2 * p * (1 - p) / res.n_sims) ** 0.5
-    add(f"Differences smaller than about ±{noise:.1f} pts are within simulation noise at "
-        f"{res.n_sims} sims; rerun with more `--sims` before close calls.")
-    add("")
-
-    add("## Future targets: players likely to hit waivers later")
-    add("")
-    add("| Player | Pos | Current team | P(hits waivers) | Typical week | +pts/wk for you | Median price | P(you get him, if alive) |")
-    add("|---|---|---|---:|---:|---:|---:|---:|")
-    for r in a.future_targets:
-        add(f"| {r['player']} | {r['pos']} | {r['owner']} | {_pct(r['p_available'])} | {r['typical_week']} | "
-            f"{r['your_gain']:.1f} | ${r['median_price']:.0f} | {_pct(r['p_you_win'])} |")
-    add("")
-
-    if a.blocking:
-        add("## Overbid to block? Future studs")
-        add("")
-        add("Whenever the player hits waivers, you bid X% of your FAAB at that time. **Blocking value** = how much "
-            "your title odds rise if *nobody* gets him vs letting rivals bid for him. **Own-use value** = the extra "
-            "from rostering him yourself at the best bid level.")
-        add("")
-        hdr = " | ".join(f"Bid {int(100 * s)}%" for s in (c["share"] for c in a.blocking[0]["curve"]))
-        add(f"| Player | Usually goes to | P(win) if you pass | Blocking value | Own-use value | {hdr} | You're alive when he hits |")
-        add("|---|---|---:|---:|---:|" + "---:|" * (len(a.blocking[0]["curve"]) + 1))
-        for b in a.blocking:
-            cells = " | ".join(f"{_pct(c['p_champ'])} (get {_pct(c['p_get'])}, ~${c['avg_paid']:.0f})" for c in b["curve"])
-            cells += f" | {_pct(b['curve'][0]['p_chance'])}"
-            add(f"| {b['player']} ({b['pos']}, wk~{b['typical_week']}) | {b['usual_owner']} | {_pct(b['p_pass'])} | "
-                f"{_signed_pct(b['block_value'])} | {_signed_pct(b['own_value'])} | {cells} |")
-        add("")
-        add("Cells: P(win league) at that bid level (how often you get him *when he hits waivers while you're still "
-            "alive*, average price paid). Last column: how often you're alive when he hits waivers. "
-            "Compare against the noise band above before acting on small differences.")
-        add("")
 
     add("## League board")
     add("")

@@ -12,6 +12,10 @@ Each manager prices a player in *their own budget*, not in a league-wide currenc
   level**: the best player at the position that the remaining teams won't roster.
   It rises every week as eliminated rosters flood waivers and fewer teams compete.
   By the last weeks a solid starter can be at or below replacement.
+- **Denial**: every player a team holds is one its rivals don't. Points above the
+  round's replacement level count 1/(teams alive − 1) extra, reaching the full amount
+  in the final, where an irreplaceable player counts twice (for you and against your
+  opponent) and a replaceable one is worth nothing to deny.
 - **Future opportunity** = upgrades the team expects to buy from later pools
   (estimated from the weakest teams' rosters), discounted by the chance the team
   survives to use them, and by competition for them. FAAB is use-it-or-lose-it: it
@@ -43,6 +47,7 @@ class BidModel:
     manager_sd: float = 0.75  # lognormal sd of a manager's aggressiveness (drawn once per sim)
     bid_noise_sd: float = 0.4  # lognormal sd of noise on each individual bid
     future_share: float = 3.0  # a team expects to land about future_share / n_alive of each future pool's best upgrade
+    denial_weight: float = 1.0  # how much keeping a player from rivals counts (0 = ignore denial)
     pool_consider: int = 15  # only the top-N pool players by projection get bids
     min_gain: float = 0.1  # weekly points gain over the free alternative below which a team doesn't bother
 
