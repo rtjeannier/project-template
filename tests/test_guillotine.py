@@ -210,7 +210,7 @@ def test_site_build_from_simulated_data(state, tmp_path):
     league.write_text(json.dumps(make_sample_league(seed=3, n_teams_alive=5, current_week=13)))
     generate(state, league, n_seasons=10, out_dir=tmp_path / "data", chunk=5)
     files = {p.name for p in build(tmp_path / "data", tmp_path / "site", sample_seasons=3, anonymize=True)}
-    assert {"index.html", "cube.json", "players.json", "seasons.json", "summary.json"} <= files
+    assert {"index.html", "cube.json", "players.json", "seasons.json", "summary.json", "paths.json"} <= files
     summary = json.loads((tmp_path / "site" / "summary.json").read_text())
     assert summary["you"] == "You" and all(t["name"].startswith(("Team ", "You")) for t in summary["teams"])
 

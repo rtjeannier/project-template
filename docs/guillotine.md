@@ -214,6 +214,13 @@ The page has:
   bid more) don't dominate. A pooled view is available too. Filters: what the bid was
   for, final-week edge, position, week, FAAB vs the richest rival, cut risk, fair-bid
   size, and bidding team.
+- **Paths to victory:** pick a team and see, week by week, how its winning seasons
+  differ from its losing ones: win rate by FAAB left after each week's waivers (only
+  seasons it's still alive), median FAAB left in won vs lost seasons, and the cost of
+  missing each player (its win rate when it got him minus when it didn't, counting
+  only seasons he hit waivers while it was alive), overall and by when he became
+  available. These are associations: unlike bid multipliers, getting a player isn't
+  randomized.
 - **Players:** underbid vs fair vs overbid outcomes per player. Click one to chart him.
 - **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
   every award, scores and cuts.

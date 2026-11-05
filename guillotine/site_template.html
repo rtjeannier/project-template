@@ -98,6 +98,24 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   </section>
 
   <section class="panel">
+    <h2>Paths to victory</h2>
+    <p class="note">Pick a team to see how its winning seasons differ from its losing ones, week by week. Everything compares the team with itself, so its built-in strength drops out. These are associations: getting a player or saving FAAB isn't randomized the way bid multipliers are, so a strong position can drive both.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
+      <div class="fgroup"><label class="label" for="pteam">Team</label><select id="pteam"></select></div>
+      <div class="facts" id="pfacts"></div>
+    </div>
+    <h3>Win rate by FAAB left, over time</h3>
+    <p class="note">Seasons where the team is still alive going into each week, split by how much of today's FAAB it has left after that week's waivers. Each cell: win rate (seasons). Color: above or below the team's win rate for that week overall.</p>
+    <div class="tbl" style="max-height:none"><table id="pgrid"></table></div>
+    <h3>FAAB left over time: seasons won vs lost</h3>
+    <div class="chart-wrap"><svg id="pfaab" viewBox="0 0 640 260" width="100%" role="img" aria-label="FAAB left by week, won vs lost seasons"></svg></div>
+    <h3>Missing a player: what it cost</h3>
+    <p class="note">Players who hit waivers while this team was alive (the first time they hit waivers that season). Impact = the team's win rate when it got him minus when it didn't, in percentage points, overall and by when he became available. Blank = fewer than 15 seasons in that group.</p>
+    <div class="fgroup" style="max-width:320px"><label class="label" for="ppsearch">Search</label><input id="ppsearch" placeholder="Player name"></div>
+    <div class="tbl"><table id="pplayers"></table></div>
+  </section>
+
+  <section class="panel">
     <h2>Players</h2>
     <p class="note">For each player with enough bids: change in win rate vs bidding fair, within each team (like above), when the bidder underbid (below 0.9×) or overbid (above 1.1×). Click a player to chart him above.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="psearch">Search</label><input id="psearch" placeholder="Player name"></div>
@@ -118,19 +136,19 @@ const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
 const MIN_TEAM_BIDS = 100, MIN_CELL = 15;
-let CUBE, PLAYERS, SEASONS, SUM, VIEW = "lift";
+let CUBE, PLAYERS, SEASONS, SUM, PATHS, VIEW = "lift";
 const sel = {};
 let playerFocus = null;
 
 async function load() {
   try {
-    [CUBE, PLAYERS, SEASONS, SUM] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
+    [CUBE, PLAYERS, SEASONS, SUM, PATHS] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
   } catch (e) {
     $("lede").innerHTML = `<span class="err">Couldn't load the data files (${e.message}). Open this page from a web server, e.g. GitHub Pages or <code>python -m http.server</code> in this folder.</span>`;
     return;
   }
   renderSummary(); renderFilters(); render();
-  renderPlayers(); renderSeasonPicker();
+  renderPlayers(); renderSeasonPicker(); renderPathsPicker();
 }
 function render() {
   $("view-lift").setAttribute("aria-pressed", VIEW === "lift"); $("view-pooled").setAttribute("aria-pressed", VIEW === "pooled");
@@ -303,6 +321,72 @@ function renderSeason() {
       <div>Cut: ${cut.map(c => `<span class="pill cut">${c}</span>`).join(" ")}</div>
       <div class="scores">${w.scores.map(([t, sc, c, f]) => `${t === you ? "<b>" + t + "</b>" : t} ${sc} pts, ${money(f)} left`).join(" · ")}</div></div>`;
   }).join("") + `<div class="wk"><h3>Champion</h3><div><span class="pill">${S.champion}</span></div></div>`;
+}
+
+function renderPathsPicker() {
+  const sel_ = $("pteam");
+  sel_.innerHTML = PATHS.teams.map((t, i) => `<option value="${i}">${t.name}${i === CUBE.you_team ? " (you)" : ""}</option>`).join("");
+  sel_.value = CUBE.you_team; sel_.onchange = renderPaths; $("ppsearch").oninput = renderPathPlayers; renderPaths();
+}
+function renderPaths() {
+  const T = PATHS.teams[+$("pteam").value];
+  $("pfacts").innerHTML = `<div><span class="label">Won the league</span><b>${pct(T.wins / T.seasons)}</b></div>
+    <div><span class="label">FAAB today</span><b>${money(T.start_faab)}</b></div>`;
+  const wk = T.by_week.filter(w => w.alive > 0);
+  let h = `<thead><tr><th>FAAB left after waivers</th>${wk.map(w => `<th class="n">Wk ${w.week}</th>`).join("")}</tr>
+    <tr><td class="note">Alive · win rate</td>${wk.map(w => `<td class="n">${w.alive.toLocaleString()} · ${pct(w.wins / w.alive)}</td>`).join("")}</tr></thead><tbody>`;
+  PATHS.faab_labels.forEach((lab, b) => {
+    h += `<tr><td>${lab} of today's</td>` + wk.map(w => {
+      const [n, x] = w.faab_bins[b];
+      if (n < 15) return `<td class="n flat">–</td>`;
+      const r = x / n, base = w.wins / w.alive, d = r - base, se = Math.sqrt(Math.max(r * (1 - r), 1e-6) / n);
+      const cls = Math.abs(d) < 2 * se ? "flat" : d > 0 ? "pos" : "neg";
+      return `<td class="n ${cls}" title="${n} seasons">${pct(r)} <span class="note">(${n})</span></td>`;
+    }).join("") + `</tr>`;
+  });
+  $("pgrid").innerHTML = h + `</tbody>`;
+  const W = 640, H = 260, L = 50, R = 12, Tm = 24, B = 34;
+  const pts = wk.filter(w => w.faab_won || w.faab_lost);
+  const maxV = Math.max(10, ...pts.flatMap(w => [...(w.faab_won || []), ...(w.faab_lost || [])]));
+  const x = (i) => L + i * (W - L - R) / Math.max(1, pts.length - 1), y = (v) => Tm + (1 - v / maxV) * (H - Tm - B);
+  let g = "";
+  for (let k = 0; k <= 4; k++) {
+    const v = maxV * k / 4;
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">$${Math.round(v)}</text>`;
+  }
+  const series = (key, color, dash) => {
+    const q = pts.map((w, i) => w[key] ? [i, ...w[key]] : null).filter(Boolean);
+    if (!q.length) return "";
+    const band = q.map(([i, a]) => `${x(i)},${y(a)}`).join(" ") + " " + q.slice().reverse().map(([i, , , c]) => `${x(i)},${y(c)}`).join(" ");
+    return `<polygon points="${band}" fill="${color}" opacity=".12"/><polyline points="${q.map(([i, , m]) => `${x(i)},${y(m)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2" ${dash ? 'stroke-dasharray="5 4"' : ""}/>` +
+      q.map(([i, , m]) => `<circle cx="${x(i)}" cy="${y(m)}" r="3" fill="${color}"><title>${key === "faab_won" ? "won" : "lost"} wk ${pts[i].week}: median $${Math.round(m)}</title></circle>`).join("");
+  };
+  g += series("faab_lost", "var(--muted)", true) + series("faab_won", "var(--accent)", false);
+  pts.forEach((w, i) => { g += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle">wk ${w.week}</text>`; });
+  g += `<text class="t-ink" x="${L}" y="14">Median FAAB left (band = middle 50%): <tspan fill="var(--accent)">seasons won</tspan> vs <tspan fill="var(--muted)">seasons lost</tspan></text>`;
+  $("pfaab").innerHTML = g;
+  renderPathPlayers();
+}
+function renderPathPlayers() {
+  const T = PATHS.teams[+$("pteam").value], q = $("ppsearch").value.trim().toLowerCase();
+  const WL = PATHS.when_labels;
+  const impact = (cells, when) => {
+    let ng = 0, wg = 0, nm = 0, wm = 0;
+    for (const [wh, got, n, w] of cells) { if (when != null && wh !== when) continue; if (got) { ng += n; wg += w; } else { nm += n; wm += w; } }
+    if (ng < 15 || nm < 15) return { d: null, ng, nm };
+    const pg = wg / ng, pm = wm / nm, se = Math.sqrt(Math.max(pg * (1 - pg), 1e-6) / ng + Math.max(pm * (1 - pm), 1e-6) / nm);
+    return { d: pg - pm, se, pg, pm, ng, nm };
+  };
+  const rows = T.players.filter(p => !q || p.name.toLowerCase().includes(q))
+    .map(p => ({ p, all: impact(p.cells, null), by: WL.map((_, i) => impact(p.cells, i)) }))
+    .sort((a, b) => (b.all.d ?? -9) - (a.all.d ?? -9));
+  const cell = (r) => r.d == null ? "–" : `<span class="${Math.abs(r.d) < 2 * r.se ? "flat" : r.d > 0 ? "pos" : "neg"}">${(r.d >= 0 ? "+" : "") + (100 * r.d).toFixed(1)} pts</span>`;
+  $("pplayers").innerHTML = `<thead><tr><th>Player</th><th>Pos</th><th class="n">Available</th><th class="n">Got him</th><th class="n">Win rate got</th><th class="n">Win rate missed</th><th class="n">Impact</th>${WL.map(l => `<th class="n">${l}</th>`).join("")}</tr></thead><tbody>` +
+    (rows.map(r => {
+      const a = r.all, n = a.ng + a.nm;
+      return `<tr><td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${n.toLocaleString()}</td><td class="n">${n ? pct(a.ng / n) : "–"}</td>
+      <td class="n">${a.pg == null ? "–" : pct(a.pg)}</td><td class="n">${a.pm == null ? "–" : pct(a.pm)}</td><td class="n">${cell(a)}</td>${r.by.map(b => `<td class="n">${cell(b)}</td>`).join("")}</tr>`;
+    }).join("") || `<tr><td colspan="${7 + WL.length}" class="note">No players match.</td></tr>`) + `</tbody>`;
 }
 function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 load();

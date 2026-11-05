@@ -53,6 +53,64 @@ def _faab_before(weeks: pd.DataFrame, teams: pd.DataFrame, week_list: list[int])
     return out
 
 
+FAAB_BINS = [-1, 0.10, 0.25, 0.50, 0.75, 10]
+FAAB_LABELS = ["under 10%", "10–25%", "25–50%", "50–75%", "75%+"]
+WHEN_BINS = [(9, 11, "weeks 9–11"), (12, 14, "weeks 12–14"), (15, 17, "weeks 15–17")]
+
+
+def _paths(bids, weeks, seasons, teams, names, pname, ppos, week_list, min_avail: int = 40) -> dict:
+    """Paths to victory, per team and over time.
+
+    - by week: seasons the team is still alive going into that week, how many it went on
+      to win, split by FAAB left after that week's waivers (share of its FAAB today), and
+      FAAB-left quartiles in seasons it won vs lost.
+    - players: for each player who hit waivers while the team was alive (first time he
+      hit waivers that season), the team's win rate when it got him vs when it didn't,
+      overall and by when he became available.
+    """
+    champ = dict(zip(seasons.season, seasons.champion_id))
+    start = dict(zip(teams.team_id, teams.start_faab))
+    w = weeks.copy()
+    w["won"] = w.season.map(champ) == w.team_id
+    w["frac"] = w.faab_after_waivers / w.team_id.map(start).clip(lower=1)
+    w["bin"] = pd.cut(w.frac, FAAB_BINS, labels=False)
+    out = {"weeks": week_list, "faab_labels": FAAB_LABELS, "when_labels": [x[2] for x in WHEN_BINS], "teams": []}
+
+    # first week each player hit waivers (any bid on him) in each season
+    first = bids[["season", "week", "player_id"]].drop_duplicates().groupby(["season", "player_id"]).week.min().reset_index()
+    got = bids[bids.won][["season", "player_id", "team_id"]].drop_duplicates()
+    for t in teams.team_id:
+        tw = w[w.team_id == t]
+        by_week = []
+        for wk in week_list:
+            x = tw[tw.week == wk]
+            cells = x.groupby("bin").won.agg(["size", "sum"]).reindex(range(len(FAAB_LABELS)), fill_value=0)
+            q = lambda df: [float(v) for v in df.faab_after_waivers.quantile([0.25, 0.5, 0.75])] if len(df) else None
+            by_week.append({"week": int(wk), "alive": int(len(x)), "wins": int(x.won.sum()),
+                            "faab_bins": cells.astype(int).values.tolist(),
+                            "faab_won": q(x[x.won]), "faab_lost": q(x[~x.won])})
+        # players available while this team was alive
+        alive = tw[["season", "week"]]
+        av = first.merge(alive, on=["season", "week"])
+        g = got[got.team_id == t][["season", "player_id"]].assign(got=True)
+        av = av.merge(g, on=["season", "player_id"], how="left")
+        av["got"] = av.got.fillna(False).astype(bool)
+        av["won"] = av.season.map(champ) == t
+        av["when"] = 0
+        for i, (a, b2, _) in enumerate(WHEN_BINS):
+            av.loc[(av.week >= a) & (av.week <= b2), "when"] = i
+        stats = av.groupby(["player_id", "when", "got"]).won.agg(["size", "sum"]).reset_index()
+        counts = av.groupby("player_id").size()
+        plist = []
+        for pid in counts[counts >= min_avail].index:
+            sp = stats[stats.player_id == pid]
+            plist.append({"id": str(pid), "name": pname.get(pid, str(pid)), "pos": ppos.get(pid, ""),
+                          "cells": sp[["when", "got", "size", "sum"]].astype(int).values.tolist()})
+        out["teams"].append({"name": names[t], "seasons": int(len(seasons)), "wins": int((seasons.champion_id == t).sum()),
+                             "start_faab": float(start[t]), "by_week": by_week, "players": plist})
+    return out
+
+
 def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, anonymize: bool = False) -> list[Path]:
     d, out = Path(data_dir), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -99,6 +157,10 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     team_labels = [names[t] for t in team_order]
     dims = {k: {"title": t, "labels": (labs if labs else (team_labels if k == "team" else week_labels))}
             for k, (t, labs) in DIMS.items()}
+    paths = _paths(bids, weeks, seasons, teams, names, pn_all := dict(zip(players.player_id, players.name)),
+                   dict(zip(players.player_id, players.pos)), meta["weeks"])
+    (out / "paths.json").write_text(json.dumps(paths, separators=(",", ":")))
+
     champs = seasons.champion_id.value_counts(normalize=True)
     cube_out = {"keys": keys, "rows": cube[keys + ["n", "w"]].astype(int).values.tolist(),
                 "mult_labels": MULT_LABELS, "dims": dims, "you_team": team_order.index(you),
