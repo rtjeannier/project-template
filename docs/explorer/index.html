@@ -81,7 +81,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   <section class="panel" id="summary">
     <h2>The simulation</h2>
     <div class="facts" id="facts"></div>
-    <p class="note">Every team bids its <b>fair bid</b> (the rational bid at that moment) times a random multiplier drawn from a normal distribution around 1× (95th percentile 2×; a draw at or below 0 is a $0 bid, since bidding is free). Each bid is drawn independently, so comparing outcomes across multipliers is a fair experiment: if bids at 1.5× go with more league wins than bids at 1×, overbidding caused it.</p>
+    <p class="note">Each simulated season plays out weeks 9–17 from today's real rosters and FAAB: waivers (every team bids what a player is worth to it, with random noise so bids aren't predictable), games with injuries and weekly luck, and the weekly cut, until one team is left.</p>
     <div class="tbl" style="max-height:none"><table id="teams"><thead><tr><th>Team</th><th class="n">FAAB today</th><th class="n">Won the league</th></tr></thead><tbody></tbody></table></div>
   </section>
 
@@ -140,7 +140,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-05_04:35_UTC";
+const BUILD = "2026-11-05_04:37_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
@@ -175,8 +175,7 @@ function renderSummary() {
   $("lede").textContent = `${SUM.seasons.toLocaleString()} simulated seasons from week 9, ${SUM.bids.toLocaleString()} bids. Data built ${SUM.built_at || "?"}.`;
   $("facts").innerHTML = `<div><span class="label">Seasons</span><b>${SUM.seasons.toLocaleString()}</b></div>
     <div><span class="label">Bids analyzed</span><b>${SUM.analyzed_bids.toLocaleString()}</b></div>
-    <div><span class="label">${you.name} wins the league</span><b>${pct(you.p_champion)}</b></div>
-    <div><span class="label">Bid spread (sd)</span><b>${SUM.bid_sd}× fair</b></div>`;
+    <div><span class="label">${you.name} wins the league</span><b>${pct(you.p_champion)}</b></div>`;
   $("teams").querySelector("tbody").innerHTML = SUM.teams.slice().sort((a, b) => b.p_champion - a.p_champion).map(t =>
     `<tr><td>${t.is_you ? `<span class="pill">${t.name}</span>` : t.name}</td><td class="n">${money(t.faab)}</td><td class="n">${pct(t.p_champion)}</td></tr>`).join("");
 }
