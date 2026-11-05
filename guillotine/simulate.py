@@ -27,6 +27,7 @@ from .lineup import LineupSpec
 from .models import LeagueState
 from .projections import Projections
 
+FUTURE_TOP_PLAYERS = 4  # per rival roster, players considered as possible future pickups
 FA_POOL_KEEP = 30  # leftover free agents carried between weeks (by projection)
 # Projection uncertainty grows with the horizon: a player's true level is a random walk
 # around his projection. About ±10% for this week, growing to about ±25% by week 17.
@@ -328,7 +329,6 @@ class Simulator:
         # They're recalculated after every pickup below.
         odds = self._cut_odds(rosters, active, j)
         weight = self._elimination_weights(odds, n_alive)
-        future = self._future_pool(vb, rosters, active, {t: -odds[t] for t in active})
         priority = {tid: r for r, tid in enumerate(rng.permutation(active))}
         claimed: set[int] = set()
 
@@ -368,17 +368,44 @@ class Simulator:
             return float(total)
 
         def opportunity(tid: str, base: float, free: list[dict[str, float]]) -> float:
-            """Weighted upgrades this team expects to buy in later rounds instead."""
-            best, best_p = 0.0, None
-            for p in future:
-                g = spec.total(rosters[tid] + [p], vb, proj.pos) - base
-                if g > best:
-                    best, best_p = g, p
-            if best_p is None:
-                return 0.0
-            return sum(min(1.0, model.future_share / n_alive[r])
-                       * weighted_par(tid, best, proj.pos[best_p], free, vb[best_p], r)
-                       for r in range(1, len(n_alive)))
+            """What this team can still expect to get later instead of bidding now.
+
+            A player only comes back to waivers if the team holding him is cut. So for each
+            rival: take the best player on its roster who'd upgrade this team; he returns
+            after round r with P(that rival is cut in round r), this team has to still be
+            alive then, and it has to win him (about future_share / teams alive). The value
+            is the expected best replacement this team ends up with, not a sum: it only
+            needs one. A player on a team likely to reach the end will never come back, so
+            elite players are hard to replace and worth bidding up for now.
+            """
+            rounds = len(n_alive)
+            w_t = weight[tid]
+            alive_after = [1.0 - sum(w_t[: r + 1]) for r in range(rounds)]  # still alive after round r
+            options = []
+            for u in active:
+                if u == tid:
+                    continue
+                best, best_p = 0.0, None
+                for p in sorted(rosters[u], key=lambda q: -vb[q])[:FUTURE_TOP_PLAYERS]:
+                    g = spec.total(rosters[tid] + [p], vb, proj.pos) - base
+                    if g > best:
+                        best, best_p = g, p
+                if best_p is None:
+                    continue
+                w_u = weight[u]
+                for r in range(rounds - 1):  # cut in round r -> on waivers in round r + 1
+                    prob = w_u[r] * alive_after[r] * min(1.0, model.future_share / n_alive[r + 1])
+                    if prob < 1e-4:
+                        continue
+                    val = weighted_par(tid, best, proj.pos[best_p], free, vb[best_p], r + 1)
+                    if val > 0:
+                        options.append((val, prob))
+            # Expected value of the best replacement actually landed.
+            ev, none_yet = 0.0, 1.0
+            for val, prob in sorted(options, reverse=True):
+                ev += none_yet * prob * val
+                none_yet *= 1.0 - prob
+            return ev
 
         def team_bids(tid: str) -> dict[int, int]:
             out = {}
