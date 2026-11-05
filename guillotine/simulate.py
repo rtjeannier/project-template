@@ -151,6 +151,7 @@ class Simulator:
         # the final, total V, value of waiting for this slot, value of all the money kept,
         # slot, FAAB, fair bid)
         self.value_log: list | None = None
+        self.money_log: list | None = None  # set to [] to record what each team's money is worth (diagnostics)
         self._added_this_round: dict = {}  # players each team added in the current waiver round
         # Week-17 value of each player as known in the current round (0 if he's out for the
         # rest of the season). Bench players are judged on this: a backup's job is the final.
@@ -585,6 +586,11 @@ class Simulator:
                     cover += part
                     cover_parts.append((st, grp, mask, g_rep, part))
             future_all = sum(upgrade.values()) + cover  # what this team's money is worth, by amount kept
+            if self.money_log is not None and submitting:
+                self.money_log.append((sim, j, tid, money, {k: float(v[-1]) for k, v in upgrade.items()}, float(cover[-1]),
+                                       m_grid.copy(), future_all.copy(), per_point_final, per_point_mid,
+                                       [(proj.ids[x], ps, float(g), float(rc), float(sh[-1]), float(mu))
+                                        for x, ps, g, rc, sh, mu in zip(opt_x, opt_pos, opt_g, opt_reach, opt_share, opt_mult)]))
             # If it loses a bid of b, it keeps all its money and the winner has b less.
             future_lost = sum(best_landed(opt_g * opt_mult, in_group[k], opt_share_lost) for k in SLOTS)
             for st, grp, mask, g_rep, part in cover_parts:
