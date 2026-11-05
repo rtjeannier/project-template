@@ -50,7 +50,8 @@ V          = [P(cut this week) − P(cut this week with him)] × P(title | survi
 money(m)   = best title chance m dollars can still buy: split the budget across
              positions (and injury cover); each part goes to the later player with the most
              value × P(winning him with that much)
-fair bid   = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
+reserve    = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
+fair bid   = min(reserve, the highest rival's reserve + $1)   (no need to pay more than that)
 bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
 ```
 

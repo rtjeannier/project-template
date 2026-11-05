@@ -716,10 +716,32 @@ class Simulator:
                     continue
                 # A lineup claim starts this week or in week 17; otherwise he's a backup.
                 kind = "lineup" if (gain_now.get(p, 0.0) > 0 or spec.total(roster + [p], fin, proj.pos) > base_fin + 1e-9) else "bench"
-                locked = det == lock and lock <= faab[tid]
+                reserve[(tid, p)] = (det, kind, lock)
+                if self.value_log is not None and submitting:
+                    self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, v_now, v_mid, v_fin, value,
+                                           float(lose[-1] - future_win[-1]), float(lose[-1]), key, faab[tid], det))
+            return out
+
+        # Each team's reservation price: the most it would pay for each player (from its own
+        # valuation). Bids come from these, after every team's are known.
+        reserve: dict[tuple[str, int], tuple[int, str, int]] = {}
+
+        def place_bids(tid: str) -> dict[int, int]:
+            """The fair bid is the lower of the team's own reservation price and just above the
+            most any rival would pay for him: no point paying more than it takes to beat the
+            others. Then the random multiplier for this bid."""
+            out = {}
+            for (t, p), (res_price, kind, lock) in reserve.items():
+                if t != tid:
+                    continue
+                top_rival = max((reserve[(u, p)][0] for u in active if u != tid and (u, p) in reserve), default=0)
+                det = int(min(res_price, top_rival + 1)) if top_rival + 1 <= res_price else int(res_price)
+                det = max(det, settings.min_bid)
+                locked = det >= lock and lock <= faab[tid]
                 if locked:
                     # Guaranteeing the win is worth it: bid exactly the lock price (top every
                     # other team's whole FAAB). No noise: a lock that misses isn't a lock.
+                    det = lock
                     m, amt = 1.0, int(det)
                 elif model.bid_sd is not None:
                     # Every bid is fair x a random multiplier, normal around 1. Bidding is free
@@ -731,9 +753,6 @@ class Simulator:
                     amt = int(min(det * aggression[tid] * rng.lognormal(0, model.bid_noise_sd), faab[tid]))
                 if submitting and self.trace is not None:
                     self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
-                if self.value_log is not None and submitting:
-                    self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, v_now, v_mid, v_fin, value,
-                                           float(lose[-1] - future_win[-1]), float(lose[-1]), key, faab[tid], det))
                 fair_all[(tid, p)] = det
                 kinds[(tid, p)] = kind
                 if tid != self.user:
@@ -792,7 +811,9 @@ class Simulator:
 
         if self.trace is not None:
             self.trace.append(("odds", sim, j, dict(odds)))
-        bids = {tid: team_bids(tid) for tid in active}
+        for tid in active:
+            team_bids(tid)
+        bids = {tid: place_bids(tid) for tid in active}
         if self.user in bids:
             bids[self.user] = apply_rules(bids[self.user])
         submitting = False
