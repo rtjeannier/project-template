@@ -28,6 +28,12 @@ from .projections import Projections
 
 FA_POOL_KEEP = 30  # leftover free agents carried between weeks (by projection)
 ROS_ERROR_SD = 0.20  # lognormal sd of a player's season-long deviation from his projection
+# Injuries: weekly chance a player gets hurt in a game. A share of injuries end his
+# season; the rest keep him out 1-4 weeks. Kept modest because ROS projections already
+# price in some missed time.
+INJURY_RATE = {"QB": 0.015, "RB": 0.025, "WR": 0.02, "TE": 0.02, "K": 0.005, "DEF": 0.0}
+SEASON_ENDING_SHARE = 0.35
+SHORT_INJURY_WEEKS = (1, 4)
 ODDS_DRAWS = np.random.default_rng(20261104).standard_normal((2000, 32))  # fixed draws for P(lowest score)
 FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by position
 
@@ -81,6 +87,10 @@ class Simulator:
         # Keep the initial free-agent list small: only the best by value matter.
         self.init_fa.sort(key=lambda i: -self.proj.value_basis[0][i])
         self.init_fa = self.init_fa[:FA_POOL_KEEP]
+        self.inj_rate = np.array([INJURY_RATE.get(p, 0.02) for p in self.proj.pos])
+        n_w = len(self.proj.weeks)
+        self._avail = np.ones((len(self.proj.ids), n_w))  # per-sim: 1 if the player can play week k
+        self._back = np.zeros(len(self.proj.ids), dtype=int)  # per-sim: first week index he's healthy again
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
 
     # ------------------------------------------------------------------ public
@@ -115,6 +125,8 @@ class Simulator:
         # for the whole season (breakouts, busts, role changes), on top of weekly noise.
         true_level = luck.lognormal(-ROS_ERROR_SD**2 / 2, ROS_ERROR_SD, size=(self.proj.means.shape[0], 1))
         points = np.clip(self.proj.means * true_level + self.proj.sd * z, 0, None)
+        self._draw_injuries(luck)
+        points *= self._avail
         proj, spec, model = self.proj, self.spec, self.model
         rosters = {tid: list(r) for tid, r in self.init_rosters.items()}
         faab = {t.id: t.faab for t in self.state.teams}
@@ -136,7 +148,7 @@ class Simulator:
 
             # Games
             scores = {}
-            means = proj.means[:, j]
+            means = proj.means[:, j] * self._avail[:, j]  # injured players are known before kickoff
             for tid in active:
                 _, starters = spec.best(rosters[tid], means, proj.pos)
                 scores[tid] = float(points[starters, j].sum())
@@ -164,6 +176,30 @@ class Simulator:
 
     # ------------------------------------------------------------ waiver round
 
+    def _draw_injuries(self, luck) -> None:
+        """At most one injury per player per season. He gets hurt in a game in week s and
+        misses s+1 .. s+d (to the end of the season if season-ending). Managers know about
+        an injury once it has happened, never in advance."""
+        n_p, n_w = self.proj.means.shape
+        hurt = luck.random((n_p, n_w)) < self.inj_rate[:, None]
+        s = np.where(hurt.any(axis=1), hurt.argmax(axis=1), n_w)
+        ending = luck.random(n_p) < SEASON_ENDING_SHARE
+        d = np.where(ending, n_w, luck.integers(SHORT_INJURY_WEEKS[0], SHORT_INJURY_WEEKS[1] + 1, n_p))
+        k = np.arange(n_w)[None, :]
+        out = (k > s[:, None]) & (k <= (s + d)[:, None])
+        self._avail = (~out).astype(float)
+        self._back = np.where(s < n_w, np.minimum(s + d + 1, n_w), 0)
+
+    def _known_value(self, j: int) -> np.ndarray:
+        """Waiver value basis at week j, given injuries that have already happened: a hurt
+        player is worth only the share of the remaining weeks he'll be back for."""
+        vb = self.proj.value_basis[j].copy()
+        hurt_now = self._avail[:, j] == 0
+        if hurt_now.any():
+            left = len(self.proj.weeks) - j
+            vb[hurt_now] *= np.clip(len(self.proj.weeks) - self._back[hurt_now], 0, left) / left
+        return vb
+
     def _cut_odds(self, rosters, active, j) -> dict[str, float]:
         """P(each team posts the lowest score in week j), from score distributions.
 
@@ -173,10 +209,11 @@ class Simulator:
         than a steady one with the same projection.
         """
         proj = self.proj
+        means = proj.means[:, j] * self._avail[:, j]
         mu, sd = [], []
         for t in active:
-            _, starters = self.spec.best(rosters[t], proj.means[:, j], proj.pos)
-            m = proj.means[starters, j]
+            _, starters = self.spec.best(rosters[t], means, proj.pos)
+            m = means[starters]
             mu.append(m.sum())
             sd.append(float(np.sqrt((proj.sd[starters, j] ** 2).sum() + ((m * ROS_ERROR_SD) ** 2).sum())))
         scores = np.array(mu) + np.array(sd) * ODDS_DRAWS[:, : len(active)]
@@ -186,7 +223,7 @@ class Simulator:
     def _waiver_round(self, sim, j, rng, rosters, faab, aggression, active, pool, fa_pool, policy, res):
         proj, spec, model = self.proj, self.spec, self.model
         settings = self.state.settings
-        vb = proj.value_basis[j]
+        vb = self._known_value(j)
         n_weeks = len(proj.weeks)
         weeks_left = n_weeks - j
 
@@ -223,8 +260,10 @@ class Simulator:
         def weighted_par(tid: str, gain: float, ps: str, free: list[dict[str, float]], start: int = 0) -> float:
             """Points above replacement in each round, weighted by P(this team is the one
             cut that round). Points only matter when they decide who is eliminated."""
-            w = weight[tid]
-            return float(sum(w[r] * max(0.0, gain - free[r].get(ps, 0.0)) for r in range(start, len(n_alive))))
+            # A player bought now has to stay healthy until round r to help then.
+            w, healthy = weight[tid], 1.0 - INJURY_RATE.get(ps, 0.02)
+            return float(sum(w[r] * healthy ** (r - start) * max(0.0, gain - free[r].get(ps, 0.0))
+                             for r in range(start, len(n_alive))))
 
         def opportunity(tid: str, base: float, free: list[dict[str, float]]) -> float:
             """Weighted upgrades this team expects to buy in later rounds instead."""

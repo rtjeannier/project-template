@@ -88,6 +88,16 @@ re-calibration.
 Scores include a season-long projection error per player (`ROS_ERROR_SD` = 20%) on
 top of weekly noise, so breakouts and busts happen and long shots keep a real chance.
 
+**Injuries.** Each player has a weekly chance of getting hurt in a game
+(`INJURY_RATE`: RB 2.5%, WR/TE 2%, QB 1.5%). 35% of injuries end the season; the rest
+cost 1–4 weeks. Over weeks 9–17 that's about an 18% chance an RB misses time, and 8%
+of players are out for the final. Managers only learn about an injury after it
+happens: hurt players are benched, and their waiver value shrinks to the weeks
+they'll be back for. When valuing a player, a manager discounts each later round by
+the chance he's still healthy then, (1 − rate)^weeks. A stud bought for the final
+has more weeks to get hurt in than one bought for this week. Rates are kept modest
+because ROS projections already price in some missed time.
+
 ## Decisions (`guillotine/analysis.py`)
 
 Scenarios run on **common random numbers**: each simulated season gets the same

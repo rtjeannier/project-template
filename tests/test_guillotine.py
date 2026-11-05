@@ -115,3 +115,13 @@ def test_elimination_weights_sum_to_at_most_one():
         assert 0 <= sum(ws) <= 1 + 1e-9
     # Someone is cut every round: the weights for each round sum to 1 across teams.
     assert abs(sum(w[t][0] for t in w) - 1) < 1e-9
+
+
+def test_injured_players_score_zero_and_lose_waiver_value(state, sim):
+    sim._draw_injuries(np.random.default_rng(5))
+    out = np.argwhere(sim._avail == 0)
+    assert len(out) > 0
+    p, k = out[0]
+    assert sim._known_value(k)[p] <= sim.proj.value_basis[k][p]
+    # Nobody is out in the first week: an injury happens in a game and costs later weeks.
+    assert sim._avail[:, 0].all()
