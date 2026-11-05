@@ -88,7 +88,7 @@ def render(a: Analysis) -> str:
 
     add("## Future targets: players likely to hit waivers later")
     add("")
-    add("| Player | Pos | Current team | P(hits waivers) | Typical week | +pts/wk for you | Median price | P(you get him) |")
+    add("| Player | Pos | Current team | P(hits waivers) | Typical week | +pts/wk for you | Median price | P(you get him, if alive) |")
     add("|---|---|---|---:|---:|---:|---:|---:|")
     for r in a.future_targets:
         add(f"| {r['player']} | {r['pos']} | {r['owner']} | {_pct(r['p_available'])} | {r['typical_week']} | "
@@ -103,14 +103,16 @@ def render(a: Analysis) -> str:
             "from rostering him yourself at the best bid level.")
         add("")
         hdr = " | ".join(f"Bid {int(100 * s)}%" for s in (c["share"] for c in a.blocking[0]["curve"]))
-        add(f"| Player | Usually goes to | P(win) if you pass | Blocking value | Own-use value | {hdr} |")
-        add("|---|---|---:|---:|---:|" + "---:|" * len(a.blocking[0]["curve"]))
+        add(f"| Player | Usually goes to | P(win) if you pass | Blocking value | Own-use value | {hdr} | You're alive when he hits |")
+        add("|---|---|---:|---:|---:|" + "---:|" * (len(a.blocking[0]["curve"]) + 1))
         for b in a.blocking:
             cells = " | ".join(f"{_pct(c['p_champ'])} (get {_pct(c['p_get'])}, ~${c['avg_paid']:.0f})" for c in b["curve"])
+            cells += f" | {_pct(b['curve'][0]['p_chance'])}"
             add(f"| {b['player']} ({b['pos']}, wk~{b['typical_week']}) | {b['usual_owner']} | {_pct(b['p_pass'])} | "
                 f"{_signed_pct(b['block_value'])} | {_signed_pct(b['own_value'])} | {cells} |")
         add("")
-        add("Cells: P(win league) at that bid level (how often you get him, average price paid). "
+        add("Cells: P(win league) at that bid level (how often you get him *when he hits waivers while you're still "
+            "alive*, average price paid). Last column: how often you're alive when he hits waivers. "
             "Compare against the noise band above before acting on small differences.")
         add("")
 

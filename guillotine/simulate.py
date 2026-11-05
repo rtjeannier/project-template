@@ -67,6 +67,8 @@ class SimResults:
     # Players entering a waiver pool after week 0: player -> list of (sim, week_idx, your gain)
     pool_entries: dict[str, list[tuple[int, int, float]]] = field(default_factory=dict)
     user_final_faab: list[float] = field(default_factory=list)
+    # player -> sims where he was on waivers in a later round while you were still alive to bid
+    user_could_bid: dict[str, set[int]] = field(default_factory=dict)
 
     def p_alive_after(self, team_id: str) -> np.ndarray:
         """P(team still alive after each week)."""
@@ -237,6 +239,9 @@ class Simulator:
             fa_pool = [p for p in fa_pool if p not in gone]
         candidates = sorted(set(pool) | set(fa_pool), key=lambda p: -vb[p])[: model.pool_consider]
         remaining = set(candidates)
+        if j > 0 and self.user in active:
+            for p in candidates:
+                res.user_could_bid.setdefault(proj.ids[p], set()).add(sim)
 
         universe = set(pool) | set(fa_pool) | {p for t in active for p in rosters[t]}
         e = settings.eliminations_per_week

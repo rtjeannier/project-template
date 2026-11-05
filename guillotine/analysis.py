@@ -91,7 +91,9 @@ def blocking_analysis(sim: Simulator, baseline: SimResults, targets: list[dict],
             r = sim.run(n_sims, UserPolicy("auto", future_bids={pid: share}))
             got = sum(1 for s, j, p, tid, a in r.awards if p == pid and tid == me and j > 0)
             paid = [a for s, j, p, tid, a in r.awards if p == pid and tid == me and j > 0]
-            curve.append({"share": share, "p_champ": r.p_champion(me), "p_get": got / n_sims,
+            could = len(r.user_could_bid.get(pid, ()))  # you can't miss him if you're already out
+            curve.append({"share": share, "p_champ": r.p_champion(me), "p_get": got / could if could else 0.0,
+                          "p_chance": could / n_sims,
                           "avg_paid": float(np.mean(paid)) if paid else 0.0})
         # Who ends up with him when you pass, and how strong they are
         owners = [tid for s, j, p, tid, a in passed.awards if p == pid and j > 0]
@@ -213,7 +215,7 @@ def future_targets(sim: Simulator, res: SimResults, top: int = 15) -> list[dict]
             "typical_week": int(np.median(weeks)),
             "your_gain": med_gain,
             "median_price": float(np.median(paid)) if paid else 0.0,
-            "p_you_win": won / res.n_sims,
+            "p_you_win": won / len(res.user_could_bid[pid]) if res.user_could_bid.get(pid) else 0.0,
         })
     rows.sort(key=lambda r: -(r["p_available"] * r["your_gain"]))
     return rows[:top]
