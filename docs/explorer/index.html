@@ -86,26 +86,6 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   </section>
 
   <section class="panel">
-    <h2>What has to go right</h2>
-    <p class="note">The conditions that move a team's title odds the most: who gets cut and when, key injuries, and key pickups. Each is judged only on the seasons where it could matter (for example, a pickup only counts seasons where the player hit waivers while the team was alive), so simply surviving long isn't credited to it. Tick any combination to see how often it happens and the title odds when it does. These are associations, not guarantees.</p>
-    <div class="fgroup" style="max-width:320px"><label class="label" for="scteam">Team</label><select id="scteam"></select></div>
-    <div class="tbl" style="max-height:none"><table id="sctbl"></table></div>
-    <p id="scsum" class="facts"></p>
-  </section>
-
-  <section class="panel">
-    <h2>Week by week: survival by choices</h2>
-    <p class="note">Pick a team and a week. Every season where the team is alive going into that week is grouped by what it did that week, and each group's line shows how often the team was still alive after each later cut. Bidding vs fair is randomized, so differences there are caused by the bidding; spending and pickups also reflect the situation the team was in.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
-      <div class="fgroup"><label class="label" for="steam">Team</label><select id="steam"></select></div>
-      <div class="fgroup"><span class="label">Choice</span><div class="chips" id="sdims"></div></div>
-    </div>
-    <div class="fgroup"><span class="label">Week</span><div class="chips" id="sweeks"></div></div>
-    <div class="chart-wrap"><svg id="scurve" viewBox="0 0 900 340" width="100%" role="img" aria-label="Survival curves by choice"></svg></div>
-    <div class="tbl" style="max-height:none"><table id="stable"></table></div>
-  </section>
-
-  <section class="panel">
     <h2>Paths to victory</h2>
     <p class="note">Pick a team to see how its winning seasons differ from its losing ones, week by week. Everything compares the team with itself, so its built-in strength drops out. These are associations: getting a player or saving FAAB isn't randomized the way bid multipliers are, so a strong position can drive both.</p>
     <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
@@ -125,39 +105,48 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
   <section class="panel">
     <h2>Players</h2>
-    <p class="note">Most irreplaceable players first (final-week edge). For each player won often enough in real claims: the median week teams bid on him, how often he was won, and the median winning price as a % of the winner's FAAB.</p>
+    <p class="note">Most irreplaceable players first (final-week edge). For each player won often enough in real claims: the median week teams bid on him, how often he was won, and the median winning price, as a % of the winner's FAAB and in dollars.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="psearch">Search</label><input id="psearch" placeholder="Player name"></div>
-    <div class="tbl"><table id="ptbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Final edge</th><th class="n">Median week</th><th class="n">Times won</th><th class="n">Winning price, % of FAAB</th></tr></thead><tbody></tbody></table></div>
+    <div class="tbl"><table id="ptbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Final edge</th><th class="n">Median week</th><th class="n">Times won</th><th class="n">Winning price, % of FAAB</th><th class="n">Winning price, $</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>What has to go right</h2>
+    <p class="note">The conditions that move a team's title odds the most: who gets cut and when, key injuries, and key pickups. Each is judged only on the seasons where it could matter (for example, a pickup only counts seasons where the player hit waivers while the team was alive), so simply surviving long isn't credited to it. Tick any combination to see how often it happens and the title odds when it does; the Seasons list below then shows only seasons where all ticked conditions happened. These are associations, not guarantees.</p>
+    <div class="fgroup" style="max-width:320px"><label class="label" for="scteam">Team</label><select id="scteam"></select></div>
+    <div class="tbl" style="max-height:none"><table id="sctbl"></table></div>
+    <p id="scsum" class="facts"></p>
   </section>
 
   <section class="panel">
     <h2>Seasons</h2>
     <p class="note">Read individual simulated seasons week by week: every player that got a bid, every team's bid with its fair value and multiplier, who won, for how much and who they dropped, then scores and who was cut.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="season">Season</label><select id="season"></select></div>
+    <p class="note" id="season-note"></p>
     <div class="weeks" id="weeks"></div>
   </section>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-05_04:37_UTC";
+const BUILD = "2026-11-05_05:15_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
 const MIN_TEAM_BIDS = 100, MIN_CELL = 15;
-let CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, SCEN, VIEW = "lift", AXIS = "mult";
+let CUBE, PLAYERS, SEASONS, SUM, PATHS, SCEN, VIEW = "lift", AXIS = "mult";
 const sel = {};
 let playerFocus = null;
 
 async function load() {
   try {
-    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, SCEN] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json", "scenarios.json"].map(f => fetch(f + "?v=" + BUILD).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
+    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SCEN] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "scenarios.json"].map(f => fetch(f + "?v=" + BUILD).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
   } catch (e) {
     $("lede").innerHTML = `<span class="err">Couldn't load the data files (${e.message}). Open this page from a web server, e.g. GitHub Pages or <code>python -m http.server</code> in this folder.</span>`;
     return;
   }
-  renderSummary(); renderScenarioPicker();
-  renderPlayers(); renderSeasonPicker(); renderPathsPicker(); renderSurvivalPicker();
+  renderSummary();
+  renderPlayers(); renderPathsPicker(); renderScenarioPicker(); renderSeasonPicker();
 }
 function render() {
   $("view-lift").setAttribute("aria-pressed", VIEW === "lift"); $("view-pooled").setAttribute("aria-pressed", VIEW === "pooled");
@@ -300,15 +289,24 @@ function renderPlayers() {
   const rows = PLAYERS.filter(p => !q || p.name.toLowerCase().includes(q)).sort((a, b) => b.edge - a.edge);
   $("ptbl").querySelector("tbody").innerHTML = rows.map(p => `<tr>
     <td>${p.name}</td><td>${p.pos}</td><td class="n">${p.edge > 0 ? "+" : ""}${p.edge.toFixed(1)}</td>
-    <td class="n">${p.median_week.toFixed(0)}</td><td class="n">${p.n.toLocaleString()}</td><td class="n">${pct(p.median_paid_pct, 0)}</td></tr>`).join("") ||
-    `<tr><td colspan="6" class="note">No players match.</td></tr>`;
+    <td class="n">${p.median_week.toFixed(0)}</td><td class="n">${p.n.toLocaleString()}</td><td class="n">${pct(p.median_paid_pct, 0)}</td><td class="n">${money(p.median_paid)}</td></tr>`).join("") ||
+    `<tr><td colspan="7" class="note">No players match.</td></tr>`;
 }
 $("psearch").oninput = renderPlayers;
 
+function tickedMask() {
+  if (!SCEN) return 0;
+  let want = 0; SCEN.teams[+$("scteam").value].conditions.forEach((_, i) => { const c = $(`sc-${i}`); if (c && c.checked) want |= (1 << i); });
+  return want;
+}
 function renderSeasonPicker() {
-  const s = $("season");
-  s.innerHTML = SEASONS.map((x, i) => `<option value="${i}">Season ${x.season}: ${x.champion} wins</option>`).join("");
-  s.onchange = renderSeason; renderSeason();
+  const s = $("season"), want = tickedMask(), T = SCEN ? SCEN.teams[+$("scteam").value] : null;
+  const keep = SEASONS.map((x, i) => [x, i]).filter(([x]) => !want || (T.ev[x.season] & want) === want);
+  s.innerHTML = keep.map(([x, i]) => `<option value="${i}">Season ${x.season}: ${x.champion} wins</option>`).join("");
+  $("season-note").textContent = want
+    ? `${keep.length} of ${SEASONS.length} sample seasons where everything ticked under "What has to go right" (for ${T.name}) happened.`
+    : `${SEASONS.length} sample seasons.`;
+  if (keep.length) { s.onchange = renderSeason; renderSeason(); } else { $("weeks").innerHTML = `<p class="note">No sample season matches all the ticked conditions. Untick one to see more.</p>`; }
 }
 function renderSeason() {
   const S = SEASONS[+$("season").value], you = SUM.you;
@@ -390,60 +388,12 @@ function renderPathPlayers() {
     }).join("") || `<tr><td colspan="${7 + WL.length}" class="note">No players match.</td></tr>`) + `</tbody>`;
 }
 
-let SURV_DIM = "aggr", SURV_WEEK = 0;
-const SURV_COLORS = ["var(--muted)", "var(--lose)", "var(--accent)", "var(--win)"];
-function renderSurvivalPicker() {
-  const t = $("steam");
-  t.innerHTML = PATHS.teams.map((x, i) => `<option value="${i}">${x.name}${i === CUBE.you_team ? " (you)" : ""}</option>`).join("");
-  t.value = CUBE.you_team; t.onchange = renderSurvival;
-  $("sweeks").innerHTML = SURV.weeks.map((w, i) => `<button class="chip" id="sw-${i}" aria-pressed="${i === SURV_WEEK}">Week ${w}</button>`).join("");
-  SURV.weeks.forEach((_, i) => { $(`sw-${i}`).onclick = () => { SURV_WEEK = i; SURV.weeks.forEach((__, k) => $(`sw-${k}`).setAttribute("aria-pressed", k === i)); renderSurvival(); }; });
-  $("sdims").innerHTML = Object.entries(SURV.dims).map(([k, d]) => `<button class="chip" id="sd-${k}" aria-pressed="${k === SURV_DIM}">${d.title}</button>`).join("");
-  Object.keys(SURV.dims).forEach(k => { $(`sd-${k}`).onclick = () => { SURV_DIM = k; Object.keys(SURV.dims).forEach(q => $(`sd-${q}`).setAttribute("aria-pressed", q === k)); renderSurvival(); }; });
-  renderSurvival();
-}
-function renderSurvival() {
-  const ti = +$("steam").value, W = SURV.teams[ti][SURV_WEEK], dim = SURV.dims[SURV_DIM];
-  const later = SURV.weeks.slice(SURV_WEEK);
-  const base = { n: W.n, alive_after: W.alive_after, wins: W.wins };
-  const groups = W.groups[SURV_DIM].map((g, i) => ({ ...g, label: dim.labels[i], color: SURV_COLORS[(dim.labels.length === 2 ? [0, 3][i] : i) % 4] }));
-  const Wd = 900, H = 340, L = 48, R = 250, T = 24, B = 34;
-  const x = (k) => L + k * (Wd - L - R) / Math.max(1, later.length - 1), y = (v) => T + (1 - v) * (H - T - B);
-  let s = `<text class="t-ink" x="${L}" y="14">Still alive after each week's cut, among seasons alive going into week ${later[0]}</text>`;
-  for (let k = 0; k <= 4; k++) { const v = k / 4; s += `<line x1="${L}" x2="${Wd - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${Math.round(100 * v)}%</text>`; }
-  later.forEach((w, k) => { s += `<text x="${x(k)}" y="${H - 12}" text-anchor="middle">wk ${w}</text>`; });
-  const step = (g, color, dash, width) => {
-    if (g.n < 15) return "";
-    let d = `M${x(0)},${y(1)}`;
-    g.alive_after.forEach((a, k) => { const v = a / g.n; d += `L${x(k)},${y(k === 0 ? 1 : g.alive_after[k - 1] / g.n)}L${x(k)},${y(v)}`; if (k < g.alive_after.length - 1) d += `L${x(k + 1)},${y(v)}`; });
-    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" ${dash ? 'stroke-dasharray="5 4"' : ""}/>`;
-  };
-  s += step(base, "var(--ink)", true, 1.5);
-  let ly = T + 6;
-  groups.forEach(g => {
-    s += step(g, g.color, false, 2.2);
-    if (g.n >= 15) { s += `<rect x="${Wd - R + 12}" y="${ly - 8}" width="12" height="3" fill="${g.color}"/><text x="${Wd - R + 30}" y="${ly - 4}" class="t-ink">${escapeHtml(g.label)}</text><text x="${Wd - R + 30}" y="${ly + 9}">win ${pct(g.wins / g.n)} · n=${g.n}</text>`; ly += 32; }
-  });
-  s += `<line x1="${Wd - R + 12}" x2="${Wd - R + 24}" y1="${ly - 6}" y2="${ly - 6}" stroke="var(--ink)" stroke-dasharray="4 3"/><text x="${Wd - R + 30}" y="${ly - 4}" class="t-ink">all seasons</text><text x="${Wd - R + 30}" y="${ly + 9}">win ${pct(base.wins / Math.max(1, base.n))} · n=${base.n}</text>`;
-  $("scurve").innerHTML = s;
-  const bw = base.wins / Math.max(1, base.n), bs = base.alive_after[0] / Math.max(1, base.n);
-  const row = (g, label, isBase) => {
-    if (g.n < 15) return `<tr><td>${label}</td><td class="n">${g.n}</td><td class="n" colspan="4">too few seasons</td></tr>`;
-    const surv = g.alive_after[0] / g.n, fin = g.alive_after[g.alive_after.length - 2 >= 0 ? g.alive_after.length - 2 : 0] / g.n, win = g.wins / g.n;
-    const se = Math.sqrt(Math.max(win * (1 - win), 1e-6) / g.n + Math.max(bw * (1 - bw), 1e-6) / base.n);
-    const d = win - bw, cls = isBase || Math.abs(d) < 2 * se ? "flat" : d > 0 ? "pos" : "neg";
-    return `<tr${isBase ? ' class="sel"' : ""}><td>${label}</td><td class="n">${g.n.toLocaleString()}</td><td class="n">${pct(surv)}</td><td class="n">${pct(fin)}</td><td class="n">${pct(win)}</td>
-      <td class="n ${cls}">${isBase ? "–" : (d >= 0 ? "+" : "") + (100 * d).toFixed(1) + " pts"}</td></tr>`;
-  };
-  $("stable").innerHTML = `<thead><tr><th>${dim.title}</th><th class="n">Seasons</th><th class="n">Survives week ${later[0]}</th><th class="n">Reaches the final</th><th class="n">Wins league</th><th class="n">vs all seasons</th></tr></thead><tbody>` +
-    groups.map(g => row(g, g.label, false)).join("") + row(base, "all seasons alive this week", true) + `</tbody>`;
-}
 
 // ---- What has to go right ----------------------------------------------------------
 function renderScenarioPicker() {
   const sel_ = $("scteam");
   sel_.innerHTML = SCEN.teams.map((t, i) => `<option value="${i}">${t.name}${i === CUBE.you_team ? " (you)" : ""}</option>`).join("");
-  sel_.value = CUBE.you_team; sel_.onchange = renderScenarios; renderScenarios();
+  sel_.value = CUBE.you_team; sel_.onchange = () => { renderScenarios(); renderSeasonPicker(); }; renderScenarios();
 }
 function renderScenarios() {
   const T = SCEN.teams[+$("scteam").value];
@@ -453,7 +403,7 @@ function renderScenarios() {
       <td><label for="sc-${i}">${escapeHtml(c.label)}</label><div class="note">counted in ${escapeHtml(c.where)} (${pct(c.share, 0)} of seasons)</div></td>
       <td class="note">${kind[c.kind] || c.kind}</td><td class="n">${pct(c.freq, 0)}</td>
       <td class="n ${c.p_yes > c.p_no ? "pos" : "neg"}">${pct(c.p_yes)}</td><td class="n">${pct(c.p_no)}</td></tr>`).join("") + `</tbody>`;
-  T.conditions.forEach((_, i) => { $(`sc-${i}`).onchange = scenarioSummary; });
+  T.conditions.forEach((_, i) => { $(`sc-${i}`).onchange = () => { scenarioSummary(); renderSeasonPicker(); }; });
   scenarioSummary();
 }
 function scenarioSummary() {
