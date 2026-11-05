@@ -67,3 +67,55 @@ class LineupSpec:
 
     def total(self, players: list[int], values, positions: list[str]) -> float:
         return self.best(players, values, positions)[0]
+
+    def adder(self, players: list[int], values, positions: list[str]):
+        """Fast "lineup total if we add player x" for one roster: the roster's values are
+        sorted once, and each call only inserts x's value. Same result as
+        total(players + [x], ...). Call with x=None for the roster's own total."""
+        by_pos: dict[str, list[float]] = {}
+        for p in players:
+            by_pos.setdefault(positions[p], []).append(float(values[p]))
+        for lst in by_pos.values():
+            lst.sort(reverse=True)
+        dedicated, flex = self.dedicated, self.flex
+
+        def fill(lists: dict[str, list[float]]) -> float:
+            total = 0.0
+            left: dict[str, list[float]] = {}
+            for pos, count in dedicated:
+                lst = lists.get(pos, [])
+                total += sum(lst[:count])
+                left[pos] = lst[count:]
+            for pos, lst in lists.items():
+                left.setdefault(pos, lst)
+            heads = {pos: 0 for pos in left}
+            for eligible, count in flex:
+                for _ in range(count):
+                    best_pos, best_v = None, None
+                    for pos in eligible:
+                        lst = left.get(pos)
+                        if lst is not None and heads[pos] < len(lst) and (best_v is None or lst[heads[pos]] > best_v):
+                            best_v, best_pos = lst[heads[pos]], pos
+                    if best_pos is None:
+                        continue
+                    total += best_v
+                    heads[best_pos] += 1
+            return total
+
+        base = fill(by_pos)
+
+        def add(x=None) -> float:
+            if x is None:
+                return base
+            pos = positions[x]
+            lst = list(by_pos.get(pos, []))
+            v = float(values[x])
+            i = 0
+            while i < len(lst) and lst[i] >= v:
+                i += 1
+            lst.insert(i, v)
+            lists = dict(by_pos)
+            lists[pos] = lst
+            return fill(lists)
+
+        return add

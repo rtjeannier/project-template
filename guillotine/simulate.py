@@ -30,7 +30,7 @@ from .projections import Projections
 FUTURE_TOP_PLAYERS = 4  # per rival roster and position, players considered as possible future pickups
 MONEY_GRID = 41  # money levels at which a team values what its FAAB can still buy
 POOL_PER_POS = 4  # players on waivers now, per position, considered as what a team could add instead
-LOSE_GRID = 6  # lost-bid sizes checked for the "lose" side (interpolated between)
+LOSE_GRID = 4  # lost-bid sizes checked for the "lose" side (interpolated between)
 COVER_OPTIONS = 8  # replacements considered for each starter who might get hurt
 FA_KEEP_PER_POS = 15  # free agents carried between weeks: the best this many at each position
 # Projection uncertainty grows with the horizon: a player's true level is a random walk
@@ -297,21 +297,23 @@ class Simulator:
         out[self._hurt_week < j] = 0.0
         return out
 
-    def _final_gain(self, roster: list[int], x: int, fin, q, base: float, without: dict) -> float:
+    def _final_gain(self, roster: list[int], x: int, fin, q, base: float, without: dict, adders=None) -> float:
         """Expected week-17 lineup gain from adding player x to this roster.
 
         If he'd start in week 17: his gain over the starter he pushes out, times P(he's
         healthy then). If he wouldn't start, he's a backup: for each starter s, P(s is out)
         x how much better the lineup without s is with him as the next man up.
-        ``base`` = week-17 lineup total now; ``without[s]`` = total without starter s."""
+        ``base`` = week-17 lineup total now; ``without[s]`` = total without starter s.
+        ``adders`` (optional, for speed): (adder for the roster, {s: adder without s})."""
         spec, pos = self.spec, self.proj.pos
-        with_x = spec.total(roster + [x], fin, pos)
+        with_x = adders[0](x) if adders else spec.total(roster + [x], fin, pos)
         if with_x > base + 1e-9:
             return (1.0 - q[x]) * (with_x - base)
         gain = 0.0
         for st, wo in without.items():
             if q[st] > 0 and pos[st] in (FLEX_POS if pos[x] in FLEX_POS else (pos[x],)):
-                gain += q[st] * max(0.0, spec.total([y for y in roster if y != st] + [x], fin, pos) - wo)
+                tot = adders[1][st](x) if adders else spec.total([y for y in roster if y != st] + [x], fin, pos)
+                gain += q[st] * max(0.0, tot - wo)
         return gain
 
     def _slot_group(self, roster: list[int], p: int, fin) -> tuple[str, ...]:
@@ -465,7 +467,7 @@ class Simulator:
         cut_fn, pp_mid, pp_fin, pp_now = {}, {}, {}, {}
         for t in active:
             if not one_left:
-                omin = np.min(np.vstack([draws[u] for u in active if u != t]), axis=0)
+                omin = np.min(np.vstack([draws[u][:1000] for u in active if u != t]), axis=0)
                 cut_fn[t] = (lambda om, mu, sd: (lambda extra: float(_phi((om - mu - extra) / max(sd, 1e-6)).mean())))(
                     omin, mu_now[t], sd_now[t])
                 slope = cut_fn[t](-0.5) - cut_fn[t](0.5)  # P(cut) per point this week
@@ -542,6 +544,7 @@ class Simulator:
                 # 500 draws are plenty for a weekly cut chance
                 wk_min[(t, w)] = np.min(np.vstack([dr[u][:500] for u in active if u != t]), axis=0)
         wk_c0 = {k: float(_phi((wk_min[k] - wk_mu[k]) / max(wk_sd[k], 1e-6)).mean()) for k in wk_min}
+        wk_add = {(t, w): spec.adder(rosters[t], wk_means[w], proj.pos) for t in active for w in mid_weeks}
 
         def mid_value(t: str, x: int) -> float:
             """Title chance from holding x in the weeks before the final (byes included)."""
@@ -550,7 +553,7 @@ class Simulator:
                 if wk_means[w][x] <= 0:
                     continue  # bye or hurt that week: no help
                 mu0, sd = wk_mu[(t, w)], max(wk_sd[(t, w)], 1e-6)
-                mu1 = spec.total(rosters[t] + [x], wk_means[w], proj.pos)
+                mu1 = wk_add[(t, w)](x)
                 if mu1 <= mu0 + 1e-9:
                     continue
                 c0 = wk_c0[(t, w)]
@@ -560,11 +563,12 @@ class Simulator:
 
         gain_opt, gnow_opt, val_opt, mid_opt = {}, {}, {}, {}
         for t in active:
-            base17 = spec.total(rosters[t], fin, proj.pos)
-            base0 = spec.total(rosters[t], now, proj.pos)
-            g = np.array([0.0 if o[1] == t else (1.0 - q_out[o[0]]) * max(0.0, spec.total(rosters[t] + [o[0]], fin, proj.pos) - base17)
+            add17 = spec.adder(rosters[t], fin, proj.pos)
+            add0 = spec.adder(rosters[t], now, proj.pos)
+            base17, base0 = add17(), add0()
+            g = np.array([0.0 if o[1] == t else (1.0 - q_out[o[0]]) * max(0.0, add17(o[0]) - base17)
                           for o in opts], dtype=float)
-            g0 = np.array([max(0.0, spec.total(rosters[t] + [o[0]], now, proj.pos) - base0) if o[1] is None else 0.0
+            g0 = np.array([max(0.0, add0(o[0]) - base0) if o[1] is None else 0.0
                            for o in opts], dtype=float)
             # Players on waivers now: their weeks before the final week by week. Players who
             # might come back later: their week-17 gain for the weeks they'd play.
@@ -617,7 +621,9 @@ class Simulator:
             per_point_mid, per_point_final = pp_mid[tid], pp_fin[tid]
             base_now = spec.total(roster, now, proj.pos)
             base_fin, starters = spec.best(roster, fin, proj.pos)
-            without = {st: spec.total([y for y in roster if y != st], fin, proj.pos) for st in starters}
+            add_fin = spec.adder(roster, fin, proj.pos)
+            add_without = {st: spec.adder([y for y in roster if y != st], fin, proj.pos) for st in starters}
+            without = {st: a() for st, a in add_without.items()}
 
             # What money buys later: the best set of later pickups this team can afford, at
             # most one per position, plus a replacement for each starter who might get hurt
@@ -634,11 +640,12 @@ class Simulator:
             # lineup after the best RB and WR pickups, flex #2 after flex #1 too. All pots draw
             # on the same money.
             def marginal(base_roster, positions) -> np.ndarray:
-                b0 = spec.total(base_roster, fin, proj.pos)
+                add_b = spec.adder(base_roster, fin, proj.pos)
+                b0 = add_b()
                 ratio = np.zeros(n_opt)
                 for i, o in enumerate(opts):
                     if o[2] in positions and my_val[i] > 0 and gain_opt[tid][i] > 0:
-                        g2 = max(0.0, spec.total(base_roster + [o[0]], fin, proj.pos) - b0)
+                        g2 = max(0.0, add_b(o[0]) - b0)
                         ratio[i] = min(1.0, (1.0 - q_out[o[0]]) * g2 / gain_opt[tid][i])
                 return ratio
 
@@ -673,11 +680,17 @@ class Simulator:
                     idx = [i for i in np.argsort(-fin[[o[0] for o in opts]]) if opts[i][2] in grp and opts[i][1] != tid][:COVER_OPTIONS]
                     if not idx:
                         continue
-                    rest_free = [y for y in roster if y != st]
+                    add_rf = add_without[st]
                     base_rf = without[st]
-                    g_rep = np.array([(1.0 - q_out[opts[i][0]]) * max(0.0, spec.total(rest_free + [opts[i][0]], fin, proj.pos) - base_rf)
+                    g_rep = np.array([(1.0 - q_out[opts[i][0]]) * max(0.0, add_rf(opts[i][0]) - base_rf)
                                       for i in idx])
                     cover_items.append((st, grp, np.array(idx, dtype=int), g_rep, base_rf))
+
+            # For splitting a budget between pots: row = total budget, column = amount to the
+            # next pot, conv_src = what's left for the pots before it.
+            _ii = np.arange(len(m_grid))
+            _src = _ii[:, None] - _ii[None, :]
+            conv_src, conv_bad = np.clip(_src, 0, None), _src < 0
 
             def budget_value(chance, pot_vals=None, cover_vals=None) -> np.ndarray:
                 """Best total title chance from later pickups, for every budget on m_grid. The
@@ -697,11 +710,9 @@ class Simulator:
                     vals = opt_reach[idx] * q_out[st] * per_point_final * gr
                     if (vals > 0).any():
                         curves.append((vals[:, None] * chance[idx]).max(axis=0))
-                n = len(m_grid)
-                ii = np.arange(n)
-                src = ii[:, None] - ii[None, :]  # budget left for the other positions
                 for g in curves:
-                    cand = np.where(src >= 0, f[np.clip(src, 0, None)] + g[None, :], -np.inf)
+                    cand = f[conv_src] + g[None, :]
+                    cand[conv_bad] = -np.inf
                     f = np.maximum(f, cand.max(axis=1))
                 return f
 
@@ -717,13 +728,14 @@ class Simulator:
                                        [(proj.ids[o[0]], o[2], float(gain_opt[tid][i]), float(opt_reach[i]), float(val_opt[tid][i]), chance[i].copy())
                                         for i, o in enumerate(opts)]))
 
+            add_now = spec.adder(roster, now, proj.pos)
             gain_now = {}
             for x in remaining:
                 if now[x] > 0:
-                    g = spec.total(roster + [x], now, proj.pos) - base_now
+                    g = add_now(x) - base_now
                     if g > 1e-9:
                         gain_now[x] = g
-            gain_fin = {x: self._final_gain(roster, x, fin, q_out, base_fin, without) for x in remaining}
+            gain_fin = {x: self._final_gain(roster, x, fin, q_out, base_fin, without, (add_fin, add_without)) for x in remaining}
             why = self.why_no_bid
             for p in remaining:
                 # His gains over the current roster. What else this team could add instead (on
@@ -750,7 +762,7 @@ class Simulator:
                 # Winning him: later pickups at his position(s) only count above him, and if a
                 # starter he could replace gets hurt, he plays, so a bought replacement only
                 # counts above him too.
-                g_p = (1.0 - q_out[p]) * max(0.0, spec.total(roster + [p], fin, proj.pos) - base_fin)
+                g_p = (1.0 - q_out[p]) * max(0.0, add_fin(p) - base_fin)
                 g_p_now = gain_now.get(p, 0.0)
                 me = pool_idx.get(p)
                 g_after = np.maximum(gain_opt[tid] - g_p, 0.0)
@@ -764,8 +776,7 @@ class Simulator:
                 cover_vals = {}
                 for c, (st, grp, idx, g_rep, base_rf) in enumerate(cover_items):
                     if proj.pos[p] in grp:
-                        rest_free = [y for y in roster if y != st]
-                        b_s = max(0.0, spec.total(rest_free + [p], fin, proj.pos) - base_rf)
+                        b_s = max(0.0, add_without[st](p) - base_rf)
                         if b_s > 0:
                             cover_vals[c] = np.maximum(g_rep - b_s, 0.0)
                 future_win = budget_value(chance, slot_vals, cover_vals)
@@ -800,7 +811,7 @@ class Simulator:
                 if det < 0:
                     continue
                 # A lineup claim starts this week or in week 17; otherwise he's a backup.
-                kind = "lineup" if (gain_now.get(p, 0.0) > 0 or spec.total(roster + [p], fin, proj.pos) > base_fin + 1e-9) else "bench"
+                kind = "lineup" if (gain_now.get(p, 0.0) > 0 or add_fin(p) > base_fin + 1e-9) else "bench"
                 reserve[(tid, p)] = (det, kind, lock)
                 if self.value_log is not None and submitting:
                     self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, v_now, v_mid, v_fin, value,
