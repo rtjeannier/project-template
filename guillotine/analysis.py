@@ -233,7 +233,7 @@ def future_targets(sim: Simulator, res: SimResults, top: int = 15) -> list[dict]
         paid = [prices[(s, j, pid)][1] for s, (j, _) in first.items() if (s, j, pid) in prices]
         won = sum(1 for s, (j, _) in first.items() if prices.get((s, j, pid), ("",))[0] == me)
         weeks = [res.weeks[min(j, len(res.weeks) - 1)] for j, _ in first.values()]
-        owner = next(t.name for t in sim.state.teams if pid in t.players)
+        owner = next((t.name for t in sim.state.teams if pid in t.players), "free agent now")
         rows.append({
             "player": sim.state.players[pid].name,
             "pos": sim.state.players[pid].pos,

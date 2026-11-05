@@ -490,9 +490,13 @@ class Simulator:
             # Priority rolls to the back after a successful claim.
             priority[tid] = max(priority.values()) + 1
             if not (j == 0 and tid == self.user and policy.mode != "auto"):
-                bids[tid] = team_bids(tid)
+                # Sealed bids: amounts are fixed once submitted. Winning a player can only
+                # cancel a team's other claims (Yahoo's "invalid claim due to previous
+                # transaction"): drop claims on players who no longer help it.
+                still_useful = team_bids(tid)
                 if tid == self.user:
-                    bids[tid] = apply_rules(bids[tid])
+                    still_useful = apply_rules(still_useful)
+                bids[tid] = {q: a for q, a in bids[tid].items() if q in still_useful}
 
         leftovers = [p for p in set(pool) | set(fa_pool) if p not in claimed]
         leftovers.sort(key=lambda p: -vb[p])

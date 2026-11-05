@@ -161,3 +161,14 @@ def test_inspect_export_and_viewer(state, tmp_path):
     paths = write(data, tmp_path)
     html = build([paths[-1]], tmp_path / "inspector.html").read_text()
     assert "/*DATA*/" not in html and data["player"] in html
+
+
+def test_winning_price_equals_submitted_bid(state):
+    # Sealed bids: whoever wins pays exactly what they bid, never a re-priced amount.
+    sim = Simulator(state, seed=2)
+    sim.trace = []
+    sim.run(15)
+    for e in sim.trace:
+        if e[0] == "award":
+            _, s, j, pid, tid, amt, all_bids, faab = e
+            assert all_bids[tid] == amt
