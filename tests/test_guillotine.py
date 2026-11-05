@@ -198,3 +198,18 @@ def test_simulated_dataset_is_consistent(state, tmp_path):
             key = (b["season"], b["week"], b["player_id"])
             assert key not in winners
             winners[key] = b["team_id"]
+
+
+def test_site_build_from_simulated_data(state, tmp_path):
+    import json
+
+    from guillotine.dataset import generate
+    from guillotine.site import build
+
+    league = tmp_path / "league.json"
+    league.write_text(json.dumps(make_sample_league(seed=3, n_teams_alive=5, current_week=13)))
+    generate(state, league, n_seasons=10, out_dir=tmp_path / "data", chunk=5)
+    files = {p.name for p in build(tmp_path / "data", tmp_path / "site", sample_seasons=3, anonymize=True)}
+    assert {"index.html", "cube.json", "players.json", "seasons.json", "summary.json"} <= files
+    summary = json.loads((tmp_path / "site" / "summary.json").read_text())
+    assert summary["you"] == "You" and all(t["name"].startswith(("Team ", "You")) for t in summary["teams"])

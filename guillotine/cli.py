@@ -57,7 +57,20 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--seed", type=int, default=0)
     d.add_argument("--out", default="sim_data")
 
+    w = sub.add_parser("build-site", help="build the static results explorer (GitHub Pages) from simulate-data output")
+    w.add_argument("data", help="directory written by simulate-data")
+    w.add_argument("--out", default="docs/explorer")
+    w.add_argument("--sample-seasons", type=int, default=60, help="full seasons to include for reading one by one")
+    w.add_argument("--anonymize", action="store_true", help="replace team names with Team 1..N (you stay 'You')")
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "build-site":
+        from .site import build as build_site
+
+        for path in build_site(args.data, args.out, args.sample_seasons, args.anonymize):
+            print(path)
+        return 0
 
     if args.cmd == "simulate-data":
         from .dataset import generate

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guillotine Bid Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: summary band, then three working sections (bid explorer, players, seasons), each a panel with its own controls. */
+:root {
+  --bg: #f5f7f6; --panel: #ffffff; --ink: #18211f; --muted: #5d6b67; --line: #d9e1de;
+  --accent: #0f6b5c; --accent-soft: #dcefea; --win: #1f7a3a; --lose: #b3261e; --warn: #a15c00;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #101614; --panel: #17201d; --ink: #e6ecea; --muted: #97a6a1; --line: #2a3632;
+  --accent: #4fc2ad; --accent-soft: #1d3530; --win: #5cc47b; --lose: #f07a70; --warn: #f0b25a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #101614; --panel: #17201d; --ink: #e6ecea; --muted: #97a6a1; --line: #2a3632;
+  --accent: #4fc2ad; --accent-soft: #1d3530; --win: #5cc47b; --lose: #f07a70; --warn: #f0b25a; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 24px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h1 { font-size: 34px; } h2 { font-size: 23px; } h3 { font-size: 18px; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 72ch; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.note { font-size: 13px; color: var(--muted); max-width: 80ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.facts b { display: block; font-family: var(--mono); font-size: 19px; }
+.filters { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.fgroup { display: grid; gap: 6px; align-content: start; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.chip:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.link { font: inherit; font-size: 13px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
+input, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.chart-wrap { overflow-x: auto; }
+svg text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+svg .t-ink { fill: var(--ink); }
+.split { display: grid; gap: 18px; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.tbl { overflow: auto; max-height: 520px; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-size: 13px; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
+.pos { color: var(--win); } .neg { color: var(--lose); } .flat { color: var(--muted); }
+.pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+.pill.cut { background: transparent; color: var(--lose); border: 1px solid var(--lose); }
+.weeks { display: grid; gap: 12px; }
+.wk { border-left: 3px solid var(--line); padding: 2px 0 2px 12px; display: grid; gap: 6px; }
+.awards { display: grid; gap: 4px; }
+.aw { font-size: 14px; }
+.aw .bids { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: normal; }
+.scores { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: normal; }
+.err { color: var(--lose); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:6px">
+    <h1>Guillotine Bid Lab</h1>
+    <p class="lede" id="lede">Loading simulated seasons…</p>
+  </header>
+
+  <section class="panel" id="summary">
+    <h2>The simulation</h2>
+    <div class="facts" id="facts"></div>
+    <p class="note">Every team bids its <b>fair bid</b> (the rational bid at that moment) times a random multiplier drawn from a normal distribution around 1× (95th percentile 2×; at or below 0 means no bid). Each bid is drawn independently, so comparing outcomes across multipliers is a fair experiment: if bids at 1.5× go with more league wins than bids at 1×, overbidding caused it.</p>
+    <div class="tbl" style="max-height:none"><table id="teams"><thead><tr><th>Team</th><th class="n">FAAB today</th><th class="n">Won the league</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Over- or under-bid? By situation</h2>
+    <p class="note">P(the bidder went on to win the league), by how far over or under fair the bid was. Pick any situation with the filters; nothing selected in a group means all. Error bars are ±2 standard errors. Compare bars to the fair bar (highlighted); absolute levels run higher than overall title odds because teams that last longer place more bids.</p>
+    <div class="filters" id="filters"></div>
+    <div class="split">
+      <div class="chart-wrap"><svg id="curve" viewBox="0 0 640 330" width="100%" role="img" aria-label="P(win league) by bid multiplier"></svg></div>
+      <div class="tbl" style="max-height:none"><table id="curve-tbl"><thead><tr><th>Bid vs fair</th><th class="n">Bids</th><th class="n">Won league</th><th class="n">vs fair</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Players</h2>
+    <p class="note">For each player with enough bids: P(win league) when the bidder underbid (below 0.9× fair), bid about fair (0.9–1.1×), or overbid (above 1.1×). Click a player to load his curve into the chart above.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+      <div class="fgroup"><label class="label" for="psearch">Search</label><input id="psearch" placeholder="Player name"></div>
+      <div class="fgroup"><label class="label" for="pwho">Bidder</label><select id="pwho"><option value="all">Everyone</option><option value="you">You only</option></select></div>
+    </div>
+    <div class="tbl"><table id="ptbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Final edge</th><th class="n">Median fair</th><th class="n">Bids</th><th class="n">Underbid</th><th class="n">Fair</th><th class="n">Overbid</th><th class="n">Over − under</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Seasons</h2>
+    <p class="note">Read individual simulated seasons week by week: every player that got a bid, every team's bid with its fair value and multiplier, who won and for how much, then scores and who was cut.</p>
+    <div class="fgroup" style="max-width:320px"><label class="label" for="season">Season</label><select id="season"></select></div>
+    <div class="weeks" id="weeks"></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
+const money = (v) => v == null ? "–" : "$" + Math.round(v);
+let CUBE, PLAYERS, SEASONS, SUM;
+const sel = {};         // dim -> Set of selected label indexes
+let playerFocus = null; // player id whose curve is shown
+
+async function load() {
+  try {
+    [CUBE, PLAYERS, SEASONS, SUM] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
+  } catch (e) {
+    $("lede").innerHTML = `<span class="err">Couldn't load the data files (${e.message}). Open this page from a web server, e.g. GitHub Pages or <code>python -m http.server</code> in this folder.</span>`;
+    return;
+  }
+  renderSummary(); renderFilters(); renderCurve(); renderPlayers(); renderSeasonPicker();
+}
+
+function renderSummary() {
+  const you = SUM.teams.find(t => t.is_you);
+  $("lede").textContent = `${SUM.seasons.toLocaleString()} simulated seasons from week 9, ${SUM.bids.toLocaleString()} bids. Explore when overbidding or underbidding went with winning the league.`;
+  $("facts").innerHTML = `<div><span class="label">Seasons</span><b>${SUM.seasons.toLocaleString()}</b></div>
+    <div><span class="label">Bids analyzed</span><b>${SUM.analyzed_bids.toLocaleString()}</b></div>
+    <div><span class="label">${you.name} wins the league</span><b>${pct(you.p_champion)}</b></div>
+    <div><span class="label">Bid spread (sd)</span><b>${SUM.bid_sd}× fair</b></div>`;
+  $("teams").querySelector("tbody").innerHTML = SUM.teams.slice().sort((a, b) => b.p_champion - a.p_champion).map(t =>
+    `<tr><td>${t.is_you ? `<span class="pill">${t.name}</span>` : t.name}</td><td class="n">${money(t.faab)}</td><td class="n">${pct(t.p_champion)}</td></tr>`).join("");
+}
+
+function renderFilters() {
+  const box = $("filters"); box.innerHTML = "";
+  for (const [k, d] of Object.entries(CUBE.dims)) {
+    sel[k] = sel[k] || new Set();
+    const g = document.createElement("div"); g.className = "fgroup";
+    g.innerHTML = `<span class="label">${d.title}</span><div class="chips"></div>`;
+    d.labels.forEach((lab, i) => {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = lab; b.id = `f-${k}-${i}`;
+      b.setAttribute("aria-pressed", sel[k].has(i));
+      b.onclick = () => { sel[k].has(i) ? sel[k].delete(i) : sel[k].add(i); b.setAttribute("aria-pressed", sel[k].has(i)); playerFocus = null; renderCurve(); };
+      g.querySelector(".chips").appendChild(b);
+    });
+    box.appendChild(g);
+  }
+  const reset = document.createElement("div"); reset.className = "fgroup";
+  reset.innerHTML = `<span class="label">&nbsp;</span>`; const rb = document.createElement("button"); rb.className = "link"; rb.textContent = "Clear all filters";
+  rb.onclick = () => { for (const k in sel) sel[k].clear(); playerFocus = null; renderFilters(); renderCurve(); }; reset.appendChild(rb); box.appendChild(reset);
+}
+
+function cubeCurve() {
+  const K = CUBE.keys, idx = Object.fromEntries(K.map((k, i) => [k, i]));
+  const n = new Array(CUBE.mult_labels.length).fill(0), w = n.slice();
+  for (const r of CUBE.rows) {
+    let ok = true;
+    for (const k in sel) if (sel[k].size && !sel[k].has(r[idx[k]])) { ok = false; break; }
+    if (!ok) continue;
+    n[r[0]] += r[r.length - 2]; w[r[0]] += r[r.length - 1];
+  }
+  return { n, w, title: describeFilters() };
+}
+function playerCurve(p, youOnly) {
+  const n = new Array(CUBE.mult_labels.length).fill(0), w = n.slice();
+  for (const [m, you, cn, cw] of p.cells) { if (youOnly && !you) continue; n[m] += cn; w[m] += cw; }
+  return { n, w, title: `${p.name} (${p.pos}), ${youOnly ? "your bids" : "all bidders"}` };
+}
+function describeFilters() {
+  const parts = [];
+  for (const [k, d] of Object.entries(CUBE.dims)) if (sel[k] && sel[k].size) parts.push([...sel[k]].map(i => d.labels[i]).join(" or "));
+  return parts.length ? parts.join(" · ") : "All bids";
+}
+
+function renderCurve() {
+  const c = playerFocus ? playerCurve(PLAYERS.find(p => p.id === playerFocus), $("pwho").value === "you") : cubeCurve();
+  const L = CUBE.mult_labels, FAIR = 4;
+  const p = c.n.map((n, i) => n ? c.w[i] / n : null);
+  const se = c.n.map((n, i) => n ? Math.sqrt(Math.max(p[i] * (1 - p[i]), 1e-6) / n) : null);
+  const W = 640, H = 330, Lm = 46, R = 10, T = 30, B = 74;
+  const vals = p.flatMap((v, i) => v == null ? [] : [v + 2 * se[i], v - 2 * se[i]]);
+  let lo = Math.max(0, Math.min(...vals)), hi = Math.min(1, Math.max(...vals));
+  const pad = Math.max((hi - lo) * 0.15, 0.005); lo = Math.max(0, lo - pad); hi = Math.min(1, hi + pad);
+  const x = (i) => Lm + (i + 0.5) * (W - Lm - R) / L.length, y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const bw = (W - Lm - R) / L.length * 0.56;
+  let g = `<text class="t-ink" x="${Lm}" y="16">${escapeHtml(c.title)}</text>`;
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4;
+    g += `<line x1="${Lm}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${Lm - 6}" y="${y(v) + 4}" text-anchor="end">${(100 * v).toFixed(1)}%</text>`; }
+  if (p[FAIR] != null) g += `<line x1="${Lm}" x2="${W - R}" y1="${y(p[FAIR])}" y2="${y(p[FAIR])}" stroke="var(--accent)" stroke-dasharray="4 4"/>`;
+  p.forEach((v, i) => {
+    if (v == null) return;
+    const top = y(Math.min(hi, v + 2 * se[i])), bot = y(Math.max(lo, v - 2 * se[i]));
+    g += `<rect x="${x(i) - bw / 2}" y="${y(v)}" width="${bw}" height="${Math.max(1, H - B - y(v))}" fill="${i === FAIR ? "var(--accent)" : "var(--accent-soft)"}" stroke="var(--accent)" stroke-width="${i === FAIR ? 0 : 1}"><title>${L[i]}: ${pct(v)} (n=${c.n[i]})</title></rect>`;
+    g += `<line x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${bot}" stroke="var(--ink)" stroke-width="1.2"/>`;
+    g += `<line x1="${x(i) - 5}" x2="${x(i) + 5}" y1="${top}" y2="${top}" stroke="var(--ink)"/><line x1="${x(i) - 5}" x2="${x(i) + 5}" y1="${bot}" y2="${bot}" stroke="var(--ink)"/>`;
+    g += `<text x="${x(i)}" y="${H - B + 14}" text-anchor="end" transform="rotate(-35 ${x(i)} ${H - B + 14})">${L[i]}</text>`;
+  });
+  $("curve").innerHTML = g;
+  $("curve-tbl").querySelector("tbody").innerHTML = L.map((lab, i) => {
+    const d = p[i] != null && p[FAIR] != null ? p[i] - p[FAIR] : null;
+    const sig = d != null && i !== FAIR && Math.abs(d) > 2 * Math.hypot(se[i], se[FAIR]);
+    const cls = d == null || i === FAIR ? "flat" : !sig ? "flat" : d > 0 ? "pos" : "neg";
+    return `<tr${i === FAIR ? ' class="sel"' : ""}><td>${lab}</td><td class="n">${c.n[i].toLocaleString()}</td><td class="n">${p[i] == null ? "–" : pct(p[i])}</td>
+      <td class="n ${cls}">${i === FAIR || d == null ? "–" : (d >= 0 ? "+" : "") + (100 * d).toFixed(1) + " pts" + (sig ? "" : " ~")}</td></tr>`; }).join("") +
+    `<tr><td colspan="4" class="note">~ = within noise (less than 2 standard errors from fair)</td></tr>`;
+}
+
+function renderPlayers() {
+  const q = $("psearch").value.trim().toLowerCase(), youOnly = $("pwho").value === "you";
+  const rows = PLAYERS.filter(p => !q || p.name.toLowerCase().includes(q)).map(p => {
+    const agg = (lo, hi) => { let n = 0, w = 0; for (const [m, you, cn, cw] of p.cells) { if (youOnly && !you) continue; if (m >= lo && m <= hi) { n += cn; w += cw; } } return n ? [w / n, n] : [null, 0]; };
+    const under = agg(0, 3), fair = agg(4, 4), over = agg(5, 8);
+    const n = under[1] + fair[1] + over[1];
+    return { p, under, fair, over, n, diff: under[0] != null && over[0] != null ? over[0] - under[0] : null };
+  }).filter(r => r.n > 0).sort((a, b) => (b.diff ?? -1) - (a.diff ?? -1));
+  const cell = (v) => v[0] == null ? "–" : pct(v[0]);
+  $("ptbl").querySelector("tbody").innerHTML = rows.map(r => `<tr class="click${r.p.id === playerFocus ? " sel" : ""}" data-id="${r.p.id}">
+    <td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${r.p.edge > 0 ? "+" : ""}${r.p.edge.toFixed(1)}</td><td class="n">${money(r.p.median_fair)}</td>
+    <td class="n">${r.n.toLocaleString()}</td><td class="n">${cell(r.under)}</td><td class="n">${cell(r.fair)}</td><td class="n">${cell(r.over)}</td>
+    <td class="n ${r.diff == null ? "flat" : r.diff > 0 ? "pos" : "neg"}">${r.diff == null ? "–" : (r.diff >= 0 ? "+" : "") + (100 * r.diff).toFixed(1) + " pts"}</td></tr>`).join("") ||
+    `<tr><td colspan="9" class="note">No players match.</td></tr>`;
+  $("ptbl").querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => { playerFocus = tr.dataset.id; renderCurve(); renderPlayers(); document.getElementById("curve").scrollIntoView({ behavior: "smooth", block: "center" }); });
+}
+$("psearch").oninput = renderPlayers;
+$("pwho").onchange = () => { renderPlayers(); if (playerFocus) renderCurve(); };
+
+function renderSeasonPicker() {
+  const s = $("season");
+  s.innerHTML = SEASONS.map((x, i) => `<option value="${i}">Season ${x.season}: ${x.champion} wins</option>`).join("");
+  s.onchange = renderSeason; renderSeason();
+}
+function renderSeason() {
+  const S = SEASONS[+$("season").value], you = SUM.you;
+  $("weeks").innerHTML = S.weeks.map(w => {
+    const cut = w.scores.filter(s => s[2]).map(s => s[0]);
+    const aw = w.awards.map(a => `<div class="aw">${a.player} <span class="label">${a.pos}</span> → ${a.winner ? `<span class="pill">${a.winner}</span> for ${money(a.price)}` : "<i>no winner</i>"}
+      <div class="bids">${a.bids.map(([t, bid, fair, m]) => `${t === you ? "<b>" + t + "</b>" : t} ${money(bid)} (fair ${money(fair)}, ${m}×)`).join(" · ")}</div></div>`).join("");
+    return `<div class="wk"><h3>Week ${w.week}</h3>
+      <div class="awards">${aw || '<span class="note">No bids above $0 this week.</span>'}</div>
+      <div>Cut: ${cut.map(c => `<span class="pill cut">${c}</span>`).join(" ")}</div>
+      <div class="scores">${w.scores.map(([t, sc, c, f]) => `${t === you ? "<b>" + t + "</b>" : t} ${sc} pts, ${money(f)} left`).join(" · ")}</div></div>`;
+  }).join("") + `<div class="wk"><h3>Champion</h3><div><span class="pill">${S.champion}</span></div></div>`;
+}
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+load();
+</script>
+</body>
+</html>

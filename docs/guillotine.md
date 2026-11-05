@@ -163,6 +163,32 @@ bid, multiplier, FAAB, cut odds, won/price), `weeks.csv.gz` (scores, cuts, FAAB)
 `teams.csv` and the starting `league.json`. Rosters at any point can be rebuilt from
 the starting rosters plus awards and drops.
 
+## Results explorer (GitHub Pages)
+
+```bash
+python -m guillotine build-site sim_data --out docs/explorer --anonymize
+```
+
+This builds a static site from the simulated dataset into `docs/explorer/`. It has
+`index.html` plus small pre-aggregated JSON files, because the raw bid log is too big
+for a browser. To host it, go to the repo's Settings → Pages → Deploy from a branch,
+pick this branch, and set the folder to `/docs`. The page is then at
+`https://<user>.github.io/<repo>/explorer/`. Locally, run `python -m http.server`
+in that folder.
+
+The page has:
+
+- **Over- or under-bid, by situation:** P(bidder wins the league) by how far over or
+  under fair each bid was, with ±2 SE error bars. Filter by player's final-week edge,
+  position, week, bidder's FAAB vs the richest rival's, cut risk, fair-bid size, and
+  you vs everyone.
+- **Players:** underbid vs fair vs overbid outcomes per player. Click one to chart him.
+- **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
+  every award, scores and cuts.
+
+`--anonymize` replaces rival team names with Team 1..N (you are "You"). Use it for a
+public repo, because Pages sites and repo files are visible to anyone.
+
 ## Inspecting scenarios
 
 To check the algorithm, or to see when over- or under-bidding pays, export every
