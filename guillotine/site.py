@@ -178,39 +178,6 @@ def _survival(bids, weeks, teams, week_list, fb) -> dict:
 
 
 
-BID_EDGES = [-1, 0, 0.05, 0.10, 0.20, 0.35, 0.50, 0.75, 10]
-BID_LABELS = ["$0", "1–5%", "5–10%", "10–20%", "20–35%", "35–50%", "50–75%", "75–100%"]
-GOODBID_DIMS = {
-    "tier": ("Player", ["Elite (irreplaceable in the final)", "Starter", "Depth"]),
-    "when": ("When", ["weeks 9–11", "weeks 12–14", "weeks 15–17"]),
-    "pos": ("Your FAAB vs the richest rival's", ["more (over 1.2×)", "about equal", "less (under 0.8×)"]),
-}
-
-
-def _goodbid(b, team_order) -> dict:
-    """Every real claim (lineup upgrades and keep-from-rivals; not $0-2 backup pickups),
-    win or lose, by bid size as a share of the bidder's FAAB and by situation. For each
-    cell: bids, how many of those bidders went on to win the league, how many got the
-    player. No model valuation ("fair") is used anywhere."""
-    x = b[b.kind != 2].copy()
-    x["bidbin"] = pd.cut(x.bid / x.faab.clip(lower=1), BID_EDGES, labels=False)
-    x.loc[x.bid <= 0, "bidbin"] = 0
-    x["tier"] = np.select([x.final_edge > 1, x.final_edge > -3], [0, 1], 2)
-    x["when"] = np.select([x.week <= 11, x.week <= 14], [0, 1], 2)
-    r = x.faab / x.richest_rival.clip(lower=1)
-    x["pos"] = np.select([r > 1.2, r >= 0.8], [0, 1], 2)
-    keys = ["bidbin", "tier", "when", "pos", "team"]
-    g = x.groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum"), got=("won", "sum")).reset_index()
-    # same cells, only bids that went through
-    gw = x[x.won].groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
-    return {"keys": keys, "bid_labels": BID_LABELS,
-            "dims": {k: {"title": t, "labels": labs} for k, (t, labs) in GOODBID_DIMS.items()},
-            "rows": g[keys + ["n", "w", "got"]].astype(int).values.tolist(),
-            "won_rows": gw[keys + ["n", "w"]].astype(int).values.tolist(),
-            "teams": len(team_order)}
-
-
-
 N_CONDITIONS = 10
 MIN_SEASONS = 200  # a condition needs this many seasons on each side to be shown
 
@@ -375,8 +342,6 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     start_rosters = {str(t["id"]): [str(p) for p in t["players"]] for t in league["teams"]}
     scen = _scenarios(weeks, seasons, bids, injuries, players, teams, names, meta["weeks"], start_rosters)
     (out / "scenarios.json").write_text(json.dumps(scen, separators=(",", ":")))
-    goodbid = _goodbid(b, team_order)
-    (out / "goodbid.json").write_text(json.dumps(goodbid, separators=(",", ":")))
     survival = _survival(bids, weeks, teams, meta["weeks"], fb)
     (out / "survival.json").write_text(json.dumps(survival, separators=(",", ":")))
 

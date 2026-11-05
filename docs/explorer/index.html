@@ -86,29 +86,6 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   </section>
 
   <section class="panel">
-    <h2>What a good bid looks like</h2>
-    <p class="note">Every real claim (lineup upgrades and keep-from-rivals, not $0–2 backup pickups), described only by things you can see: bid size as a % of the bidder's FAAB, the player, the week and the FAAB race. Pick a situation; the chart shows how each bid size changed the bidder's chance of winning the league, and how often it landed the player.</p>
-    <div class="filters">
-      <div class="fgroup"><span class="label">Player</span><div class="chips" id="gb-tier"></div></div>
-      <div class="fgroup"><span class="label">When</span><div class="chips" id="gb-when"></div></div>
-      <div class="fgroup"><span class="label">Your FAAB vs the richest rival's</span><div class="chips" id="gb-pos"></div></div>
-      <div class="fgroup"><span class="label">Bids</span><div class="chips">
-        <button class="chip" id="gb-all" aria-pressed="true">All bids</button>
-        <button class="chip" id="gb-won" aria-pressed="false">Only bids that went through</button></div></div>
-    </div>
-    <p class="note" id="gb-mode-note"></p>
-    <p class="note" style="color:var(--warn)"><b>Read with care:</b> in this data, bid size as a % of FAAB was set by the old model's valuation plus random noise, so it isn't random in % terms. A small bid on a good player usually means no rival had money or wanted him, which is a good spot to be in regardless of the bid. A rerun with bids drawn uniformly from 0–100% of FAAB will make this a clean test.</p>
-    <div style="display:grid;gap:14px">
-      <div class="chart-wrap"><svg id="gb-chart" viewBox="0 0 700 330" width="100%" role="img" aria-label="Change in title odds and chance of landing the player, by bid size"></svg>
-        <div class="legend" id="gb-legend"></div></div>
-      <div class="tbl" style="max-height:none"><table id="gb-tbl"></table></div>
-    </div>
-    <h3>Good bid by situation</h3>
-    <p class="note">The best-performing bid size for each player tier and time window (with the FAAB filter above applied). Click a row to chart it. Grey "thin" bid sizes are left out: the current data only tested bids near what the old model would have bid, so some sizes have too few bids.</p>
-    <div class="tbl" style="max-height:none"><table id="gb-summary"></table></div>
-  </section>
-
-  <section class="panel">
     <h2>What has to go right</h2>
     <p class="note">The conditions that move a team's title odds the most: who gets cut and when, key injuries, and key pickups. Each is judged only on the seasons where it could matter (for example, a pickup only counts seasons where the player hit waivers while the team was alive), so simply surviving long isn't credited to it. Tick any combination to see how often it happens and the title odds when it does. These are associations, not guarantees.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="scteam">Team</label><select id="scteam"></select></div>
@@ -163,23 +140,23 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-05_04:28_UTC";
+const BUILD = "2026-11-05_04:35_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
 const MIN_TEAM_BIDS = 100, MIN_CELL = 15;
-let CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, GB, SCEN, VIEW = "lift", AXIS = "mult";
+let CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, SCEN, VIEW = "lift", AXIS = "mult";
 const sel = {};
 let playerFocus = null;
 
 async function load() {
   try {
-    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, GB, SCEN] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json", "goodbid.json", "scenarios.json"].map(f => fetch(f + "?v=" + BUILD).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
+    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, SCEN] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json", "scenarios.json"].map(f => fetch(f + "?v=" + BUILD).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
   } catch (e) {
     $("lede").innerHTML = `<span class="err">Couldn't load the data files (${e.message}). Open this page from a web server, e.g. GitHub Pages or <code>python -m http.server</code> in this folder.</span>`;
     return;
   }
-  renderSummary(); renderGoodBid(); renderScenarioPicker();
+  renderSummary(); renderScenarioPicker();
   renderPlayers(); renderSeasonPicker(); renderPathsPicker(); renderSurvivalPicker();
 }
 function render() {
@@ -462,111 +439,6 @@ function renderSurvival() {
   $("stable").innerHTML = `<thead><tr><th>${dim.title}</th><th class="n">Seasons</th><th class="n">Survives week ${later[0]}</th><th class="n">Reaches the final</th><th class="n">Wins league</th><th class="n">vs all seasons</th></tr></thead><tbody>` +
     groups.map(g => row(g, g.label, false)).join("") + row(base, "all seasons alive this week", true) + `</tbody>`;
 }
-
-// ---- What a good bid looks like ----------------------------------------------
-let GB_MODE = "all";
-const gbSel = { tier: 0, when: 0, pos: null };
-const GB_MIN_CELL = 30, GB_MIN_BIN = 300;
-function gbGrid(sel) {
-  const T = GB.teams, M = GB.bid_labels.length, idx = Object.fromEntries(GB.keys.map((k, i) => [k, i]));
-  const g = Array.from({ length: T }, () => Array.from({ length: M }, () => [0, 0, 0]));
-  const rows = GB_MODE === "all" ? GB.rows : GB.won_rows;
-  for (const r of rows) {
-    if (r[idx.tier] !== sel.tier || r[idx.when] !== sel.when) continue;
-    if (sel.pos != null && r[idx.pos] !== sel.pos) continue;
-    const c = g[r[idx.team]][r[idx.bidbin]];
-    c[0] += r[5]; c[1] += r[6]; if (GB_MODE === "all") c[2] += r[7];
-  }
-  return g;
-}
-function gbSeries(g) {
-  // Change in P(win league) at each bid size vs the same team's average in this situation,
-  // averaged over teams (each counted equally). Plus how often that bid size landed him.
-  const M = GB.bid_labels.length;
-  const base = g.map(row => { const n = row.reduce((a, c) => a + c[0], 0), w = row.reduce((a, c) => a + c[1], 0); return n >= 100 && w > 0 ? w / n : null; });
-  return [...Array(M).keys()].map(m => {
-    let sum = 0, var_ = 0, k = 0, n = 0, got = 0;
-    g.forEach((row, t) => {
-      const [nb, wb, gb] = row[m]; n += nb; got += gb;
-      if (base[t] == null || nb < GB_MIN_CELL) return;
-      const p = wb / nb; sum += p - base[t]; var_ += Math.max(p * (1 - p), 1e-6) / nb; k += 1;
-    });
-    return { d: k ? sum / k : null, se: k ? Math.sqrt(var_) / k : null, n, k, pget: n ? got / n : null, thin: n < GB_MIN_BIN || k < 4 };
-  });
-}
-function renderGoodBid() {
-  const chips = (id, key, labels, allowAny) => {
-    const opts = (allowAny ? [[null, "any"]] : []).concat(labels.map((l, i) => [i, l]));
-    $(id).innerHTML = opts.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${gbSel[key] === v}">${l}</button>`).join("");
-    $(id).querySelectorAll("button").forEach(b => b.onclick = () => { gbSel[key] = b.dataset.v === "null" ? null : +b.dataset.v; renderGoodBid(); });
-  };
-  chips("gb-tier", "tier", GB.dims.tier.labels, false);
-  chips("gb-when", "when", GB.dims.when.labels, false);
-  chips("gb-pos", "pos", GB.dims.pos.labels, true);
-  $("gb-all").setAttribute("aria-pressed", GB_MODE === "all"); $("gb-won").setAttribute("aria-pressed", GB_MODE === "won");
-  $("gb-mode-note").textContent = GB_MODE === "all"
-    ? "All bids, win or lose: the bid is the decision, and losing the player is part of what a low bid risks."
-    : "Only bids that went through. A cheap win only happens when rivals bid low, so this view flatters low bids.";
-  const S = gbSeries(gbGrid(gbSel)), L = GB.bid_labels;
-  const valid = S.filter(s => s.d != null && !s.thin);
-  const best = valid.length ? S.indexOf(valid.reduce((a, b) => b.d > a.d ? b : a)) : -1;
-  // chart
-  const W = 700, H = 330, Lm = 66, R = 56, T = 30, B = 46;
-  const vals = S.flatMap(s => s.d == null ? [] : [s.d + 2 * s.se, s.d - 2 * s.se]);
-  if (!vals.length) { $("gb-chart").innerHTML = `<text x="20" y="40">Not enough bids for this situation.</text>`; $("gb-tbl").innerHTML = ""; renderGoodBidSummary(); return; }
-  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); const pad = Math.max((hi - lo) * 0.1, 0.005); lo -= pad; hi += pad;
-  const x = (i) => Lm + (i + 0.5) * (W - Lm - R) / L.length, y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
-  const y2 = (v) => T + (1 - v) * (H - T - B), bw = (W - Lm - R) / L.length * 0.56;
-  const fmt = (v) => (v >= 0 ? "+" : "") + (100 * v).toFixed(1) + " pts";
-  let s = `<text class="t-ink" x="${Lm}" y="16">${escapeHtml(GB.dims.tier.labels[gbSel.tier])} · ${GB.dims.when.labels[gbSel.when]}${gbSel.pos != null ? " · " + GB.dims.pos.labels[gbSel.pos] : ""}</text>`;
-  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4;
-    s += `<line x1="${Lm}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${Lm - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`;
-    s += `<text x="${W - R + 6}" y="${y2(k / 4) + 4}">${k * 25}%</text>`; }
-  s += `<line x1="${Lm}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink)" stroke-width="1"/>`;
-  S.forEach((d, i) => {
-    s += `<text x="${x(i)}" y="${H - B + 16}" text-anchor="middle">${L[i]}</text>`;
-    if (d.d == null) return;
-    const top = y(d.d + 2 * d.se), bot = y(d.d - 2 * d.se), y0 = Math.min(y(0), y(d.d)), h = Math.max(1, Math.abs(y(0) - y(d.d)));
-    const fill = d.thin ? "var(--line)" : i === best ? "var(--accent)" : "var(--accent-soft)";
-    s += `<rect x="${x(i) - bw / 2}" y="${y0}" width="${bw}" height="${h}" fill="${fill}" stroke="${d.thin ? "var(--muted)" : "var(--accent)"}" stroke-width="1" ${d.thin ? 'stroke-dasharray="3 3"' : ""}><title>${L[i]}: ${fmt(d.d)} (${d.n.toLocaleString()} bids)</title></rect>`;
-    s += `<line x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${bot}" stroke="var(--ink)" stroke-width="1.2"/>`;
-  });
-  if (GB_MODE === "all") {
-    const pts = S.map((d, i) => d.pget == null ? null : `${x(i)},${y2(d.pget)}`).filter(Boolean).join(" ");
-    s += `<polyline points="${pts}" fill="none" stroke="var(--warn)" stroke-width="2"/>`;
-    S.forEach((d, i) => { if (d.pget != null) s += `<circle cx="${x(i)}" cy="${y2(d.pget)}" r="3.5" fill="var(--warn)"><title>${L[i]}: landed him ${pct(d.pget)}</title></circle>`; });
-  }
-  s += `<text x="${Lm}" y="${H - 6}">Bid as % of the bidder's FAAB at the time</text>`;
-  $("gb-chart").innerHTML = s;
-  $("gb-legend").innerHTML = `<span><span class="sw" style="background:var(--accent)"></span>change in chance of winning the league vs this situation's average (left axis)</span>` +
-    (GB_MODE === "all" ? `<span><span class="sw" style="background:var(--warn)"></span>how often that bid landed him (right axis)</span>` : "") +
-    `<span><span class="sw" style="background:var(--line)"></span>too few bids to trust</span>`;
-  $("gb-tbl").innerHTML = `<thead><tr><th>Bid, % of FAAB</th><th class="n">Bids</th><th class="n">Change in title odds</th>${GB_MODE === "all" ? '<th class="n">Landed him</th>' : ""}</tr></thead><tbody>` +
-    S.map((d, i) => {
-      const sig = d.d != null && Math.abs(d.d) > 2 * d.se, cls = d.d == null || d.thin || !sig ? "flat" : d.d > 0 ? "pos" : "neg";
-      return `<tr${i === best ? ' class="sel"' : ""}><td>${L[i]}${i === best ? " ◀ best" : ""}</td><td class="n">${d.n.toLocaleString()}</td>
-        <td class="n ${cls}">${d.d == null ? "–" : fmt(d.d) + (d.thin ? " (thin)" : sig ? "" : " ~")}</td>${GB_MODE === "all" ? `<td class="n">${d.pget == null ? "–" : pct(d.pget, 0)}</td>` : ""}</tr>`;
-    }).join("") + `<tr><td colspan="4" class="note">~ = within noise (under 2 standard errors). Each team is compared with its own average in this situation, so team strength drops out.</td></tr></tbody>`;
-  renderGoodBidSummary();
-}
-function renderGoodBidSummary() {
-  const L = GB.bid_labels;
-  let h = `<thead><tr><th>Player</th><th>When</th><th class="n">Best bid (% of FAAB)</th><th class="n">Change in title odds</th><th class="n">Landed him</th></tr></thead><tbody>`;
-  GB.dims.tier.labels.forEach((tl, ti) => GB.dims.when.labels.forEach((wl, wi) => {
-    const save = GB_MODE; GB_MODE = "all";
-    const S = gbSeries(gbGrid({ tier: ti, when: wi, pos: gbSel.pos }));
-    GB_MODE = save;
-    const valid = S.filter(s => s.d != null && !s.thin);
-    if (!valid.length) { h += `<tr><td>${tl}</td><td>${wl}</td><td class="n" colspan="3">too few bids</td></tr>`; return; }
-    const b = valid.reduce((a, c) => c.d > a.d ? c : a), i = S.indexOf(b), sig = Math.abs(b.d) > 2 * b.se;
-    h += `<tr class="click" data-t="${ti}" data-w="${wi}"><td>${tl}</td><td>${wl}</td><td class="n">${L[i]}</td>
-      <td class="n ${sig ? (b.d > 0 ? "pos" : "neg") : "flat"}">${(b.d >= 0 ? "+" : "") + (100 * b.d).toFixed(1)} pts${sig ? "" : " ~"}</td><td class="n">${pct(b.pget, 0)}</td></tr>`;
-  }));
-  $("gb-summary").innerHTML = h + `</tbody>`;
-  $("gb-summary").querySelectorAll("tr[data-t]").forEach(tr => tr.onclick = () => { gbSel.tier = +tr.dataset.t; gbSel.when = +tr.dataset.w; renderGoodBid(); $("gb-chart").scrollIntoView({ behavior: "smooth", block: "center" }); });
-}
-$("gb-all").onclick = () => { GB_MODE = "all"; renderGoodBid(); };
-$("gb-won").onclick = () => { GB_MODE = "won"; renderGoodBid(); };
 
 // ---- What has to go right ----------------------------------------------------------
 function renderScenarioPicker() {

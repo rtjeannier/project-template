@@ -214,15 +214,6 @@ in that folder.
 
 The page has:
 
-- **What a good bid looks like:** every real claim (not $0–2 backup pickups), win or
-  lose, described only by observable things: bid size as a % of the bidder's FAAB,
-  player tier (elite / starter / depth by final-week edge), time window, and FAAB vs
-  the richest rival. For a chosen situation, it shows the change in the bidder's
-  chance of winning the league at each bid size (vs the same team's average in that
-  situation) and how often that bid landed the player, plus a "good bid by
-  situation" table. No model "fair bid" is used. With data where bids were fair ×
-  noise, bid % isn't randomized, so treat it as association until a run with bids
-  drawn uniformly from 0–100% of FAAB.
 - **What has to go right:** pick a team and see the ~10 conditions that move its title
   odds most: who gets cut and by when, key injuries (its own players staying healthy,
   rivals' getting hurt), and key pickups. Each condition is judged only on seasons
