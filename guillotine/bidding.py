@@ -45,7 +45,10 @@ from dataclasses import dataclass
 class BidModel:
     shade: float = 0.6  # bid as a share of willingness to pay (rational first-price shading)
     manager_sd: float = 0.0  # lognormal sd of per-manager aggressiveness; 0 = every manager is rational
-    bid_noise_sd: float = 0.3  # lognormal noise on each bid, so bids aren't predictable
+    bid_noise_sd: float = 0.3  # lognormal noise on each bid, used only when bid_sd is None
+    # Every bid = fair bid x a multiplier drawn from Normal(1, bid_sd). 0.61 puts the 95th
+    # percentile at 2x fair; a draw at or below 0 means no bid. None = old lognormal noise.
+    bid_sd: float | None = 0.61
     future_share: float = 3.0  # a team expects to land about future_share / n_alive of each future pool's best upgrade
     denial_weight: float = 1.0  # how much keeping a player from rivals counts (0 = ignore denial)
     pool_consider: int = 15  # only the top-N pool players by projection get bids

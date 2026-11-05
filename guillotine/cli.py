@@ -50,7 +50,24 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("files", nargs="+", help="inspect.json files from `inspect`")
     v.add_argument("--out", default="inspector.html")
 
+    d = sub.add_parser("simulate-data", help="play many seasons and write every bid, award, drop, score and cut")
+    d.add_argument("league", help="league state JSON file")
+    d.add_argument("--seasons", type=int, default=5000)
+    d.add_argument("--workers", type=int, default=os.cpu_count() or 1)
+    d.add_argument("--seed", type=int, default=0)
+    d.add_argument("--out", default="sim_data")
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "simulate-data":
+        from .dataset import generate
+
+        t0 = time.time()
+        for path in generate(LeagueState.load(args.league), args.league, args.seasons, args.out,
+                             args.seed, args.workers):
+            print(path)
+        print(f"{args.seasons} seasons in {time.time() - t0:.0f}s", file=sys.stderr)
+        return 0
 
     if args.cmd == "viewer":
         from .viewer import build

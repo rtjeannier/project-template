@@ -172,3 +172,29 @@ def test_winning_price_equals_submitted_bid(state):
         if e[0] == "award":
             _, s, j, pid, tid, amt, all_bids, faab = e
             assert all_bids[tid] == amt
+
+
+def test_simulated_dataset_is_consistent(state, tmp_path):
+    import csv
+    import gzip
+    import json
+
+    from guillotine.dataset import generate
+
+    league = tmp_path / "league.json"
+    league.write_text(json.dumps(make_sample_league(seed=3, n_teams_alive=5, current_week=13)))
+    generate(state, league, n_seasons=8, out_dir=tmp_path / "data", chunk=3)
+    read = lambda n: list(csv.DictReader(gzip.open(tmp_path / "data" / n, "rt")))
+    bids, seasons = read("bids.csv.gz"), read("seasons.csv.gz")
+    assert len(seasons) == 8 and bids
+    for b in bids:
+        assert int(b["bid"]) <= float(b["faab"])
+        if b["won"] == "True":
+            assert int(b["price"]) == int(b["bid"])
+    # exactly one winner per (season, week, player) awarded
+    winners = {}
+    for b in bids:
+        if b["won"] == "True":
+            key = (b["season"], b["week"], b["player_id"])
+            assert key not in winners
+            winners[key] = b["team_id"]

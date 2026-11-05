@@ -145,6 +145,24 @@ whole because the targets compete for the same budget. "Get him" only counts sea
 where he hit waivers while you were alive. `--future N` sets how many players from
 other rosters are evaluated (default 5).
 
+## Simulated dataset
+
+```bash
+python -m guillotine simulate-data league.json --seasons 20000 --out sim_data
+```
+
+Plays every season straight through. Every team bids its fair bid times a random
+multiplier drawn from Normal(1, 0.61), so the 95th percentile is 2× fair and about 5%
+of draws are no bid. Each bid is drawn independently: there is no fixed strategy, and
+the same cut sequence produces different waivers in each season. Since the multipliers
+are random, comparing outcomes across them later is a fair experiment.
+
+It writes the raw record and analyzes nothing: `bids.csv.gz` (every bid, with fair
+bid, multiplier, FAAB, cut odds, won/price), `weeks.csv.gz` (scores, cuts, FAAB),
+`drops.csv.gz`, `seasons.csv.gz` (champion, cut order), plus `players.csv`,
+`teams.csv` and the starting `league.json`. Rosters at any point can be rebuilt from
+the starting rosters plus awards and drops.
+
 ## Inspecting scenarios
 
 To check the algorithm, or to see when over- or under-bidding pays, export every

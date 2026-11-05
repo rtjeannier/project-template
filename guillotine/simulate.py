@@ -376,32 +376,39 @@ class Simulator:
                 if value <= 0:
                     continue
                 lock = int(max((faab[u] for u in active if u != tid), default=0)) + 1
-                amt = model.bid(
-                    value=value,
-                    opportunity=opp,
-                    faab=faab[tid],
-                    aggression=aggression[tid],
-                    noise=rng.lognormal(0, model.bid_noise_sd),
-                    min_bid=settings.min_bid,
-                    lock_price=lock,
-                )
+                # The fair bid: the rational bid with no noise. For rivals it's what you could
+                # estimate about their bid; over/under-bidding is measured from it.
+                det = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=1.0,
+                                noise=1.0, min_bid=settings.min_bid, lock_price=lock)
+                if det < 0:
+                    continue
+                if model.bid_sd is not None:
+                    # Every bid is fair x a random multiplier, normal around 1.
+                    m = float(rng.normal(1.0, model.bid_sd))
+                    amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
+                    if m <= 0:
+                        amt = -1  # a non-positive draw means no bid on this player
+                else:
+                    m = None
+                    amt = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=aggression[tid],
+                                    noise=rng.lognormal(0, model.bid_noise_sd), min_bid=settings.min_bid,
+                                    lock_price=lock)
+                if submitting and self.trace is not None:
+                    self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid]))
+                if tid != self.user:
+                    expected[(tid, p)] = det
+                else:
+                    fair[p] = det
                 if amt >= 0:
                     out[p] = amt
                     if self.bid_log is not None:
                         self.bid_log.append((sim, j, proj.ids[p], tid, amt, faab[tid]))
-                    # The rational bid with no noise: for rivals, what you could estimate about
-                    # their bid; for you, the "fair" bid that over/under-bidding is measured from.
-                    det = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=1.0,
-                                    noise=1.0, min_bid=settings.min_bid, lock_price=lock)
-                    if tid != self.user:
-                        expected[(tid, p)] = det
-                    else:
-                        fair[p] = det
             return out
 
         expected: dict[tuple[str, int], int] = {}
         fair: dict[int, int] = {}
         rival_sd = float(np.hypot(model.manager_sd, model.bid_noise_sd))
+        submitting = True  # bids are logged once, when submitted; later re-checks only cancel claims
 
         def apply_rules(out: dict[int, int]) -> dict[int, int]:
             if not policy.rules or (j == 0 and policy.mode != "auto"):
@@ -440,9 +447,12 @@ class Simulator:
                     self.trace.append(("rule", sim, j, pid, fair.get(p, 0), amt))
             return out
 
+        if self.trace is not None:
+            self.trace.append(("odds", sim, j, dict(odds)))
         bids = {tid: team_bids(tid) for tid in active}
         if self.user in bids:
             bids[self.user] = apply_rules(bids[self.user])
+        submitting = False
 
         if j == 0:
             if sim == 0:
@@ -517,6 +527,8 @@ class Simulator:
             if bench:
                 drop = min(bench, key=lambda q: vb[q])
                 rosters[tid].remove(drop)
+                if self.trace is not None:
+                    self.trace.append(("drop", sim, j, tid, proj.ids[drop]))
                 fa_pool.append(drop)
 
     def _note_user_gain(self, res, sim, j, pid, gain):
