@@ -40,17 +40,8 @@ def horizon_sd(weeks_ahead: int) -> float:
     return float(np.sqrt(PROJ_ERROR_NOW**2 + max(weeks_ahead, 0) * PROJ_ERROR_STEP**2))
 
 
-def revealed_sd(weeks_ahead: int) -> float:
-    """How much will be learned about players between now and a round this far ahead.
-    Zero for this week's waivers: you can't pick a future breakout today, only by
-    projection. Later rounds pick from players whose breakouts have been seen, so the
-    best free player then is likely better than today's projections suggest."""
-    return float(np.sqrt(max(weeks_ahead, 0)) * PROJ_ERROR_STEP)
-
-
 _NORMAL = NormalDist()
 
-REPL_DRAWS = np.random.default_rng(7).standard_normal((40, 400))  # fixed draws for uncertain replacement levels
 # Injuries: weekly chance a player gets hurt in a game. A share of injuries end his
 # season; the rest keep him out 1-4 weeks. Kept modest because ROS projections already
 # price in some missed time.
@@ -343,9 +334,9 @@ class Simulator:
         e = settings.eliminations_per_week
         # Rounds still to play (this week = r 0), with the number of teams alive in each.
         n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
-        # Replacement level for each round, as seen from now: further-out rounds are less
-        # certain, so the best free player is likelier to be someone who broke out.
-        repl = {n: self._replacement(vb, universe, n, revealed_sd(r)) for r, n in enumerate(n_alive)}
+        # Replacement level for each round: the best player at each position the teams
+        # still alive then won't start.
+        repl = {n: self._replacement(vb, universe, n) for n in set(n_alive)}
         # Odds as they stand before waivers (this week's projections, current rosters).
         # They're recalculated after every pickup below.
         odds = self._cut_odds(rosters, active, j)
@@ -738,14 +729,14 @@ class Simulator:
         if entries and entries[-1][0] == sim and entries[-1][1] == j and np.isnan(entries[-1][2]):
             entries[-1] = (sim, j, gain)
 
-    def _replacement(self, vb, universe, n_active: int, sigma: float = 0.0) -> dict[str, float]:
+    def _replacement(self, vb, universe, n_active: int) -> dict[str, float]:
         """Dynamic replacement level: the best player at each position the remaining
         teams won't start. It rises as teams are cut and their rosters hit waivers.
 
-        With projection uncertainty ``sigma`` (for a round that far ahead), it is the
-        expected value of that order statistic: among many uncertain players, the k-th
-        best is likely to be someone outperforming his projection. So a stud's edge over
-        replacement is smaller far out, and firms up as the final approaches."""
+        No "breakout" adjustment: an earlier version took the expected k-th best of
+        randomly perturbed projections, which at deep positions put replacement above
+        every real player (Josh Allen looked replaceable). Uncertainty is handled by the
+        injury discount and by players' true levels drifting during the season."""
         slots = self.state.settings.roster_slots
         flex = sum(c for s, c in slots.items() if s in ("FLEX", "W/R/T", "W/R", "W/T", "R/W"))
         superflex = sum(c for s, c in slots.items() if s in ("SUPERFLEX", "Q/W/R/T"))
@@ -757,14 +748,7 @@ class Simulator:
             starters = slots.get(pos, 0) + flex * FLEX_SHARE.get(pos, 0)
             starters += superflex * (0.8 if pos == "QB" else 0.07)
             k = int(round(n_active * starters))
-            if k >= len(vals):
-                out[pos] = 0.0
-            elif sigma <= 0:
-                out[pos] = sorted(vals, reverse=True)[k]
-            else:
-                v = np.array(vals)
-                drawn = v * np.exp(sigma * REPL_DRAWS[:, : len(v)] - sigma**2 / 2)
-                out[pos] = float(np.mean(-np.partition(-drawn, k, axis=1)[:, k]))
+            out[pos] = sorted(vals, reverse=True)[k] if k < len(vals) else 0.0
         return out
 
     @staticmethod

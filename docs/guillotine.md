@@ -98,11 +98,8 @@ guarantee the win. Set `Simulator.bid_log = []` to record every simulated bid.
 
 **Projection uncertainty grows with the horizon.** A player's true level is a random
 walk around his projection: about ±10% for this week (`PROJ_ERROR_NOW`), with ±8% added
-per week (`PROJ_ERROR_STEP`), so about ±25% by week 17. Managers account for it too:
-the replacement level for a round far ahead is the expected k-th best of many uncertain
-players, so some breakout is likely to be free. A stud's edge over replacement is
-smaller and less certain far out, and firms up toward the final. For example, Walker's
-week-17 edge is +1.3 pts seen from 8 weeks out and +2.3 in the final week.
+per week (`PROJ_ERROR_STEP`), so about ±25% by week 17. Replacement levels are plain projections (no breakout adjustment); uncertainty
+shows up through the injury discount and the drifting true levels.
 
 **Injuries.** Each player has a weekly chance of getting hurt in a game
 (`INJURY_RATE`: RB 2.5%, WR/TE 2%, QB 1.5%). 35% of injuries end the season; the rest

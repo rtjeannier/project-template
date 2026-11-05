@@ -141,13 +141,6 @@ def test_lock_rule_tops_every_interested_rival(state, sim):
     assert all(b <= my_faab for b in res.user_rule_bids.get(pid, []))
 
 
-def test_uncertain_replacement_is_higher_far_out(state, sim):
-    vb = sim.proj.value_basis[-1]
-    universe = set(range(len(sim.proj.ids)))
-    near, far = sim._replacement(vb, universe, 2, 0.1), sim._replacement(vb, universe, 2, 0.3)
-    assert far["RB"] > near["RB"]
-
-
 def test_inspect_export_and_viewer(state, tmp_path):
     from guillotine.inspect import inspect_player, write
     from guillotine.viewer import build
@@ -219,16 +212,13 @@ def test_site_build_from_simulated_data(state, tmp_path):
     assert summary["you"] == "You" and all(t["name"].startswith(("Team ", "You")) for t in summary["teams"])
 
 
-def test_free_replacement_never_beats_real_players_this_week(state, sim):
-    # This week's free replacement is chosen by projection, so it can't exceed the best
-    # player actually available.
-    from guillotine.simulate import revealed_sd
-
+def test_replacement_never_beats_the_best_real_player(state, sim):
+    # Replacement is a real player's projection, so it can't exceed the best one available.
     vb = sim.proj.value_basis[0]
     universe = set(range(len(sim.proj.ids)))
-    repl = sim._replacement(vb, universe, 2, revealed_sd(0))
-    for pos, v in repl.items():
-        assert v <= max(vb[p] for p in universe if sim.proj.pos[p] == pos)
+    for n in (2, 3, 5):
+        for pos, v in sim._replacement(vb, universe, n).items():
+            assert v <= max(vb[p] for p in universe if sim.proj.pos[p] == pos)
 
 
 def test_roster_rules_by_slot(state, sim):
