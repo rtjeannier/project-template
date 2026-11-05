@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -23,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--sims", type=int, default=400, help="simulated seasons per scenario")
     a.add_argument("--top", type=int, default=6, help="waiver candidates to evaluate")
     a.add_argument("--seed", type=int, default=0)
+    a.add_argument("--workers", type=int, default=os.cpu_count() or 1, help="parallel processes for scenarios")
     a.add_argument("--future", type=int, default=5, help="irreplaceable players on other rosters to evaluate as targets")
     a.add_argument("--out", help="also write the report to this file")
 
@@ -55,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
 
     state = LeagueState.load(args.league)
     t0 = time.time()
-    result = analyze(state, n_sims=args.sims, top_k=args.top, seed=args.seed, n_future=args.future)
+    result = analyze(state, n_sims=args.sims, top_k=args.top, seed=args.seed, n_future=args.future, workers=args.workers)
     report = render(result)
     print(report)
     print(f"\n_{time.time() - t0:.1f}s_", file=sys.stderr)

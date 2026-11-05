@@ -103,28 +103,47 @@ def pick_targets(sim: Simulator, baseline: SimResults, n_now: int, n_future: int
     return now + [p for p in future if p not in now]
 
 
-def target_analysis(sim: Simulator, targets: list[str], n_sims: int) -> list[dict]:
-    """For each target, try each standing rule ("whenever he's on waivers and I'm alive,
-    bid like this") on the same random draws. Rules are relative to what the rivals who
-    want him can bid, like Jeopardy wagering, not to your own budget."""
+_SIM: Simulator | None = None  # shared with forked workers
+
+
+def _rule_point(args) -> dict:
+    """One (target, bid) scenario; runs in a worker process."""
+    pid, rule, n_sims = args
+    sim = _SIM
     me = sim.user
+    r = sim.run(n_sims, UserPolicy("auto", rules={pid: rule}))
+    mine = [(j, a) for s, j, p, tid, a in r.awards if p == pid and tid == me]
+    could = len(r.user_could_bid.get(pid, ()))
+    after = r.user_rule_after.get(pid, [])
+    return {
+        "player_id": pid, "rule": rule, "p_champ": r.p_champion(me), "p_alive3": survive_through(r, me, 3),
+        "p_get": len(mine) / could if could else 0.0, "p_chance": could / n_sims,
+        "avg_paid": float(np.mean([a for _, a in mine])) if mine else 0.0,
+        "weeks": [r.weeks[j] for j, _ in mine],
+        "bid_median": float(np.median(r.user_rule_bids[pid])) if r.user_rule_bids.get(pid) else 0.0,
+        "left": float(np.median([x for x, _ in after])) if after else None,
+        "richest": float(np.median([y for _, y in after])) if after else None,
+    }
+
+
+def target_analysis(sim: Simulator, targets: list[str], n_sims: int, workers: int = 1) -> list[dict]:
+    """For each target, simulate each bid in TARGET_RULES ("whenever he's on waivers and
+    I'm alive, bid this") on the same random draws, and keep the one with the best
+    P(win league). Scenarios are independent, so they run in parallel."""
+    global _SIM
+    _SIM = sim
+    tasks = [(pid, rule, n_sims) for pid in targets for rule in TARGET_RULES]
+    if workers > 1:
+        import multiprocessing as mp
+
+        with mp.get_context("fork").Pool(workers) as pool:
+            points = pool.map(_rule_point, tasks, chunksize=1)
+    else:
+        points = [_rule_point(t) for t in tasks]
     edge = final_edge(sim)
     rows = []
     for pid in targets:
-        curve = []
-        for rule in TARGET_RULES:
-            r = sim.run(n_sims, UserPolicy("auto", rules={pid: rule}))
-            mine = [(j, a) for s, j, p, tid, a in r.awards if p == pid and tid == me]
-            could = len(r.user_could_bid.get(pid, ()))
-            curve.append({
-                "rule": rule, "p_champ": r.p_champion(me),
-                "bid_median": float(np.median(r.user_rule_bids[pid])) if r.user_rule_bids.get(pid) else 0.0, "p_alive3": survive_through(r, me, 3),
-                "p_get": len(mine) / could if could else 0.0, "p_chance": could / n_sims,
-                "avg_paid": float(np.mean([a for _, a in mine])) if mine else 0.0,
-                "weeks": [r.weeks[j] for j, _ in mine],
-                "left": float(np.median([a for a, _ in r.user_rule_after.get(pid, [])])) if r.user_rule_after.get(pid) else None,
-                "richest": float(np.median([b for _, b in r.user_rule_after.get(pid, [])])) if r.user_rule_after.get(pid) else None,
-            })
+        curve = [c for c in points if c["player_id"] == pid]
         best = max(curve, key=lambda c: (round(c["p_champ"], 4), -TARGET_RULES.index(c["rule"])))
         owner = next((t.name for t in sim.state.teams if pid in t.players), "waivers now")
         rows.append({"player_id": pid, "owner": owner, "edge": edge.get(pid, 0.0), "curve": curve,
@@ -134,7 +153,7 @@ def target_analysis(sim: Simulator, targets: list[str], n_sims: int) -> list[dic
 
 
 def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0,
-            sim: Simulator | None = None, n_future: int = 5) -> Analysis:
+            sim: Simulator | None = None, n_future: int = 5, workers: int = 1) -> Analysis:
     sim = sim or Simulator(state, seed=seed)
     me = state.my_team_id
     my_faab = int(state.team(me).faab)
@@ -155,7 +174,7 @@ def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0
 
     # Who to target, and how much of your FAAB to bid whenever each one is available
     targets = pick_targets(sim, baseline, n_now=2, n_future=n_future)
-    out.targets = target_analysis(sim, targets, n_sims)
+    out.targets = target_analysis(sim, targets, n_sims, workers)
     out.plan = {t["player_id"]: t["best"]["rule"] for t in out.targets}
     out.plan_result = sim.run(n_sims, UserPolicy("auto", rules=dict(out.plan)))
 
