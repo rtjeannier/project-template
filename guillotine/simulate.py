@@ -293,17 +293,25 @@ class Simulator:
         return total - loss
 
     def _slot_group(self, roster: list[int], p: int, fin) -> tuple[str, ...]:
-        """The positions that could fill the slot p would fill for this team in week 17: his
-        own position for QB/TE or a dedicated RB/WR spot, any flex position if he'd play
-        flex. A player who wouldn't start is a backup, compared with backups like him
-        (QB with QBs, RB/WR/TE with flex players)."""
-        ps = self.proj.pos[p]
-        if ps not in FLEX_POS:
-            return (ps,)
-        label = next((lab for lab, x in self.spec.assign(roster + [p], fin, self.proj.pos) if x == p), None)
-        if label == ps:
-            return (ps,)
-        return FLEX_POS
+        """The slot p upgrades for this team in week 17, as the positions that could fill it.
+
+        The lineup fills the harder slots first (QB, RB, WR, TE), then flex takes the best
+        of the rest. So the slot p really upgrades is the one held by the starter who drops
+        out of the week-17 lineup when he's added: with two great RBs and two great WRs, a
+        new RB or WR pushes out the worst flex starter, and the slot is flex (any RB/WR/TE
+        can fill it). If nobody drops out, it's the empty slot he fills. A player who
+        wouldn't start is a backup, compared with backups like him (QB with QBs, RB/WR/TE
+        with flex players)."""
+        ps, pos = self.proj.pos[p], self.proj.pos
+        before = {x: lab for lab, x in self.spec.assign(roster, fin, pos) if x is not None}
+        after = {x: lab for lab, x in self.spec.assign(roster + [p], fin, pos) if x is not None}
+        if p not in after:
+            return (ps,) if ps not in FLEX_POS else FLEX_POS
+        out = [x for x in before if x not in after]
+        label = before[out[0]] if out else after[p]
+        if label in ("FLEX", "SUPERFLEX"):
+            return FLEX_POS
+        return (label,)
 
     def _claim_value(self, tid, roster, p, now, fin, q, c_now, c_final, base_now, base_final) -> dict:
         """What player p is worth to this team, independent of what anyone else bids.
