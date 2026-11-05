@@ -385,9 +385,9 @@ class Simulator:
                 if model.bid_sd is not None:
                     # Every bid is fair x a random multiplier, normal around 1.
                     m = float(rng.normal(1.0, model.bid_sd))
+                    # Bidding is free (you only pay if you win), so every team that wants him
+                    # bids; a draw at or below 0 is a $0 claim.
                     amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
-                    if m <= 0:
-                        amt = -1  # a non-positive draw means no bid on this player
                 else:
                     m = None
                     amt = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=aggression[tid],

@@ -79,7 +79,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   <section class="panel" id="summary">
     <h2>The simulation</h2>
     <div class="facts" id="facts"></div>
-    <p class="note">Every team bids its <b>fair bid</b> (the rational bid at that moment) times a random multiplier drawn from a normal distribution around 1× (95th percentile 2×; at or below 0 means no bid). Each bid is drawn independently, so comparing outcomes across multipliers is a fair experiment: if bids at 1.5× go with more league wins than bids at 1×, overbidding caused it.</p>
+    <p class="note">Every team bids its <b>fair bid</b> (the rational bid at that moment) times a random multiplier drawn from a normal distribution around 1× (95th percentile 2×; a draw at or below 0 is a $0 bid, since bidding is free). Each bid is drawn independently, so comparing outcomes across multipliers is a fair experiment: if bids at 1.5× go with more league wins than bids at 1×, overbidding caused it.</p>
     <div class="tbl" style="max-height:none"><table id="teams"><thead><tr><th>Team</th><th class="n">FAAB today</th><th class="n">Won the league</th></tr></thead><tbody></tbody></table></div>
   </section>
 

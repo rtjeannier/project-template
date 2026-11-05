@@ -152,8 +152,8 @@ python -m guillotine simulate-data league.json --seasons 20000 --out sim_data
 ```
 
 Plays every season straight through. Every team bids its fair bid times a random
-multiplier drawn from Normal(1, 0.61), so the 95th percentile is 2× fair and about 5%
-of draws are no bid. Each bid is drawn independently: there is no fixed strategy, and
+multiplier drawn from Normal(1, 0.61), so the 95th percentile is 2× fair. Bidding is
+free, so a draw at or below 0 (about 5%) is a $0 bid, not a skipped one. Each bid is drawn independently: there is no fixed strategy, and
 the same cut sequence produces different waivers in each season. Since the multipliers
 are random, comparing outcomes across them later is a fair experiment.
 
@@ -166,7 +166,7 @@ the starting rosters plus awards and drops.
 ## Results explorer (GitHub Pages)
 
 ```bash
-python -m guillotine build-site sim_data --out docs/explorer --anonymize
+python -m guillotine build-site sim_data --out docs/explorer
 ```
 
 This builds a static site from the simulated dataset into `docs/explorer/`. It has
@@ -186,8 +186,8 @@ The page has:
 - **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
   every award, scores and cuts.
 
-`--anonymize` replaces rival team names with Team 1..N (you are "You"). Use it for a
-public repo, because Pages sites and repo files are visible to anyone.
+Team names are shown as they are in the league (`--anonymize` replaces them with Team
+1..N if ever needed).
 
 ## Inspecting scenarios
 
