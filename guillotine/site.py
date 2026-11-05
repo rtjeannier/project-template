@@ -34,7 +34,7 @@ MULT_LABELS = ["$0 bid (draw ≤ 0)", "0–0.5×", "0.5–0.75×", "0.75–0.9×
                "1.25–1.5×", "1.5–2×", "2×+"]
 DIMS = {
     "share": ("Price paid (% of FAAB)", SHARE_LABELS),
-    "kind": ("What the bid was for", ["lineup upgrade", "keep from rivals", "better backup ($1)"]),
+    "kind": ("What the bid was for", ["starter (this week or week 17)", "backup"]),
     "edge": ("Player in the final", ["replaceable (edge ≤ 0)", "edge 0–2.5", "irreplaceable (edge > 2.5)"]),
     "pos": ("Position", ["QB", "RB", "WR", "TE"]),
     "week": ("Week", None),
@@ -262,13 +262,13 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
     b["you"] = (b.team_id == you).astype(int)
     team_order = list(teams.team_id)
     b["team"] = b.team_id.map({t: i for i, t in enumerate(team_order)})
-    b["kind"] = b.kind.map({"lineup": 0, "deny": 1, "bench": 2})
+    b["kind"] = b.kind.map({"lineup": 0, "bench": 1})
     b = b[b.pos >= 0]
     # Price paid as a share of the FAAB the team had when it bid.
     b["share"] = pd.cut(b.bid / b.faab.clip(lower=1), SHARE_EDGES, labels=False)
     # Only bids that went through: did paying more or less, when you got him, change
     # your chance of winning the league? Losing bids are left out.
-    wb = b[b.won & (b.kind != 2)]  # real claims only: $0-2 backup pickups say nothing about price
+    wb = b[b.won]
 
     keys = ["mult", "share", "kind", "edge", "pos", "week", "ratio", "cut", "fair", "team"]
     cube = wb.groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()

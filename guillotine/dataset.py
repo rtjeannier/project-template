@@ -11,8 +11,8 @@ record, to crawl afterwards.
 
 Files (gzip CSV):
 - ``bids.csv.gz``: season, week, team, player, the player this claim drops (blank = an
-  open roster spot), what the bid was for (``lineup`` upgrade,
-  ``deny`` = keeping him from rivals, ``bench`` = a better backup, fair bid $1), fair bid,
+  open roster spot), what the bid was for (``lineup`` = starts this week or in
+  week 17, ``bench`` = a backup), fair bid,
   multiplier, bid, FAAB at the time, the team's elimination odds that week, whether it
   won the player, and the price.
 - ``weeks.csv.gz``: each alive team's score each week, whether it was cut, and its FAAB

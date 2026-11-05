@@ -138,10 +138,14 @@ class Simulator:
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
         self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
         self.why_no_bid: list | None = None  # set to [] to record why teams skipped a player (diagnostics)
+        # set to [] to record every valuation: (sim, week_idx, player, team, gain now, gain wk17,
+        # P(cut now), P(lose final), V, O for the slot, O other slots, slot, FAAB, fair bid)
+        self.value_log: list | None = None
         self._added_this_round: dict = {}  # players each team added in the current waiver round
         # Week-17 value of each player as known in the current round (0 if he's out for the
         # rest of the season). Bench players are judged on this: a backup's job is the final.
         self._final = self.proj.means[:, -1].copy()
+        self._now = self.proj.means[:, 0].copy()  # this week's projections (per waiver round)
 
     # ------------------------------------------------------------------ public
 
@@ -280,17 +284,22 @@ class Simulator:
         out[self._hurt_week < j] = 0.0
         return out
 
-    def _expected_final(self, roster: list[int], fin, q) -> float:
-        """Expected week-17 lineup total: the best lineup on week-17 projections, minus for
-        each starter P(he's out) x what the team loses if he is (the next man up plays).
-        This is what makes a backup worth something: he's the next man up."""
+    def _final_gain(self, roster: list[int], x: int, fin, q, base: float, without: dict) -> float:
+        """Expected week-17 lineup gain from adding player x to this roster.
+
+        If he'd start in week 17: his gain over the starter he pushes out, times P(he's
+        healthy then). If he wouldn't start, he's a backup: for each starter s, P(s is out)
+        x how much better the lineup without s is with him as the next man up.
+        ``base`` = week-17 lineup total now; ``without[s]`` = total without starter s."""
         spec, pos = self.spec, self.proj.pos
-        total, starters = spec.best(roster, fin, pos)
-        loss = 0.0
-        for st in starters:
-            if q[st] > 0:
-                loss += q[st] * (total - spec.total([x for x in roster if x != st], fin, pos))
-        return total - loss
+        with_x = spec.total(roster + [x], fin, pos)
+        if with_x > base + 1e-9:
+            return (1.0 - q[x]) * (with_x - base)
+        gain = 0.0
+        for st, wo in without.items():
+            if q[st] > 0 and pos[st] in (FLEX_POS if pos[x] in FLEX_POS else (pos[x],)):
+                gain += q[st] * max(0.0, spec.total([y for y in roster if y != st] + [x], fin, pos) - wo)
+        return gain
 
     def _slot_group(self, roster: list[int], p: int, fin) -> tuple[str, ...]:
         """The slot p upgrades for this team in week 17, as the positions that could fill it.
@@ -312,50 +321,6 @@ class Simulator:
         if label in ("FLEX", "SUPERFLEX"):
             return FLEX_POS
         return (label,)
-
-    def _claim_value(self, tid, roster, p, now, fin, q, c_now, c_final, base_now, base_final) -> dict:
-        """What player p is worth to this team, independent of what anyone else bids.
-
-        V = c_now x (this week's lineup gain) + c_final x (expected week-17 lineup gain)
-          c_now   = P(this team is cut this week): this week's points only matter if
-                    they're needed to survive.
-          c_final = P(this team reaches the final and loses it): week-17 points decide
-                    the title.
-        """
-        g_now = max(0.0, self.spec.total(roster + [p], now, self.proj.pos) - base_now)
-        g_final = max(0.0, self._expected_final(roster + [p], fin, q) - base_final)
-        return {"g_now": g_now, "g_final": g_final, "V": c_now * g_now + c_final * g_final}
-
-    def _slot_opportunity(self, tid, roster, group, rosters, active, weight, n_alive, fin, q,
-                          base_final, c_final, exclude=frozenset()) -> dict:
-        """O: can this team do better in the same slot later?
-
-        Candidates are players at the slot's positions on rival rosters. One reaches
-        waivers only if his team is cut, in round r with P = weight[rival][r], and this team
-        wins him with about future_share / (teams alive then). (No chance from a final
-        loser: the season is over.) Each is valued like V's week-17 part, and O is the
-        expected best one landed, not a sum: the slot needs one player."""
-        share = self.model.future_share
-        rounds = len(n_alive)
-        options = []
-        for u in active:
-            if u == tid:
-                continue
-            pool = [x for x in rosters[u] if self.proj.pos[x] in group and x not in exclude and fin[x] > 0]
-            pool.sort(key=lambda x: -fin[x])
-            land = sum(weight[u][r] * min(1.0, share / n_alive[r + 1]) for r in range(rounds - 1))
-            if land <= 0:
-                continue
-            for x in pool[:FUTURE_TOP_PLAYERS]:
-                g = self._expected_final(roster + [x], fin, q) - base_final
-                if g > 0:
-                    options.append((g, land, x, u))
-        ev, none_yet, top = 0.0, 1.0, []
-        for g, land, x, u in sorted(options, key=lambda o: -o[0]):
-            ev += none_yet * land * g
-            top.append((x, u, g, land))
-            none_yet *= 1.0 - land
-        return {"O17": ev, "O": c_final * ev, "options": top}
 
     def _known_value(self, j: int) -> np.ndarray:
         """Waiver value basis at week j, given injuries that have already happened: a hurt
@@ -422,19 +387,18 @@ class Simulator:
             gone = {proj.index[pid] for pid in policy.embargo}
             pool = [p for p in pool if p not in gone]
             fa_pool = [p for p in fa_pool if p not in gone]
-        candidates = sorted(set(pool) | set(fa_pool), key=lambda p: -vb[p])[: model.pool_consider]
+        self._now = proj.means[:, j] * self._avail[:, j]
+        # The pool players worth a look: best by this week + week 17.
+        worth = self._now + self._final
+        candidates = sorted(set(pool) | set(fa_pool), key=lambda p: -worth[p])[: model.pool_consider]
         remaining = set(candidates)
         if self.user in active:
             for p in candidates:
                 res.user_could_bid.setdefault(proj.ids[p], set()).add(sim)
 
-        universe = set(pool) | set(fa_pool) | {p for t in active for p in rosters[t]}
         e = settings.eliminations_per_week
         # Rounds still to play (this week = r 0), with the number of teams alive in each.
         n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
-        # Replacement level for each round: the best player at each position the teams
-        # still alive then won't start.
-        repl = {n: self._replacement(vb, universe, n) for n in set(n_alive)}
         # Odds as they stand before waivers (this week's projections, current rosters).
         # They're recalculated after every pickup below.
         odds = self._cut_odds(rosters, active, j)
@@ -442,142 +406,107 @@ class Simulator:
         priority = {tid: r for r, tid in enumerate(rng.permutation(active))}
         claimed: set[int] = set()
 
-        def free_gains(tid: str, base: float) -> list[dict[str, float]]:
-            """Per round: lineup gain from the best player at each position nobody will
-            pay for (the replacement level for that many teams alive)."""
-            vals = {p: vb[p] for p in rosters[tid]}
-            pos = {p: proj.pos[p] for p in rosters[tid]}
-            cache = {}
-            for n in set(n_alive):
-                out = {}
-                for ps, v in repl[n].items():
-                    vals[-1], pos[-1] = v, ps
-                    out[ps] = spec.total(list(rosters[tid]) + [-1], vals, pos) - base
-                cache[n] = out
-            return [cache[n] for n in n_alive]
-
-        def weighted_par(tid: str, gain: float, ps: str, free: list[dict[str, float]], v: float,
-                         start: int = 0) -> float:
-            """Value of holding a player in each round, weighted by P(this team is the one
-            cut that round). Points only matter when they decide who is eliminated.
-
-            Own use: lineup gain over the free replacement.
-            Denial: every player you hold is one a rival doesn't. His points above that
-            round's replacement level would otherwise go to one of the other n-1 teams, so
-            denial counts 1/(n-1) of it. In the final (n = 2) it counts in full: an
-            irreplaceable player is worth his edge twice, once for you and once against
-            your opponent. A replaceable player is worth nothing to deny.
-            """
-            # A player bought now has to stay healthy until round r to help then.
-            w, healthy = weight[tid], 1.0 - INJURY_RATE.get(ps, 0.02)
-            total = 0.0
-            for r in range(start, len(n_alive)):
-                own = max(0.0, gain - free[r].get(ps, 0.0))
-                deny = max(0.0, v - repl[n_alive[r]].get(ps, 0.0)) / (n_alive[r] - 1)
-                total += w[r] * healthy ** (r - start) * (own + model.denial_weight * deny)
-            return float(total)
-
-        def opportunity(tid: str, base: float, free: list[dict[str, float]]) -> float:
-            """What this team can still expect to get later instead of bidding now.
-
-            A player only comes back to waivers if the team holding him is cut. So for each
-            rival: take the best player on its roster who'd upgrade this team; he returns
-            after round r with P(that rival is cut in round r), this team has to still be
-            alive then, and it has to win him (about future_share / teams alive). The value
-            is the expected best replacement this team ends up with, not a sum: it only
-            needs one. A player on a team likely to reach the end will never come back, so
-            elite players are hard to replace and worth bidding up for now.
-            """
-            rounds = len(n_alive)
-            w_t = weight[tid]
-            alive_after = [1.0 - sum(w_t[: r + 1]) for r in range(rounds)]  # still alive after round r
-            options = []
-            for u in active:
-                if u == tid:
-                    continue
-                best, best_p = 0.0, None
-                for p in sorted(rosters[u], key=lambda q: -vb[q])[:FUTURE_TOP_PLAYERS]:
-                    g = spec.total(rosters[tid] + [p], vb, proj.pos) - base
-                    if g > best:
-                        best, best_p = g, p
-                if best_p is None:
-                    continue
-                w_u = weight[u]
-                for r in range(rounds - 1):  # cut in round r -> on waivers in round r + 1
-                    prob = w_u[r] * alive_after[r] * min(1.0, model.future_share / n_alive[r + 1])
-                    if prob < 1e-4:
-                        continue
-                    val = weighted_par(tid, best, proj.pos[best_p], free, vb[best_p], r + 1)
-                    if val > 0:
-                        options.append((val, prob))
-            # Expected value of the best replacement actually landed.
-            ev, none_yet = 0.0, 1.0
-            for val, prob in sorted(options, reverse=True):
-                ev += none_yet * prob * val
-                none_yet *= 1.0 - prob
-            return ev
+        # Valuation inputs for this round. Bids weigh two things only: this week's points
+        # (they matter if the team might be cut now) and week 17 (the final).
+        now = self._now
+        fin = self._final
+        q_out = self._out_for_final(j)
+        one_left = len(n_alive) == 1  # the final: this week is week 17 and nothing comes later
+        share = model.future_share
+        # P(a rival's player reaches waivers later and this team lands him): the rival is
+        # cut in round r (not the final, after which there are no waivers), and this team
+        # wins him with about future_share / (teams alive then).
+        land = {u: sum(weight[u][r] * min(1.0, share / n_alive[r + 1]) for r in range(len(n_alive) - 1))
+                for u in active}
+        SLOTS = {"QB": ("QB",), "RB": ("RB",), "WR": ("WR",), "TE": ("TE",), "FLEX": FLEX_POS}
 
         def team_bids(tid: str) -> dict[int, int]:
             out = {}
-            base = spec.total(rosters[tid], vb, proj.pos)
-            free = free_gains(tid, base)
-            opp = opportunity(tid, base, free)
+            roster = rosters[tid]
+            c_now = 0.0 if one_left else weight[tid][0]  # P(cut this week)
+            c_fin = weight[tid][-1]  # P(reach the final and lose it)
+            base_now = spec.total(roster, now, proj.pos)
+            base_fin, starters = spec.best(roster, fin, proj.pos)
+            without = {st: spec.total([y for y in roster if y != st], fin, proj.pos) for st in starters}
+
+            # Later options: the best few players at each position on every rival roster,
+            # valued for this team the same way as a claim's week-17 gain.
+            options = []
+            if not one_left:
+                for u in active:
+                    if u == tid or land[u] <= 0:
+                        continue
+                    by_pos: dict[str, list[int]] = {}
+                    for x in rosters[u]:
+                        if fin[x] > 0:
+                            by_pos.setdefault(proj.pos[x], []).append(x)
+                    for ps, xs in by_pos.items():
+                        for x in sorted(xs, key=lambda y: -fin[y])[:FUTURE_TOP_PLAYERS]:
+                            g = spec.total(roster + [x], fin, proj.pos) - base_fin
+                            if g > 1e-9:
+                                options.append(((1.0 - q_out[x]) * g, land[u], ps))
+                options.sort(key=lambda o: -o[0])
+
+            def slot_o(group) -> float:
+                """O for a slot: expected best later option that fits it (you need one)."""
+                ev, none_yet = 0.0, 1.0
+                for g, pr, ps in options:
+                    if ps in group:
+                        ev += none_yet * pr * g
+                        none_yet *= 1.0 - pr
+                return c_fin * ev
+
+            o_slot = {k: slot_o(g) for k, g in SLOTS.items()}
+            why = self.why_no_bid
             for p in remaining:
-                gain = spec.total(rosters[tid] + [p], vb, proj.pos) - base
+                g_now = max(0.0, spec.total(roster + [p], now, proj.pos) - base_now)
+                g_fin = self._final_gain(roster, p, fin, q_out, base_fin, without)
                 if tid == self.user and j > 0:
-                    self._note_user_gain(res, sim, j, proj.ids[p], gain)
-                ps = proj.pos[p]
-                own = max(gain - free[0].get(ps, 0.0), gain - free[-1].get(ps, 0.0))
-                deny = vb[p] - repl[n_alive[-1]].get(ps, 0.0)
-                slot = self._slot_check(rosters[tid], p, vb)
-                why = self.why_no_bid
+                    self._note_user_gain(res, sim, j, proj.ids[p], g_fin)
+                slot = self._slot_check(roster, p)
                 if slot == "blocked":
                     if why is not None:
-                        why.append((sim, j, proj.ids[p], tid, "blocked by roster limits", gain, own, deny, 0.0))
+                        why.append((sim, j, proj.ids[p], tid, "blocked by roster limits", g_now, g_fin, 0.0, 0.0))
                     continue  # he'd be the backup dropped to stay within the QB/TE limits
-                bench_up = own < model.min_gain and slot == "upgrade"
-                if own < model.min_gain and deny <= 0 and not bench_up:
+                value = c_now * g_now + c_fin * g_fin
+                group = self._slot_group(roster, p, fin)
+                key = "FLEX" if group == FLEX_POS else group[0]
+                # Surplus: what getting him now beats waiting for that slot's later option.
+                surplus = value - o_slot[key]
+                if surplus <= 0:
                     if why is not None:
-                        why.append((sim, j, proj.ids[p], tid, "no lineup gain, nothing to deny, not a better backup", gain, own, deny, 0.0))
-                    continue  # no use to us and replaceable: nothing to deny
-                value = weighted_par(tid, gain, ps, free, vb[p])
-                if value <= 0 and not bench_up:
-                    if why is not None:
-                        why.append((sim, j, proj.ids[p], tid, "value 0", gain, own, deny, value))
+                        why.append((sim, j, proj.ids[p], tid, "can do as well later in this slot", g_now, g_fin, value, o_slot[key]))
                     continue
+                # Price: his share of what this budget can buy. The rest of the budget is for
+                # the other slots' later upgrades.
+                other = sum(v for k, v in o_slot.items() if k != key)
                 lock = int(max((faab[u] for u in active if u != tid), default=0)) + 1
-                # The fair bid: the rational bid with no noise. For rivals it's what you could
-                # estimate about their bid; over/under-bidding is measured from it.
-                det = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=1.0,
-                                noise=1.0, min_bid=settings.min_bid, lock_price=lock) if value > 0 else 0
+                det = model.bid(value=surplus, opportunity=other, faab=faab[tid], aggression=1.0,
+                                noise=1.0, min_bid=settings.min_bid, lock_price=lock)
                 if det < 0:
                     continue
-                # What the bid is for: a lineup upgrade, keeping him from rivals, or just a
-                # better backup. A backup is worth $1 unless denial is worth more.
-                kind = "lineup" if own >= model.min_gain else ("deny" if det > 1 else "bench")
-                if kind == "bench":
-                    det = 1
-                locked = kind != "bench" and det == lock and lock <= faab[tid]
+                # A lineup claim starts this week or in week 17; otherwise he's a backup.
+                kind = "lineup" if (g_now > 0 or spec.total(roster + [p], fin, proj.pos) > base_fin + 1e-9) else "bench"
+                locked = det == lock and lock <= faab[tid]
                 if locked:
                     # Guaranteeing the win is worth it: bid exactly the lock price (top every
                     # other team's whole FAAB). No noise: a lock that misses isn't a lock.
                     m, amt = 1.0, int(det)
                 elif model.bid_sd is not None:
-                    # Every bid is fair x a random multiplier, normal around 1.
+                    # Every bid is fair x a random multiplier, normal around 1. Bidding is free
+                    # (you only pay if you win), so a draw at or below 0 is a $0 claim.
                     m = float(rng.normal(1.0, model.bid_sd))
-                    # Bidding is free (you only pay if you win), so every team that wants him
-                    # bids; a draw at or below 0 is a $0 claim.
-                    if kind == "bench":
-                        amt = int(min(2, round(max(m, 0.0)), faab[tid]))  # $0, $1 or $2
-                    else:
-                        amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
+                    amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
                 else:
                     m = None
-                    amt = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=aggression[tid],
+                    amt = model.bid(value=surplus, opportunity=other, faab=faab[tid], aggression=aggression[tid],
                                     noise=rng.lognormal(0, model.bid_noise_sd), min_bid=settings.min_bid,
-                                    lock_price=lock) if kind != "bench" else min(1, int(faab[tid]))
+                                    lock_price=lock)
                 if submitting and self.trace is not None:
                     self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
+                if self.value_log is not None and submitting:
+                    self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, c_now, c_fin, value,
+                                           o_slot[key], other, key, faab[tid], det))
                 fair_all[(tid, p)] = det
                 kinds[(tid, p)] = kind
                 if tid != self.user:
@@ -660,10 +589,10 @@ class Simulator:
             if policy.mode == "force" and self.user in active:
                 p = proj.index[policy.player]
                 if p in remaining and faab[self.user] >= policy.price:
-                    self._award(sim, j, p, self.user, policy.price, rosters, faab, fa_pool, remaining, claimed, res, vb)
+                    self._award(sim, j, p, self.user, policy.price, rosters, faab, fa_pool, remaining, claimed, res)
 
         # Every claim is "add X / drop Y", planned once, after all bids are in.
-        drops = {tid: self._plan_drops(rosters[tid], bids[tid], fair_all, tid, vb, repl[n_alive[-1]])
+        drops = {tid: self._plan_drops(rosters[tid], bids[tid], fair_all, tid)
                  for tid in active}
         # A backup-only claim must be clearly better for week 17 than the player it drops.
         # Planning several claims together can assign a different drop than the one the
@@ -703,7 +632,7 @@ class Simulator:
                 self.trace.append(("award", sim, j, proj.ids[p], tid, int(amt), all_bids,
                                    {t: faab[t] for t in active}))
             gone[tid].add(d)
-            self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb, drop=d)
+            self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, drop=d)
             if tid == self.user and policy.rules and proj.ids[p] in policy.rules:
                 richest = max((faab[u] for u in active if u != tid), default=0)
                 res.user_rule_after.setdefault(proj.ids[p], []).append((faab[tid], richest))
@@ -712,10 +641,10 @@ class Simulator:
             priority[tid] = max(priority.values()) + 1
 
         leftovers = [p for p in set(pool) | set(fa_pool) if p not in claimed]
-        leftovers.sort(key=lambda p: -vb[p])
+        leftovers.sort(key=lambda p: -worth[p])
         return [], leftovers[:FA_POOL_KEEP]
 
-    def _award(self, sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb, drop=None):
+    def _award(self, sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, drop=None):
         proj = self.proj
         faab[tid] -= amt
         rosters[tid].append(p)
@@ -730,21 +659,21 @@ class Simulator:
             fa_pool.remove(p)
         res.awards.append((sim, j, proj.ids[p], tid, int(amt)))
         self._added_this_round.setdefault(tid, set()).add(p)
-        self._enforce_roster(sim, j, tid, p, rosters, fa_pool, vb, protected=self._added_this_round[tid])
+        self._enforce_roster(sim, j, tid, p, rosters, fa_pool, protected=self._added_this_round[tid])
 
-    def _drop_for(self, roster: list[int], p: int, vb):
+    def _drop_for(self, roster: list[int], p: int):
         """Who this team would cut to fit p: the first player _enforce_roster removes, or
         ("open", roster size) if there's room. Open spots are tokens, so two claims for the
         same open spot are linked like two claims dropping the same player."""
         trial, fa = {"_": list(roster) + [p]}, []
         trace, self.trace = self.trace, None
         try:
-            self._enforce_roster(0, 0, "_", p, trial, fa, vb)
+            self._enforce_roster(0, 0, "_", p, trial, fa)
         finally:
             self.trace = trace
         return fa[0] if fa else ("open", len(roster))
 
-    def _plan_drops(self, roster: list[int], claims: dict[int, int], fair_all, tid, vb, repl_final) -> dict:
+    def _plan_drops(self, roster: list[int], claims: dict[int, int], fair_all, tid) -> dict:
         """Give every claim a drop, as in Yahoo: a player on the roster right now (or an
         open roster spot). Never a player the team might add in this same round.
 
@@ -761,17 +690,16 @@ class Simulator:
         remaining = list(roster)  # players still free to name as a drop
         added: set[int] = set()  # players that higher claims would add
         for p in sorted(claims, key=lambda q: -fair_all.get((tid, q), 0)):
-            base = spec.total(hypothetical, vb, proj.pos)
-            gain = spec.total(hypothetical + [p], vb, proj.pos) - base
-            useful = (gain >= model.min_gain or self._slot_check(hypothetical, p, vb) == "upgrade"
-                      or vb[p] - repl_final.get(proj.pos[p], 0.0) > 0)
+            # Still useful if the claims above win: he'd start this week or in week 17, or
+            # he's a clearly better backup than who he'd replace.
+            useful = (self._starts(hypothetical, p) or self._slot_check(hypothetical, p) == "upgrade")
             if not useful:
-                plan[p] = self._drop_for(roster, p, vb)  # backup claim: same drop as the claim it backs up
+                plan[p] = self._drop_for(roster, p)  # backup claim: same drop as the claim it backs up
                 continue
-            d = self._drop_for(hypothetical, p, vb)
+            d = self._drop_for(hypothetical, p)
             if isinstance(d, tuple):  # fits in an open roster spot
                 if open_used >= n_open:
-                    plan[p] = self._drop_for(roster, p, vb)
+                    plan[p] = self._drop_for(roster, p)
                     continue
                 d = ("open", open_used)
                 open_used += 1
@@ -783,14 +711,14 @@ class Simulator:
             elif d in remaining:
                 remaining.remove(d)
             else:
-                plan[p] = self._drop_for(roster, p, vb)
+                plan[p] = self._drop_for(roster, p)
                 continue
             plan[p] = d
             added.add(p)
             hypothetical = [q for q in hypothetical if q != d] + [p]
         return plan
 
-    def _slot_check(self, roster: list[int], p: int, vb) -> str:
+    def _slot_check(self, roster: list[int], p: int) -> str:
         """Can player p join this roster, and would he be a better backup?
 
         He's compared with the player the team would actually have to drop to fit him
@@ -802,21 +730,30 @@ class Simulator:
         "blocked": the rules would drop him again (he'd be the worst backup QB/TE).
         "no": he fits, but isn't clearly better for week 17.
         """
-        d = self._drop_for(roster, p, vb)
+        d = self._drop_for(roster, p)
         if isinstance(d, tuple):  # open roster spot
             return "upgrade"
         if d == p:
             return "blocked"
         return "upgrade" if _clearly_better(self._final[p], self._final[d]) else "no"
 
-    def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, vb, protected=frozenset()) -> None:
+    def _starters(self, roster: list[int]) -> set[int]:
+        """Players who start this week or in week 17: they're never cut to make room."""
+        pos = self.proj.pos
+        return set(self.spec.best(roster, self._now, pos)[1]) | set(self.spec.best(roster, self._final, pos)[1])
+
+    def _starts(self, roster: list[int], p: int) -> bool:
+        return p in self._starters(roster + [p])
+
+    def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, protected=frozenset()) -> None:
         """Drop bench players until the roster fits: at most 1 backup QB and 2 backup TEs,
         at most roster_size players, keeping at least 1 backup RB and 1 backup WR. The bench
-        player cut is the one with the lowest week-17 value (starters come from vb)."""
+        player cut is the one with the lowest week-17 value. Starters (this week or week 17)
+        are never cut."""
         proj = self.proj
         roster = rosters[tid]
         while True:
-            _, starters = self.spec.best(roster, vb, proj.pos)
+            starters = self._starters(roster)
             bench = [q for q in roster if q not in starters]
             drop = None
             for pos, cap in BENCH_MAX.items():

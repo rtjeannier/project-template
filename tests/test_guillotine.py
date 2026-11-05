@@ -244,19 +244,52 @@ def test_roster_rules_by_slot(state, sim):
     assert set(fa) == set(roster) - set(rosters[tid]) or fa
 
 
-def test_bench_upgrades_bid_zero_to_two(state, tmp_path):
-    import csv
-    import gzip
-    import json
+def test_bids_only_when_better_than_waiting_and_within_budget(state):
+    # Every bid's value beats the slot's later option, and the fair price stays in budget.
+    sim = Simulator(state, seed=5)
+    sim.value_log = []
+    sim.run(n_sims=4)
+    assert sim.value_log
+    for (_, _, _, _, g_now, g_fin, c_now, c_fin, v, o_slot, other, slot, faab, fair) in sim.value_log:
+        assert v > o_slot
+        assert abs(v - (c_now * g_now + c_fin * g_fin)) < 1e-9
+        assert 0 <= fair <= max(faab, 0) + 1
 
-    from guillotine.dataset import generate
 
-    league = tmp_path / "league.json"
-    league.write_text(json.dumps(make_sample_league(seed=3, n_teams_alive=5, current_week=13)))
-    generate(state, league, n_seasons=6, out_dir=tmp_path / "data", chunk=3)
-    rows = list(csv.DictReader(gzip.open(tmp_path / "data" / "bids.csv.gz", "rt")))
-    bench = [r for r in rows if r["kind"] == "bench"]
-    assert all(int(r["fair_bid"]) == 1 and 0 <= int(r["bid"]) <= 2 for r in bench)
+def test_a_bye_week_does_not_lower_week17_value(state, sim):
+    # Claims are valued on this week and week 17 only: zeroing a middle week changes nothing.
+    sim._final = sim.proj.means[:, -1].copy()
+    sim._now = sim.proj.means[:, 0].copy()
+    roster = list(sim.init_rosters[sim.user])
+    p = max((x for x in range(len(sim.proj.ids)) if x not in roster), key=lambda x: sim._final[x])
+    q = sim._out_for_final(0)
+    base, starters = sim.spec.best(roster, sim._final, sim.proj.pos)
+    without = {s: sim.spec.total([y for y in roster if y != s], sim._final, sim.proj.pos) for s in starters}
+    before = sim._final_gain(roster, p, sim._final, q, base, without)
+    saved = sim.proj.means[p, 1]
+    sim.proj.means[p, 1] = 0.0
+    try:
+        after = sim._final_gain(roster, p, sim._final, q, base, without)
+    finally:
+        sim.proj.means[p, 1] = saved
+    assert after == before
+
+
+def test_slot_is_where_the_dropped_starter_played(state, sim):
+    # A flex-eligible player who only pushes out a flex starter competes with any RB/WR/TE.
+    from guillotine.simulate import FLEX_POS
+    fin = sim.proj.means[:, -1]
+    roster = list(sim.init_rosters[sim.user])
+    labels = {x: lab for lab, x in sim.spec.assign(roster, fin, sim.proj.pos) if x is not None}
+    for p in range(len(sim.proj.ids)):
+        if p in roster or sim.proj.pos[p] not in FLEX_POS:
+            continue
+        after = {x for _, x in sim.spec.assign(roster + [p], fin, sim.proj.pos) if x is not None}
+        out = [x for x in labels if x not in after]
+        if p in after and out and labels[out[0]] == "FLEX":
+            assert sim._slot_group(roster, p, fin) == FLEX_POS
+            return
+    pytest.skip("no flex-only upgrade in the sample league")
     assert {r["kind"] for r in rows} <= {"lineup", "deny", "bench"}
 
 

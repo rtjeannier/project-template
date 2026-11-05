@@ -36,64 +36,43 @@ See `examples/sample_report.md` for output from the synthetic league.
 
 ## How managers bid (`guillotine/bidding.py`)
 
-Before the final, points only matter if they decide who gets cut. So each manager
-values a player by **elimination-weighted points above replacement**:
+Each team values a claim on its own, without guessing what rivals will bid. Only two
+weeks matter: **this week**, if the team might be cut now, and **week 17**, the final.
+The middle weeks don't enter the price, so a bye week doesn't make a player cheaper.
 
 ```
-value(player, team) = Σ over remaining rounds r of
-      P(team is the one cut in round r) × P(player still healthy)
-      × [ max(0, lineup gain − free gain)  +  max(0, points − replacement) / (teams alive − 1) ]
+V        = P(cut this week) × this week's lineup gain
+         + P(reach the final and lose it) × expected week-17 lineup gain
+O_slot   = P(lose final) × expected best later option for the same slot
+surplus  = V − O_slot                      (no bid if ≤ 0)
+fair bid = FAAB × surplus / (surplus + O of the other slots)
+bid      = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
 ```
 
-- **Denial**: every player you hold is one a rival doesn't. Points above the round's
-  replacement level count an extra 1/(teams alive − 1), reaching the full amount in
-  the final. Picture your final opponent as the best team that can be built from
-  everyone else: an irreplaceable player counts twice (for you and against them),
-  and a replaceable one is worth nothing to deny (`denial_weight`).
-- **Lineup gain**: how much the player raises *that team's* starting lineup. Walker
-  replacing Henry counts even though both are good RBs.
-- **Free gain / dynamic replacement**: what the team could add for $0. The
-  replacement level at a position averages the players from the first non-starter
-  down through every alive team's backups (teams alive × backups per team: QB 1, TE 1,
-  RB/WR 2.5). With 2 teams left that's QBs 3–5; with 10, QBs 11–21. Before that, it
-  was the best player the remaining teams won't
-  start. It rises every round as eliminated rosters flood waivers. With few teams
-  left, a solid starter can be at or below replacement.
-- **P(cut in round r)**: each team's weekly score is treated as roughly normal. The
-  mean is its best lineup's projection. The spread comes from its starters' weekly
-  variance plus season-long projection error, so a boom-or-bust lineup carries more
-  cut risk than a steady one with the same projection. P(cut) is the chance of
-  posting the lowest score, from 2,000 fixed draws. Given FantasyPros' own team
-  projections, this reproduces their week 9 safe % within 0.9 points on average,
-  with no tuning. Odds are computed before waivers from current rosters and this
-  week's projections, so byes and injuries known ahead of time count. They're
-  recalculated after every pickup, so later claims in the same round see the new
-  odds. For later rounds, the team most likely to be cut is removed and the rest
-  renormalized. The last round (two teams) is the final, and "cut" means losing it.
-  A safe team's weight sits in the final, where replacement is highest, so it waits
-  for studs. A team on the bubble values points now.
-
-A manager then spends a share of **their own budget**:
-
-```
-willingness = FAAB × value / (value + future opportunity)
-bid         = willingness × aggressiveness × noise        (capped at FAAB)
-```
-
-**Future opportunity** is the expected value of the best replacement the team can
-still get later. A player only comes back to waivers if the rival holding him is cut.
-For each rival's best upgrade for this team: P(that rival is cut in round r) × P(this
-team is still alive then) × P(it wins him, about `future_share` / teams alive). These
-are combined as the best replacement the team ends up with, not a sum, because it
-only needs one. A player on a team likely to reach the end never comes back, so elite
-players like Gibbs are hard to replace and get bid up. With this, elite players'
-winning price is a median 61% of the winner's FAAB (middle half 42–84%), in line
-with the real league (elite RBs 50–96%). FAAB is use-it-or-lose-it, so it disappears
-when a team is cut. In the last round there's no future, so a team will spend its
-whole budget on an upgrade.
+- **Lineup gain** is how much the player raises *that team's* best lineup. Week 17 is
+  judged on week-17 projections, with P(he's hurt before then) taken off. A player who
+  wouldn't start in week 17 is a backup: his value is P(a starter he'd replace is
+  out) × how much better he is than the next man up.
+- **The slot** is the one held by the starter who drops out of the week-17 lineup.
+  QB, RB, WR and TE fill first, then flex takes the best of the rest, so with two great
+  RBs and two great WRs a new RB or WR really replaces the worst flex starter, and any
+  RB/WR/TE can fill that slot later.
+- **O (can you do better later in that slot?)**: players at the slot's positions on
+  rival rosters come back only if their team is cut. Each one lands with P(that rival is
+  cut before the final) × P(you win him, about `future_share` / teams alive). O is the
+  expected best one landed, not a sum: a slot needs one player.
+- **Price**: the surplus is this player's share of what the budget can still buy. The
+  rest of the budget is for upgrading the other slots (QB, RB, WR, TE, flex) later. FAAB
+  disappears when a team is cut, so a team likely to be cut now has little future use
+  for it and spends more.
+- **P(cut)**: each team's weekly score is treated as roughly normal (mean = its best
+  lineup's projection; spread = starters' weekly variance plus projection error).
+  P(cut) is the chance of posting the lowest score, from 2,000 fixed draws. Later
+  rounds remove the team most likely to be cut and renormalize; the last round is the
+  final, where "cut" means losing it.
 
 Managers are **rational with noise**: everyone uses this valuation, and each bid gets
-random noise (`bid_noise_sd`) so it isn't predictable. There are no per-manager
+random noise so it isn't predictable. There are no per-manager
 personalities (`manager_sd` = 0), but you can set `aggression` per team in the league
 file for a known hoarder or spender. **Lock:** if topping every other team's whole
 FAAB costs less than the player is worth to a manager, they pay exactly that and
@@ -158,20 +137,19 @@ by slot:
 
 - at most 1 backup QB, and at most 2 backup TEs
 - always keep at least 1 backup RB and 1 backup WR
-- 15 players max. When over, a team drops its lowest-value bench player that keeps
-  these rules, never a starter and never the player it just won.
+- 15 players max. When over, a team drops the bench player with the lowest week-17
+  projection that keeps these rules, never a starter (this week or week 17) and never
+  the player it just won.
 
-Teams bid on a player if he improves their starting lineup, if keeping him from rivals
-is worth something, or if he's a better backup than their worst bench player in his
-slot (QB vs bench QBs; RB/WR/TE vs flex-eligible bench players). A team never bids on a
-QB or TE who would just be dropped again to stay under the limits. A backup-only
-upgrade has a fair bid of $1 and is bid at random as $0, $1 or $2, unless denial is
-worth more. Each bid in the dataset is tagged `lineup`, `deny` or `bench`.
+A team never bids on a QB or TE who would just be dropped again to stay under the
+limits, and a backup-only claim must be clearly better for week 17 than the player it
+drops. Backups are priced by the same formula as everyone else. Each bid in the dataset
+is tagged `lineup` (starts this week or in week 17) or `bench`.
 
 **Claims are add/drop pairs, as in Yahoo.** Once all bids are in, each team's claims
 are given drops, going from the highest fair bid down and assuming the claims above
-win. If the player would still help (lineup upgrade, better backup, or worth keeping
-from rivals), his claim drops the next player (or uses the next open spot), so both
+win. If the player would still help (starts this week or in week 17, or is a better
+backup), his claim drops the next player (or uses the next open spot), so both
 can go through. If not, it is a backup claim that shares the drop of the claim it
 would replace. Claims are then processed league-wide from the highest bid down. A
 claim is skipped if its drop is already gone ("invalid claim due to previous
