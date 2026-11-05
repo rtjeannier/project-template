@@ -517,6 +517,9 @@ class Simulator:
                     g = spec.total(roster + [x], now, proj.pos) - base_now
                     if g > 1e-9:
                         gain_now[x] = g
+            # Week 17 too: a claim only counts above the best other player available now at
+            # that slot. With many free QBs on waivers, none of them is worth much.
+            gain_fin = {x: self._final_gain(roster, x, fin, q_out, base_fin, without) for x in remaining}
             why = self.why_no_bid
             for p in remaining:
                 g_now = gain_now.get(p, 0.0)
@@ -524,7 +527,11 @@ class Simulator:
                     group_now = self._slot_group(roster, p, now)
                     alt = max((g for x, g in gain_now.items() if x != p and proj.pos[x] in group_now), default=0.0)
                     g_now = max(0.0, g_now - alt)
-                g_fin = self._final_gain(roster, p, fin, q_out, base_fin, without)
+                g_fin = gain_fin[p]
+                if g_fin > 0:
+                    group_fin = self._slot_group(roster, p, fin)
+                    alt = max((g for x, g in gain_fin.items() if x != p and proj.pos[x] in group_fin), default=0.0)
+                    g_fin = max(0.0, g_fin - alt)
                 if tid == self.user and j > 0:
                     self._note_user_gain(res, sim, j, proj.ids[p], g_fin)
                 slot = self._slot_check(roster, p)
