@@ -206,8 +206,9 @@ in that folder.
 
 The page has:
 
-- **Over- or under-bid, by situation:** by default, the **change in win rate vs
-  bidding fair, within each team**. For each team, its win rate at a bid level minus
+- **When your bid goes through, did the price matter?** Only winning bids. Price is
+  shown as a multiple of fair or as a % of the team's FAAB at the time. By default it
+  shows the **change in win rate vs paying fair, within each team**. For each team, its win rate at a bid level minus
   its own win rate when bidding fair in the same situation (percentage points), then
   averaged over teams with each counted equally. Each team is compared only with
   itself, so its built-in advantage drops out, and teams that survive longer (and
@@ -226,7 +227,9 @@ The page has:
   only seasons he hit waivers while it was alive), overall and by when he became
   available. These are associations: unlike bid multipliers, getting a player isn't
   randomized.
-- **Players:** underbid vs fair vs overbid outcomes per player. Click one to chart him.
+- **Players:** median week bid on, median fair bid and median winning price as a % of
+  the bidder's FAAB, and the within-team change in win rate when the winner paid under
+  vs over fair. Click one to chart him.
 - **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
   every award, scores and cuts.
 

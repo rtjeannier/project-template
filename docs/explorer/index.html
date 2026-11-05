@@ -84,10 +84,15 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   </section>
 
   <section class="panel">
-    <h2>Over- or under-bid? By situation</h2>
-    <div class="chips" role="group" aria-label="View">
-      <button class="chip" id="view-lift" aria-pressed="true">Lift within each team</button>
-      <button class="chip" id="view-pooled" aria-pressed="false">Pooled win rate</button>
+    <h2>When your bid goes through: did the price matter?</h2>
+    <p class="note">Only winning bids: every time a team actually got the player, grouped by what it paid. Losing bids are left out. Keep in mind that a cheap win only happens when rivals bid low (often because they're broke or don't need him), which is itself a good position to be in, so part of the edge for underpaying is the situation, not the price.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 24px">
+      <div class="fgroup"><span class="label">Price measured as</span><div class="chips" role="group" aria-label="Price axis">
+        <button class="chip" id="axis-mult" aria-pressed="true">Multiple of fair bid</button>
+        <button class="chip" id="axis-share" aria-pressed="false">% of FAAB at the time</button></div></div>
+      <div class="fgroup"><span class="label">Compare</span><div class="chips" role="group" aria-label="View">
+        <button class="chip" id="view-lift" aria-pressed="true">Within each team</button>
+        <button class="chip" id="view-pooled" aria-pressed="false">Pooled</button></div></div>
     </div>
     <p class="note" id="view-note"></p>
     <div class="filters" id="filters"></div>
@@ -95,21 +100,48 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
       <div class="chart-wrap"><svg id="curve" viewBox="0 0 640 330" width="100%" role="img" aria-label="Outcome by bid multiplier"></svg></div>
       <div class="tbl" style="max-height:none"><table id="curve-tbl"><thead></thead><tbody></tbody></table></div>
     </div>
-    <h3>By team</h3>
-    <p class="note">Each team's win rate across the selected bids, and its lift when underbidding (below 0.9× fair), bidding fair (0.9–1.1×) or overbidding (above 1.1×). Lift 1.30 = wins 30% more often than its own average in this situation. Blank = too few bids.</p>
-    <div class="tbl" style="max-height:none"><table id="team-tbl"><thead><tr><th>Team</th><th class="n">Wins league (all seasons)</th><th class="n">Bids here</th><th class="n">Win rate here</th><th class="n">Underbid lift</th><th class="n">Fair lift</th><th class="n">Overbid lift</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Week by week: survival by choices</h2>
+    <p class="note">Pick a team and a week. Every season where the team is alive going into that week is grouped by what it did that week, and each group's line shows how often the team was still alive after each later cut. Bidding vs fair is randomized, so differences there are caused by the bidding; spending and pickups also reflect the situation the team was in.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
+      <div class="fgroup"><label class="label" for="steam">Team</label><select id="steam"></select></div>
+      <div class="fgroup"><span class="label">Choice</span><div class="chips" id="sdims"></div></div>
+    </div>
+    <div class="fgroup"><span class="label">Week</span><div class="chips" id="sweeks"></div></div>
+    <div class="chart-wrap"><svg id="scurve" viewBox="0 0 900 340" width="100%" role="img" aria-label="Survival curves by choice"></svg></div>
+    <div class="tbl" style="max-height:none"><table id="stable"></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Paths to victory</h2>
+    <p class="note">Pick a team to see how its winning seasons differ from its losing ones, week by week. Everything compares the team with itself, so its built-in strength drops out. These are associations: getting a player or saving FAAB isn't randomized the way bid multipliers are, so a strong position can drive both.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
+      <div class="fgroup"><label class="label" for="pteam">Team</label><select id="pteam"></select></div>
+      <div class="facts" id="pfacts"></div>
+    </div>
+    <h3>Win rate by FAAB left, over time</h3>
+    <p class="note">Seasons where the team is still alive going into each week, split by how much of today's FAAB it has left after that week's waivers. Each cell: win rate (seasons). Color: above or below the team's win rate for that week overall.</p>
+    <div class="tbl" style="max-height:none"><table id="pgrid"></table></div>
+    <h3>FAAB left over time (% of today's FAAB): seasons won vs lost</h3>
+    <div class="chart-wrap"><svg id="pfaab" viewBox="0 0 640 260" width="100%" role="img" aria-label="FAAB left by week, won vs lost seasons"></svg></div>
+    <h3>Missing a player: what it cost</h3>
+    <p class="note">Players who hit waivers while this team was alive (the first time they hit waivers that season). Impact = the team's win rate when it got him minus when it didn't, in percentage points, overall and by when he became available. Blank = fewer than 15 seasons in that group.</p>
+    <div class="fgroup" style="max-width:320px"><label class="label" for="ppsearch">Search</label><input id="ppsearch" placeholder="Player name"></div>
+    <div class="tbl"><table id="pplayers"></table></div>
   </section>
 
   <section class="panel">
     <h2>Players</h2>
-    <p class="note">For each player with enough bids: lift (team-normalized, like above) when the bidder underbid, bid fair, or overbid. Click a player to chart him above.</p>
+    <p class="note">For each player won often enough: the median week teams bid on him, the median fair bid and the median winning price as a % of the bidder's FAAB at the time, and, for winning bids only, the change in win rate (within each team) when the winner paid under fair (below 0.9×) or over fair (above 1.1×) vs about fair. Click a player to chart him above.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="psearch">Search</label><input id="psearch" placeholder="Player name"></div>
-    <div class="tbl"><table id="ptbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Final edge</th><th class="n">Median fair</th><th class="n">Bids</th><th class="n">Underbid lift</th><th class="n">Fair lift</th><th class="n">Overbid lift</th><th class="n">Over − under</th></tr></thead><tbody></tbody></table></div>
+    <div class="tbl"><table id="ptbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Final edge</th><th class="n">Median week</th><th class="n">Fair, % of FAAB</th><th class="n">Paid, % of FAAB</th><th class="n">Times won</th><th class="n">Won under fair</th><th class="n">Won over fair</th></tr></thead><tbody></tbody></table></div>
   </section>
 
   <section class="panel">
     <h2>Seasons</h2>
-    <p class="note">Read individual simulated seasons week by week: every player that got a bid, every team's bid with its fair value and multiplier, who won and for how much, then scores and who was cut.</p>
+    <p class="note">Read individual simulated seasons week by week: every player that got a bid, every team's bid with its fair value and multiplier, who won, for how much and who they dropped, then scores and who was cut.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="season">Season</label><select id="season"></select></div>
     <div class="weeks" id="weeks"></div>
   </section>
@@ -121,29 +153,34 @@ const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
 const MIN_TEAM_BIDS = 100, MIN_CELL = 15;
-let CUBE, PLAYERS, SEASONS, SUM, VIEW = "lift";
+let CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, VIEW = "lift", AXIS = "mult";
 const sel = {};
 let playerFocus = null;
 
 async function load() {
   try {
-    [CUBE, PLAYERS, SEASONS, SUM] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
+    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
   } catch (e) {
     $("lede").innerHTML = `<span class="err">Couldn't load the data files (${e.message}). Open this page from a web server, e.g. GitHub Pages or <code>python -m http.server</code> in this folder.</span>`;
     return;
   }
   renderSummary(); renderFilters(); render();
-  renderPlayers(); renderSeasonPicker();
+  renderPlayers(); renderSeasonPicker(); renderPathsPicker(); renderSurvivalPicker();
 }
 function render() {
   $("view-lift").setAttribute("aria-pressed", VIEW === "lift"); $("view-pooled").setAttribute("aria-pressed", VIEW === "pooled");
+  $("axis-mult").setAttribute("aria-pressed", AXIS === "mult"); $("axis-share").setAttribute("aria-pressed", AXIS === "share");
   $("view-note").textContent = VIEW === "lift"
-    ? "Lift = a team's win rate at that bid level divided by the same team's win rate across all the selected bids, then averaged over teams with every team counted equally. That removes team strength: a strong team that wins no matter how it bids shows lift near 1.0; a long shot that wins much more often when it overbids shows lift above 1. Error bars are ±2 standard errors."
-    : "Pooled: P(the bidder went on to win the league) over all selected bids. Teams that survive longer place more bids, so strong teams dominate this view; use Lift to compare like with like. Error bars are ±2 standard errors.";
-  renderCurve(); renderTeams();
+    ? (AXIS === "mult"
+      ? "For each team: its win rate after winning a player at that price minus its win rate after winning one at about fair (0.9–1.1×) in the same situation, in percentage points. Averaged over teams, each counted equally, so a team's built-in strength drops out. Fair is 0. Error bars are ±2 standard errors."
+      : "For each team: its win rate after winning a player at that share of its FAAB minus its average win rate over all its winning bids in the same situation, in percentage points. Averaged over teams, each counted equally. Error bars are ±2 standard errors.")
+    : "Pooled: share of winning bids whose team went on to win the league. Strong teams survive longer and win more claims, so they dominate this view. Error bars are ±2 standard errors.";
+  renderCurve();
 }
 $("view-lift").onclick = () => { VIEW = "lift"; render(); };
 $("view-pooled").onclick = () => { VIEW = "pooled"; render(); };
+$("axis-mult").onclick = () => { AXIS = "mult"; render(); };
+$("axis-share").onclick = () => { AXIS = "share"; render(); };
 
 function renderSummary() {
   const you = SUM.teams.find(t => t.is_you);
@@ -176,104 +213,99 @@ function renderFilters() {
   rb.onclick = () => { for (const k in sel) sel[k].clear(); playerFocus = null; renderFilters(); render(); }; reset.appendChild(rb); box.appendChild(reset);
 }
 
-// grid[team][mult] = [n, wins] for the current filters (or the focused player)
+// grid[team][bin] = [n, wins] on the chosen price axis, for the current filters (or the focused player)
+const axisLabels = () => AXIS === "mult" ? CUBE.mult_labels : CUBE.share_labels;
 function grid() {
-  const T = CUBE.dims.team.labels.length, M = CUBE.mult_labels.length;
+  const T = CUBE.dims.team.labels.length, M = axisLabels().length;
   const g = Array.from({ length: T }, () => Array.from({ length: M }, () => [0, 0]));
   if (playerFocus) {
     const p = PLAYERS.find(x => x.id === playerFocus);
-    for (const [m, t, n, w] of p.cells) if (!sel.team.size || sel.team.has(t)) { g[t][m][0] += n; g[t][m][1] += w; }
+    for (const [m, sh, t, n, w] of p.cells) if (!sel.team.size || sel.team.has(t)) { const c = g[t][AXIS === "mult" ? m : sh]; c[0] += n; c[1] += w; }
     return { g, title: `${p.name} (${p.pos})` };
   }
-  const K = CUBE.keys, idx = Object.fromEntries(K.map((k, i) => [k, i]));
+  const K = CUBE.keys, idx = Object.fromEntries(K.map((k, i) => [k, i])), ax = idx[AXIS];
   for (const r of CUBE.rows) {
     let ok = true;
-    for (const k in sel) if (sel[k].size && !sel[k].has(r[idx[k]])) { ok = false; break; }
+    for (const k in sel) if (k !== AXIS && sel[k].size && !sel[k].has(r[idx[k]])) { ok = false; break; }
     if (!ok) continue;
-    const c = g[r[idx.team]][r[0]]; c[0] += r[r.length - 2]; c[1] += r[r.length - 1];
+    const c = g[r[idx.team]][r[ax]]; c[0] += r[r.length - 2]; c[1] += r[r.length - 1];
   }
   return { g, title: describeFilters() };
 }
 function describeFilters() {
   const parts = [];
-  for (const [k, d] of Object.entries(CUBE.dims)) if (sel[k] && sel[k].size) parts.push([...sel[k]].map(i => d.labels[i]).join(" or "));
-  return parts.length ? parts.join(" · ") : "All bids";
+  for (const [k, d] of Object.entries(CUBE.dims)) if (k !== AXIS && sel[k] && sel[k].size) parts.push([...sel[k]].map(i => d.labels[i]).join(" or "));
+  return parts.length ? parts.join(" · ") : "All winning bids";
 }
-// Pooled: one rate per bin. Lift: per-team rate / team's own rate, averaged over teams.
-function series(g, bins) {
-  const M = CUBE.mult_labels.length;
+// Baseline bin: fair (multiple axis); none (share axis, compare with the team's own average).
+const baseBin = () => AXIS === "mult" ? FAIR : null;
+function series(g) {
+  const M = axisLabels().length;
   if (VIEW === "pooled") {
     return [...Array(M).keys()].map(m => { let n = 0, w = 0; for (const row of g) { n += row[m][0]; w += row[m][1]; }
       const p = n ? w / n : null; return { v: p, se: n ? Math.sqrt(Math.max(p * (1 - p), 1e-6) / n) : null, n, k: null }; });
   }
-  return [...Array(M).keys()].map(m => liftFor(g, [m]));
+  return [...Array(M).keys()].map(m => liftFor(g, [m], baseBin()));
 }
-function liftFor(g, bins) {
+function liftFor(g, bins, base) {
+  // Within-team change vs the team's own baseline (its fair-price wins, or all its wins),
+  // averaged over teams with every team counted equally.
   let sum = 0, var_ = 0, k = 0, nTot = 0;
   for (const row of g) {
-    const N = row.reduce((a, c) => a + c[0], 0), W = row.reduce((a, c) => a + c[1], 0);
-    if (N < MIN_TEAM_BIDS || W === 0) continue;
-    const base = W / N;
+    let nb, wb;
+    if (base == null) { nb = row.reduce((a, c) => a + c[0], 0); wb = row.reduce((a, c) => a + c[1], 0); }
+    else { [nb, wb] = row[base]; }
+    if (nb < MIN_CELL) continue;
     let n = 0, w = 0; for (const m of bins) { n += row[m][0]; w += row[m][1]; }
     if (n < MIN_CELL) continue;
-    const p = w / n;
-    sum += p / base; var_ += (Math.max(p * (1 - p), 1e-6) / n) / (base * base); k += 1; nTot += n;
+    const p = w / n, pb = wb / nb;
+    sum += p - pb;
+    var_ += Math.max(p * (1 - p), 1e-6) / n + (bins.length === 1 && bins[0] === base ? 0 : Math.max(pb * (1 - pb), 1e-6) / nb);
+    k += 1; nTot += n;
   }
   return k ? { v: sum / k, se: Math.sqrt(var_) / k, n: nTot, k } : { v: null, se: null, n: nTot, k: 0 };
 }
-
 function renderCurve() {
   const { g, title } = grid();
-  const L = CUBE.mult_labels, S = series(g);
+  const L = axisLabels(), S = series(g), B0 = baseBin();
   const lift = VIEW === "lift";
-  const W = 640, H = 330, Lm = 50, R = 10, T = 30, B = 74;
+  const W = 640, H = 330, Lm = 66, R = 10, T = 30, B = 74;
   const vals = S.flatMap(s => s.v == null ? [] : [s.v + 2 * s.se, s.v - 2 * s.se]);
-  if (!vals.length) { $("curve").innerHTML = `<text x="20" y="40">Not enough bids for this selection.</text>`; $("curve-tbl").querySelector("tbody").innerHTML = ""; return; }
+  if (!vals.length) { $("curve").innerHTML = `<text x="20" y="40">Not enough winning bids for this selection.</text>`; $("curve-tbl").querySelector("tbody").innerHTML = ""; return; }
   let lo = Math.min(...vals), hi = Math.max(...vals);
-  if (lift) { lo = Math.min(lo, 1); hi = Math.max(hi, 1); }
-  const pad = Math.max((hi - lo) * 0.12, lift ? 0.02 : 0.005); lo = Math.max(0, lo - pad); hi = hi + pad;
+  if (lift) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  const pad = Math.max((hi - lo) * 0.12, 0.005); lo = lift ? lo - pad : Math.max(0, lo - pad); hi = hi + pad;
   const x = (i) => Lm + (i + 0.5) * (W - Lm - R) / L.length, y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
-  const bw = (W - Lm - R) / L.length * 0.56, fmt = (v) => lift ? v.toFixed(2) : (100 * v).toFixed(1) + "%";
-  const ref = lift ? 1 : S[FAIR].v;
-  let s = `<text class="t-ink" x="${Lm}" y="16">${escapeHtml(title)}${lift ? " · lift within each team" : " · pooled"}</text>`;
+  const bw = (W - Lm - R) / L.length * 0.56, fmt = (v) => lift ? (v >= 0 ? "+" : "") + (100 * v).toFixed(1) + " pts" : (100 * v).toFixed(1) + "%";
+  const ref = lift ? 0 : (B0 != null ? S[B0].v : null);
+  let s = `<text class="t-ink" x="${Lm}" y="16">${escapeHtml(title)} · ${AXIS === "mult" ? "price vs fair" : "price as % of FAAB"}${lift ? ", within each team" : ", pooled"}</text>`;
   for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4;
     s += `<line x1="${Lm}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${Lm - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`; }
   if (ref != null) s += `<line x1="${Lm}" x2="${W - R}" y1="${y(ref)}" y2="${y(ref)}" stroke="var(--accent)" stroke-dasharray="4 4"/>`;
-  const base = lift ? y(1) : H - B;
+  const base = lift ? y(0) : H - B;
   S.forEach((d, i) => {
     if (d.v == null) return;
     const top = y(d.v + 2 * d.se), bot = y(Math.max(lo, d.v - 2 * d.se));
     const y0 = Math.min(base, y(d.v)), h = Math.max(1, Math.abs(base - y(d.v)));
-    s += `<rect x="${x(i) - bw / 2}" y="${y0}" width="${bw}" height="${h}" fill="${i === FAIR ? "var(--accent)" : "var(--accent-soft)"}" stroke="var(--accent)" stroke-width="${i === FAIR ? 0 : 1}"><title>${L[i]}: ${fmt(d.v)}</title></rect>`;
+    s += `<rect x="${x(i) - bw / 2}" y="${y0}" width="${bw}" height="${h}" fill="${i === B0 ? "var(--accent)" : "var(--accent-soft)"}" stroke="var(--accent)" stroke-width="${i === B0 ? 0 : 1}"><title>${L[i]}: ${fmt(d.v)}</title></rect>`;
     s += `<line x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${bot}" stroke="var(--ink)" stroke-width="1.2"/>`;
     s += `<line x1="${x(i) - 5}" x2="${x(i) + 5}" y1="${top}" y2="${top}" stroke="var(--ink)"/><line x1="${x(i) - 5}" x2="${x(i) + 5}" y1="${bot}" y2="${bot}" stroke="var(--ink)"/>`;
     s += `<text x="${x(i)}" y="${H - B + 14}" text-anchor="end" transform="rotate(-35 ${x(i)} ${H - B + 14})">${L[i]}</text>`;
   });
   $("curve").innerHTML = s;
-  $("curve-tbl").querySelector("thead").innerHTML = `<tr><th>Bid vs fair</th><th class="n">Bids</th><th class="n">${lift ? "Lift" : "Won league"}</th><th class="n">vs fair</th></tr>`;
-  const f = S[FAIR];
+  const baseName = B0 != null ? "paying fair" : "the team's average";
+  $("curve-tbl").querySelector("thead").innerHTML = lift
+    ? `<tr><th>${AXIS === "mult" ? "Price vs fair" : "Price, % of FAAB"}</th><th class="n">Wins</th><th class="n">vs ${baseName}</th><th class="n">Significant?</th></tr>`
+    : `<tr><th>${AXIS === "mult" ? "Price vs fair" : "Price, % of FAAB"}</th><th class="n">Wins</th><th class="n">Won league</th></tr>`;
   $("curve-tbl").querySelector("tbody").innerHTML = L.map((lab, i) => {
     const d = S[i];
-    const diff = d.v != null && f.v != null ? d.v - f.v : null;
-    const sig = diff != null && i !== FAIR && Math.abs(diff) > 2 * Math.hypot(d.se, f.se);
-    const cls = diff == null || i === FAIR || !sig ? "flat" : diff > 0 ? "pos" : "neg";
-    const shown = diff == null || i === FAIR ? "–" : lift ? (diff >= 0 ? "+" : "") + diff.toFixed(2) : (diff >= 0 ? "+" : "") + (100 * diff).toFixed(1) + " pts";
-    return `<tr${i === FAIR ? ' class="sel"' : ""}><td>${lab}</td><td class="n">${d.n.toLocaleString()}</td><td class="n">${d.v == null ? "–" : fmt(d.v)}</td><td class="n ${cls}">${shown}${sig || i === FAIR || diff == null ? "" : " ~"}</td></tr>`;
-  }).join("") + `<tr><td colspan="4" class="note">~ = within noise (less than 2 standard errors from fair)${lift ? ". Teams included: " + (S[FAIR].k || 0) : ""}</td></tr>`;
-}
-
-function renderTeams() {
-  const { g } = grid();
-  const names = CUBE.dims.team.labels;
-  const rows = g.map((row, t) => {
-    const N = row.reduce((a, c) => a + c[0], 0), W = row.reduce((a, c) => a + c[1], 0);
-    const one = (bins) => { if (N < MIN_TEAM_BIDS || !W) return null; let n = 0, w = 0; for (const m of bins) { n += row[m][0]; w += row[m][1]; } return n >= MIN_CELL ? (w / n) / (W / N) : null; };
-    return { t, name: names[t], champ: CUBE.team_p_champion[t], N, rate: N ? W / N : null, under: one(UNDER), fair: one([FAIR]), over: one(OVER) };
-  }).sort((a, b) => b.champ - a.champ);
-  const cell = (v) => v == null ? "–" : `<span class="${v > 1.03 ? "pos" : v < 0.97 ? "neg" : "flat"}">${v.toFixed(2)}</span>`;
-  $("team-tbl").querySelector("tbody").innerHTML = rows.map(r => `<tr><td>${r.t === CUBE.you_team ? `<span class="pill">${r.name}</span>` : r.name}</td>
-    <td class="n">${pct(r.champ)}</td><td class="n">${r.N.toLocaleString()}</td><td class="n">${r.rate == null ? "–" : pct(r.rate)}</td>
-    <td class="n">${cell(r.under)}</td><td class="n">${cell(r.fair)}</td><td class="n">${cell(r.over)}</td></tr>`).join("");
+    if (lift) {
+      const sig = d.v != null && i !== B0 && Math.abs(d.v) > 2 * d.se;
+      const cls = d.v == null || i === B0 || !sig ? "flat" : d.v > 0 ? "pos" : "neg";
+      return `<tr${i === B0 ? ' class="sel"' : ""}><td>${lab}</td><td class="n">${d.n.toLocaleString()}</td><td class="n ${cls}">${d.v == null ? "–" : fmt(d.v)}</td><td class="n">${i === B0 ? "baseline" : d.v == null ? "–" : sig ? "yes" : "no (noise)"}</td></tr>`;
+    }
+    return `<tr><td>${lab}</td><td class="n">${d.n.toLocaleString()}</td><td class="n">${d.v == null ? "–" : fmt(d.v)}</td></tr>`;
+  }).join("") + `<tr><td colspan="4" class="note">${lift ? "Teams included: " + (S.find(x => x.k)?.k || 0) + ". Significant = more than 2 standard errors from 0." : ""}</td></tr>`;
 }
 
 function renderPlayers() {
@@ -281,17 +313,15 @@ function renderPlayers() {
   const T = CUBE.dims.team.labels.length, M = CUBE.mult_labels.length;
   const rows = PLAYERS.filter(p => !q || p.name.toLowerCase().includes(q)).map(p => {
     const g = Array.from({ length: T }, () => Array.from({ length: M }, () => [0, 0]));
-    for (const [m, t, n, w] of p.cells) { g[t][m][0] += n; g[t][m][1] += w; }
-    const save = VIEW; VIEW = "lift";
-    const under = liftFor(g, UNDER), fair = liftFor(g, [FAIR]), over = liftFor(g, OVER);
-    VIEW = save;
-    return { p, under: under.v, fair: fair.v, over: over.v, diff: under.v != null && over.v != null ? over.v - under.v : null };
-  }).sort((a, b) => (b.diff ?? -9) - (a.diff ?? -9));
-  const cell = (v) => v == null ? "–" : v.toFixed(2);
+    for (const [m, sh, t, n, w] of p.cells) { g[t][m][0] += n; g[t][m][1] += w; }
+    const under = liftFor(g, UNDER, FAIR), over = liftFor(g, OVER, FAIR);
+    return { p, under: under.v, over: over.v };
+  }).sort((a, b) => (b.over ?? -9) - (a.over ?? -9));
+  const cell = (v) => v == null ? "–" : `<span class="${v > 0.005 ? "pos" : v < -0.005 ? "neg" : "flat"}">${(v >= 0 ? "+" : "") + (100 * v).toFixed(1)} pts</span>`;
   $("ptbl").querySelector("tbody").innerHTML = rows.map(r => `<tr class="click${r.p.id === playerFocus ? " sel" : ""}" data-id="${r.p.id}">
-    <td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${r.p.edge > 0 ? "+" : ""}${r.p.edge.toFixed(1)}</td><td class="n">${money(r.p.median_fair)}</td>
-    <td class="n">${r.p.n.toLocaleString()}</td><td class="n">${cell(r.under)}</td><td class="n">${cell(r.fair)}</td><td class="n">${cell(r.over)}</td>
-    <td class="n ${r.diff == null ? "flat" : r.diff > 0 ? "pos" : "neg"}">${r.diff == null ? "–" : (r.diff >= 0 ? "+" : "") + r.diff.toFixed(2)}</td></tr>`).join("") ||
+    <td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${r.p.edge > 0 ? "+" : ""}${r.p.edge.toFixed(1)}</td>
+    <td class="n">${r.p.median_week.toFixed(0)}</td><td class="n">${pct(r.p.median_fair_pct, 0)}</td><td class="n">${pct(r.p.median_paid_pct, 0)}</td>
+    <td class="n">${r.p.n.toLocaleString()}</td><td class="n">${cell(r.under)}</td><td class="n">${cell(r.over)}</td></tr>`).join("") ||
     `<tr><td colspan="9" class="note">No players match.</td></tr>`;
   $("ptbl").querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => { playerFocus = tr.dataset.id; render(); renderPlayers(); $("curve").scrollIntoView({ behavior: "smooth", block: "center" }); });
 }
@@ -306,13 +336,128 @@ function renderSeason() {
   const S = SEASONS[+$("season").value], you = SUM.you;
   $("weeks").innerHTML = S.weeks.map(w => {
     const cut = w.scores.filter(s => s[2]).map(s => s[0]);
-    const aw = w.awards.map(a => `<div class="aw">${a.player} <span class="label">${a.pos}</span> → ${a.winner ? `<span class="pill">${a.winner}</span> for ${money(a.price)}` : "<i>no winner</i>"}
+    const aw = w.awards.map(a => `<div class="aw">${a.player} <span class="label">${a.pos}</span> → ${a.winner ? `<span class="pill">${a.winner}</span> for ${money(a.price)}, drops ${a.drop}` : "<i>no winner</i>"}
       <div class="bids">${a.bids.map(([t, bid, fair, m]) => `${t === you ? "<b>" + t + "</b>" : t} ${money(bid)} (fair ${money(fair)}, ${m}×)`).join(" · ")}</div></div>`).join("");
     return `<div class="wk"><h3>Week ${w.week}</h3>
       <div class="awards">${aw || '<span class="note">No bids above $0 this week.</span>'}</div>
       <div>Cut: ${cut.map(c => `<span class="pill cut">${c}</span>`).join(" ")}</div>
       <div class="scores">${w.scores.map(([t, sc, c, f]) => `${t === you ? "<b>" + t + "</b>" : t} ${sc} pts, ${money(f)} left`).join(" · ")}</div></div>`;
   }).join("") + `<div class="wk"><h3>Champion</h3><div><span class="pill">${S.champion}</span></div></div>`;
+}
+
+function renderPathsPicker() {
+  const sel_ = $("pteam");
+  sel_.innerHTML = PATHS.teams.map((t, i) => `<option value="${i}">${t.name}${i === CUBE.you_team ? " (you)" : ""}</option>`).join("");
+  sel_.value = CUBE.you_team; sel_.onchange = renderPaths; $("ppsearch").oninput = renderPathPlayers; renderPaths();
+}
+function renderPaths() {
+  const T = PATHS.teams[+$("pteam").value];
+  $("pfacts").innerHTML = `<div><span class="label">Won the league</span><b>${pct(T.wins / T.seasons)}</b></div>
+    <div><span class="label">FAAB today</span><b>${money(T.start_faab)}</b></div>`;
+  const wk = T.by_week.filter(w => w.alive > 0);
+  let h = `<thead><tr><th>FAAB left after waivers</th>${wk.map(w => `<th class="n">Wk ${w.week}</th>`).join("")}</tr>
+    <tr><td class="note">Alive · win rate</td>${wk.map(w => `<td class="n">${w.alive.toLocaleString()} · ${pct(w.wins / w.alive)}</td>`).join("")}</tr></thead><tbody>`;
+  PATHS.faab_labels.forEach((lab, b) => {
+    h += `<tr><td>${lab} of today's</td>` + wk.map(w => {
+      const [n, x] = w.faab_bins[b];
+      if (n < 15) return `<td class="n flat">–</td>`;
+      const r = x / n, base = w.wins / w.alive, d = r - base, se = Math.sqrt(Math.max(r * (1 - r), 1e-6) / n);
+      const cls = Math.abs(d) < 2 * se ? "flat" : d > 0 ? "pos" : "neg";
+      return `<td class="n ${cls}" title="${n} seasons">${pct(r)} <span class="note">(${n})</span></td>`;
+    }).join("") + `</tr>`;
+  });
+  $("pgrid").innerHTML = h + `</tbody>`;
+  const W = 640, H = 260, L = 50, R = 12, Tm = 24, B = 34;
+  const pts = wk.filter(w => w.faab_won || w.faab_lost);
+  const maxV = Math.max(0.1, ...pts.flatMap(w => [...(w.faab_won || []), ...(w.faab_lost || [])]));
+  const x = (i) => L + i * (W - L - R) / Math.max(1, pts.length - 1), y = (v) => Tm + (1 - v / maxV) * (H - Tm - B);
+  let g = "";
+  for (let k = 0; k <= 4; k++) {
+    const v = maxV * k / 4;
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${Math.round(100 * v)}%</text>`;
+  }
+  const series = (key, color, dash) => {
+    const q = pts.map((w, i) => w[key] ? [i, ...w[key]] : null).filter(Boolean);
+    if (!q.length) return "";
+    const band = q.map(([i, a]) => `${x(i)},${y(a)}`).join(" ") + " " + q.slice().reverse().map(([i, , , c]) => `${x(i)},${y(c)}`).join(" ");
+    return `<polygon points="${band}" fill="${color}" opacity=".12"/><polyline points="${q.map(([i, , m]) => `${x(i)},${y(m)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2" ${dash ? 'stroke-dasharray="5 4"' : ""}/>` +
+      q.map(([i, , m]) => `<circle cx="${x(i)}" cy="${y(m)}" r="3" fill="${color}"><title>${key === "faab_won" ? "won" : "lost"} wk ${pts[i].week}: median ${Math.round(100 * m)}% of today's FAAB</title></circle>`).join("");
+  };
+  g += series("faab_lost", "var(--muted)", true) + series("faab_won", "var(--accent)", false);
+  pts.forEach((w, i) => { g += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle">wk ${w.week}</text>`; });
+  g += `<text class="t-ink" x="${L}" y="14">Median FAAB left, % of today's (band = middle 50%): <tspan fill="var(--accent)">seasons won</tspan> vs <tspan fill="var(--muted)">seasons lost</tspan></text>`;
+  $("pfaab").innerHTML = g;
+  renderPathPlayers();
+}
+function renderPathPlayers() {
+  const T = PATHS.teams[+$("pteam").value], q = $("ppsearch").value.trim().toLowerCase();
+  const WL = PATHS.when_labels;
+  const impact = (cells, when) => {
+    let ng = 0, wg = 0, nm = 0, wm = 0;
+    for (const [wh, got, n, w] of cells) { if (when != null && wh !== when) continue; if (got) { ng += n; wg += w; } else { nm += n; wm += w; } }
+    if (ng < 15 || nm < 15) return { d: null, ng, nm };
+    const pg = wg / ng, pm = wm / nm, se = Math.sqrt(Math.max(pg * (1 - pg), 1e-6) / ng + Math.max(pm * (1 - pm), 1e-6) / nm);
+    return { d: pg - pm, se, pg, pm, ng, nm };
+  };
+  const rows = T.players.filter(p => !q || p.name.toLowerCase().includes(q))
+    .map(p => ({ p, all: impact(p.cells, null), by: WL.map((_, i) => impact(p.cells, i)) }))
+    .sort((a, b) => (b.all.d ?? -9) - (a.all.d ?? -9));
+  const cell = (r) => r.d == null ? "–" : `<span class="${Math.abs(r.d) < 2 * r.se ? "flat" : r.d > 0 ? "pos" : "neg"}">${(r.d >= 0 ? "+" : "") + (100 * r.d).toFixed(1)} pts</span>`;
+  $("pplayers").innerHTML = `<thead><tr><th>Player</th><th>Pos</th><th class="n">Available</th><th class="n">Got him</th><th class="n">Win rate got</th><th class="n">Win rate missed</th><th class="n">Impact</th>${WL.map(l => `<th class="n">${l}</th>`).join("")}</tr></thead><tbody>` +
+    (rows.map(r => {
+      const a = r.all, n = a.ng + a.nm;
+      return `<tr><td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${n.toLocaleString()}</td><td class="n">${n ? pct(a.ng / n) : "–"}</td>
+      <td class="n">${a.pg == null ? "–" : pct(a.pg)}</td><td class="n">${a.pm == null ? "–" : pct(a.pm)}</td><td class="n">${cell(a)}</td>${r.by.map(b => `<td class="n">${cell(b)}</td>`).join("")}</tr>`;
+    }).join("") || `<tr><td colspan="${7 + WL.length}" class="note">No players match.</td></tr>`) + `</tbody>`;
+}
+
+let SURV_DIM = "aggr", SURV_WEEK = 0;
+const SURV_COLORS = ["var(--muted)", "var(--lose)", "var(--accent)", "var(--win)"];
+function renderSurvivalPicker() {
+  const t = $("steam");
+  t.innerHTML = PATHS.teams.map((x, i) => `<option value="${i}">${x.name}${i === CUBE.you_team ? " (you)" : ""}</option>`).join("");
+  t.value = CUBE.you_team; t.onchange = renderSurvival;
+  $("sweeks").innerHTML = SURV.weeks.map((w, i) => `<button class="chip" id="sw-${i}" aria-pressed="${i === SURV_WEEK}">Week ${w}</button>`).join("");
+  SURV.weeks.forEach((_, i) => { $(`sw-${i}`).onclick = () => { SURV_WEEK = i; SURV.weeks.forEach((__, k) => $(`sw-${k}`).setAttribute("aria-pressed", k === i)); renderSurvival(); }; });
+  $("sdims").innerHTML = Object.entries(SURV.dims).map(([k, d]) => `<button class="chip" id="sd-${k}" aria-pressed="${k === SURV_DIM}">${d.title}</button>`).join("");
+  Object.keys(SURV.dims).forEach(k => { $(`sd-${k}`).onclick = () => { SURV_DIM = k; Object.keys(SURV.dims).forEach(q => $(`sd-${q}`).setAttribute("aria-pressed", q === k)); renderSurvival(); }; });
+  renderSurvival();
+}
+function renderSurvival() {
+  const ti = +$("steam").value, W = SURV.teams[ti][SURV_WEEK], dim = SURV.dims[SURV_DIM];
+  const later = SURV.weeks.slice(SURV_WEEK);
+  const base = { n: W.n, alive_after: W.alive_after, wins: W.wins };
+  const groups = W.groups[SURV_DIM].map((g, i) => ({ ...g, label: dim.labels[i], color: SURV_COLORS[(dim.labels.length === 2 ? [0, 3][i] : i) % 4] }));
+  const Wd = 900, H = 340, L = 48, R = 250, T = 24, B = 34;
+  const x = (k) => L + k * (Wd - L - R) / Math.max(1, later.length - 1), y = (v) => T + (1 - v) * (H - T - B);
+  let s = `<text class="t-ink" x="${L}" y="14">Still alive after each week's cut, among seasons alive going into week ${later[0]}</text>`;
+  for (let k = 0; k <= 4; k++) { const v = k / 4; s += `<line x1="${L}" x2="${Wd - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${Math.round(100 * v)}%</text>`; }
+  later.forEach((w, k) => { s += `<text x="${x(k)}" y="${H - 12}" text-anchor="middle">wk ${w}</text>`; });
+  const step = (g, color, dash, width) => {
+    if (g.n < 15) return "";
+    let d = `M${x(0)},${y(1)}`;
+    g.alive_after.forEach((a, k) => { const v = a / g.n; d += `L${x(k)},${y(k === 0 ? 1 : g.alive_after[k - 1] / g.n)}L${x(k)},${y(v)}`; if (k < g.alive_after.length - 1) d += `L${x(k + 1)},${y(v)}`; });
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" ${dash ? 'stroke-dasharray="5 4"' : ""}/>`;
+  };
+  s += step(base, "var(--ink)", true, 1.5);
+  let ly = T + 6;
+  groups.forEach(g => {
+    s += step(g, g.color, false, 2.2);
+    if (g.n >= 15) { s += `<rect x="${Wd - R + 12}" y="${ly - 8}" width="12" height="3" fill="${g.color}"/><text x="${Wd - R + 30}" y="${ly - 4}" class="t-ink">${escapeHtml(g.label)}</text><text x="${Wd - R + 30}" y="${ly + 9}">win ${pct(g.wins / g.n)} · n=${g.n}</text>`; ly += 32; }
+  });
+  s += `<line x1="${Wd - R + 12}" x2="${Wd - R + 24}" y1="${ly - 6}" y2="${ly - 6}" stroke="var(--ink)" stroke-dasharray="4 3"/><text x="${Wd - R + 30}" y="${ly - 4}" class="t-ink">all seasons</text><text x="${Wd - R + 30}" y="${ly + 9}">win ${pct(base.wins / Math.max(1, base.n))} · n=${base.n}</text>`;
+  $("scurve").innerHTML = s;
+  const bw = base.wins / Math.max(1, base.n), bs = base.alive_after[0] / Math.max(1, base.n);
+  const row = (g, label, isBase) => {
+    if (g.n < 15) return `<tr><td>${label}</td><td class="n">${g.n}</td><td class="n" colspan="4">too few seasons</td></tr>`;
+    const surv = g.alive_after[0] / g.n, fin = g.alive_after[g.alive_after.length - 2 >= 0 ? g.alive_after.length - 2 : 0] / g.n, win = g.wins / g.n;
+    const se = Math.sqrt(Math.max(win * (1 - win), 1e-6) / g.n + Math.max(bw * (1 - bw), 1e-6) / base.n);
+    const d = win - bw, cls = isBase || Math.abs(d) < 2 * se ? "flat" : d > 0 ? "pos" : "neg";
+    return `<tr${isBase ? ' class="sel"' : ""}><td>${label}</td><td class="n">${g.n.toLocaleString()}</td><td class="n">${pct(surv)}</td><td class="n">${pct(fin)}</td><td class="n">${pct(win)}</td>
+      <td class="n ${cls}">${isBase ? "–" : (d >= 0 ? "+" : "") + (100 * d).toFixed(1) + " pts"}</td></tr>`;
+  };
+  $("stable").innerHTML = `<thead><tr><th>${dim.title}</th><th class="n">Seasons</th><th class="n">Survives week ${later[0]}</th><th class="n">Reaches the final</th><th class="n">Wins league</th><th class="n">vs all seasons</th></tr></thead><tbody>` +
+    groups.map(g => row(g, g.label, false)).join("") + row(base, "all seasons alive this week", true) + `</tbody>`;
 }
 function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 load();

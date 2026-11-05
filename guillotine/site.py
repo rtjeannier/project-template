@@ -25,10 +25,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+SHARE_EDGES = [-np.inf, 0.05, 0.10, 0.25, 0.50, 0.75, np.inf]
+SHARE_LABELS = ["under 5%", "5–10%", "10–25%", "25–50%", "50–75%", "75%+"]
 MULT_EDGES = [-np.inf, 0.0, 0.5, 0.75, 0.9, 1.1, 1.25, 1.5, 2.0, np.inf]
 MULT_LABELS = ["$0 bid (draw ≤ 0)", "0–0.5×", "0.5–0.75×", "0.75–0.9×", "0.9–1.1× (fair)", "1.1–1.25×",
                "1.25–1.5×", "1.5–2×", "2×+"]
 DIMS = {
+    "share": ("Price paid (% of FAAB)", SHARE_LABELS),
     "kind": ("What the bid was for", ["lineup upgrade", "keep from rivals", "better backup ($1)"]),
     "edge": ("Player in the final", ["replaceable (edge ≤ 0)", "edge 0–2.5", "irreplaceable (edge > 2.5)"]),
     "pos": ("Position", ["QB", "RB", "WR", "TE"]),
@@ -85,7 +88,7 @@ def _paths(bids, weeks, seasons, teams, names, pname, ppos, week_list, min_avail
         for wk in week_list:
             x = tw[tw.week == wk]
             cells = x.groupby("bin").won.agg(["size", "sum"]).reindex(range(len(FAAB_LABELS)), fill_value=0)
-            q = lambda df: [float(v) for v in df.faab_after_waivers.quantile([0.25, 0.5, 0.75])] if len(df) else None
+            q = lambda df: [float(v) for v in df.frac.quantile([0.25, 0.5, 0.75])] if len(df) else None
             by_week.append({"week": int(wk), "alive": int(len(x)), "wins": int(x.won.sum()),
                             "faab_bins": cells.astype(int).values.tolist(),
                             "faab_won": q(x[x.won]), "faab_lost": q(x[~x.won])})
@@ -135,7 +138,7 @@ def _survival(bids, weeks, teams, week_list, fb) -> dict:
     final = week_list[-1]
     w["won"] = w.cut_week.isna() & (w.last_week == w.season.map(weeks.groupby("season").week.max()))
 
-    real = bids[bids.fair_bid > 0]
+    real = bids[(bids.fair_bid > 0) & (bids.kind != "bench")]  # $0-2 backup bids would wash it out
     agg = real.groupby(["season", "week", "team_id"]).multiplier.mean().rename("avg_mult").reset_index()
     ups = bids[bids.won & (bids.kind == "lineup")].groupby(["season", "week", "team_id"]).size().rename("ups").reset_index()
     w = w.merge(agg, on=["season", "week", "team_id"], how="left").merge(ups, on=["season", "week", "team_id"], how="left")
@@ -212,9 +215,14 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     b["team"] = b.team_id.map({t: i for i, t in enumerate(team_order)})
     b["kind"] = b.kind.map({"lineup": 0, "deny": 1, "bench": 2})
     b = b[b.pos >= 0]
+    # Price paid as a share of the FAAB the team had when it bid.
+    b["share"] = pd.cut(b.bid / b.faab.clip(lower=1), SHARE_EDGES, labels=False)
+    # Only bids that went through: did paying more or less, when you got him, change
+    # your chance of winning the league? Losing bids are left out.
+    wb = b[b.won]
 
-    keys = ["mult", "kind", "edge", "pos", "week", "ratio", "cut", "fair", "team"]
-    cube = b.groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
+    keys = ["mult", "share", "kind", "edge", "pos", "week", "ratio", "cut", "fair", "team"]
+    cube = wb.groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
     week_labels = [str(w) for w in meta["weeks"]]
     cube["week"] = cube["week"].map({w: i for i, w in enumerate(meta["weeks"])})
     team_labels = [names[t] for t in team_order]
@@ -228,22 +236,26 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
 
     champs = seasons.champion_id.value_counts(normalize=True)
     cube_out = {"keys": keys, "rows": cube[keys + ["n", "w"]].astype(int).values.tolist(),
-                "mult_labels": MULT_LABELS, "dims": dims, "you_team": team_order.index(you),
+                "mult_labels": MULT_LABELS, "share_labels": SHARE_LABELS, "dims": dims, "you_team": team_order.index(you),
                 "team_p_champion": [float(champs.get(t, 0.0)) for t in team_order]}
     (out / "cube.json").write_text(json.dumps(cube_out, separators=(",", ":")))
 
     # --- per player
     pn = dict(zip(players.player_id, players.name))
-    pp = b.groupby(["player_id", "mult", "team"]).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
-    counts = b.groupby("player_id").size()
-    keep = counts[counts >= 300].index
+    pp = wb.groupby(["player_id", "mult", "share", "team"]).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
+    counts = wb.groupby("player_id").size()
+    keep = counts[counts >= 100].index
+    fair_pct = (b.fair_bid / b.faab.clip(lower=1)).groupby(b.player_id).median()
+    paid_pct = (wb.bid / wb.faab.clip(lower=1)).groupby(wb.player_id).median()
+    med_week = b.groupby("player_id").week.median()
     plist = []
     for pid in keep:
         rows = pp[pp.player_id == pid]
         sub = players[players.player_id == pid].iloc[0]
         plist.append({"id": str(pid), "name": pn[pid], "pos": sub.pos, "edge": round(float(sub.final_edge), 2),
-                      "n": int(counts[pid]), "median_fair": float(b[b.player_id == pid].fair_bid.median()),
-                      "cells": rows[["mult", "team", "n", "w"]].astype(int).values.tolist()})
+                      "n": int(counts[pid]), "median_week": float(med_week[pid]),
+                      "median_fair_pct": float(fair_pct[pid]), "median_paid_pct": float(paid_pct[pid]),
+                      "cells": rows[["mult", "share", "team", "n", "w"]].astype(int).values.tolist()})
     plist.sort(key=lambda p: -p["n"])
     (out / "players.json").write_text(json.dumps(plist, separators=(",", ":")))
 
