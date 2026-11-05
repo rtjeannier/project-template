@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--sims", type=int, default=400, help="simulated seasons per scenario")
     a.add_argument("--top", type=int, default=6, help="waiver candidates to evaluate")
     a.add_argument("--seed", type=int, default=0)
+    a.add_argument("--future", type=int, default=3, help="future studs to test overbidding/blocking on (0 = skip)")
     a.add_argument("--out", help="also write the report to this file")
 
     s = sub.add_parser("sample", help="write a synthetic league state file")
@@ -54,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
 
     state = LeagueState.load(args.league)
     t0 = time.time()
-    result = analyze(state, n_sims=args.sims, top_k=args.top, seed=args.seed)
+    result = analyze(state, n_sims=args.sims, top_k=args.top, seed=args.seed, n_future=args.future)
     report = render(result)
     print(report)
     print(f"\n_{time.time() - t0:.1f}s_", file=sys.stderr)

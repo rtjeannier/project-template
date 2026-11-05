@@ -114,6 +114,19 @@ P(win league), even if that's a $1 lottery ticket. All recommended bids are then
 submitted together as a **bid sheet**, with its own P(win league). Budgets are
 enforced the way Yahoo does it: a claim you can no longer afford is skipped.
 
+**Overbid to block?** For the top future studs (`--future N`, default 3), the
+analysis compares, on the same random draws:
+
+- **pass**: you never bid on him; rivals bid as usual.
+- **embargo**: he's removed when he hits waivers, so nobody gets him.
+- **bid X%**: whenever he hits waivers, you bid 25/50/75/100% of your FAAB at that time.
+
+*Blocking value* = P(win | nobody gets him) − P(win | you pass): what keeping him
+away from rivals is worth. *Own-use value* = P(win | best bid) − P(win | nobody gets
+him). The curve across bid levels shows where overbidding stops paying, because
+FAAB spent here can't buy the next stud. Rival managers don't price blocking into
+their own bids yet.
+
 ## League state file
 
 See the docstring in `guillotine/models.py`. One JSON file holds settings, teams

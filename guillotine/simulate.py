@@ -46,6 +46,10 @@ class UserPolicy:
     player: str | None = None
     price: int = 0
     bids: dict[str, int] | None = None  # mode "bid": your sealed bids {player_id: amount}; others bid as modeled
+    # Later rounds: whenever one of these players is on waivers, bid this share of your FAAB
+    # (0 = never bid on him). Applies on top of any mode.
+    future_bids: dict[str, float] | None = None
+    embargo: frozenset[str] = frozenset()  # players removed from the game when they hit waivers
 
 
 @dataclass
@@ -227,6 +231,10 @@ class Simulator:
         n_weeks = len(proj.weeks)
         weeks_left = n_weeks - j
 
+        if policy.embargo:
+            gone = {proj.index[pid] for pid in policy.embargo}
+            pool = [p for p in pool if p not in gone]
+            fa_pool = [p for p in fa_pool if p not in gone]
         candidates = sorted(set(pool) | set(fa_pool), key=lambda p: -vb[p])[: model.pool_consider]
         remaining = set(candidates)
 
@@ -303,6 +311,14 @@ class Simulator:
                     out[p] = amt
                     if self.bid_log is not None:
                         self.bid_log.append((sim, j, proj.ids[p], tid, amt, faab[tid]))
+            if tid == self.user and j > 0 and policy.future_bids:
+                for pid, share in policy.future_bids.items():
+                    p = proj.index[pid]
+                    if p in remaining:
+                        if share <= 0:
+                            out.pop(p, None)
+                        else:
+                            out[p] = int(share * faab[tid])
             return out
 
         bids = {tid: team_bids(tid) for tid in active}

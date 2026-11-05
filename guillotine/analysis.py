@@ -41,6 +41,7 @@ class Analysis:
     baseline: SimResults
     passed: SimResults
     candidates: list[Candidate] = field(default_factory=list)
+    blocking: list[dict] = field(default_factory=list)
     sheet: dict[str, int] = field(default_factory=dict)
     sheet_result: SimResults | None = None
     holes: list[dict] = field(default_factory=list)
@@ -65,8 +66,50 @@ def survive_through(res: SimResults, team_id: str, n_weeks: int) -> float:
     return float(alive[min(n_weeks, len(alive)) - 1])
 
 
+FUTURE_SHARES = (0.25, 0.5, 0.75, 1.0)  # share of your FAAB bid when a future target hits waivers
+
+
+def blocking_analysis(sim: Simulator, baseline: SimResults, targets: list[dict], n_sims: int) -> list[dict]:
+    """For players likely to hit waivers later: is it worth overbidding to keep them from rivals?
+
+    Compares, on the same random draws:
+      pass    - you never bid on him; rivals bid as usual
+      embargo - he's removed when he hits waivers (nobody gets him)
+      bid X%  - whenever he hits waivers you bid X% of your FAAB at that time
+    blocking value = P(win | nobody gets him) - P(win | you pass)
+    own-use value  = P(win | best bid) - P(win | nobody gets him)
+    """
+    me = sim.user
+    pid_of = {p.name: p.id for p in sim.state.players.values()}
+    rows = []
+    for t in targets:
+        pid = pid_of[t["player"]]
+        passed = sim.run(n_sims, UserPolicy("auto", future_bids={pid: 0.0}))
+        embargo = sim.run(n_sims, UserPolicy("auto", embargo=frozenset({pid})))
+        curve = []
+        for share in FUTURE_SHARES:
+            r = sim.run(n_sims, UserPolicy("auto", future_bids={pid: share}))
+            got = sum(1 for s, j, p, tid, a in r.awards if p == pid and tid == me and j > 0)
+            paid = [a for s, j, p, tid, a in r.awards if p == pid and tid == me and j > 0]
+            curve.append({"share": share, "p_champ": r.p_champion(me), "p_get": got / n_sims,
+                          "avg_paid": float(np.mean(paid)) if paid else 0.0})
+        # Who ends up with him when you pass, and how strong they are
+        owners = [tid for s, j, p, tid, a in passed.awards if p == pid and j > 0]
+        top_owner = max(set(owners), key=owners.count) if owners else None
+        best = max(curve, key=lambda c: c["p_champ"])
+        rows.append({
+            "player": t["player"], "pos": t["pos"], "typical_week": t["typical_week"],
+            "p_pass": passed.p_champion(me), "p_embargo": embargo.p_champion(me),
+            "block_value": embargo.p_champion(me) - passed.p_champion(me),
+            "own_value": best["p_champ"] - embargo.p_champion(me),
+            "curve": curve, "best_share": best["share"],
+            "usual_owner": next((x.name for x in sim.state.teams if x.id == top_owner), "-"),
+        })
+    return rows
+
+
 def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0,
-            sim: Simulator | None = None) -> Analysis:
+            sim: Simulator | None = None, n_future: int = 3) -> Analysis:
     sim = sim or Simulator(state, seed=seed)
     me = state.my_team_id
     my_faab = int(state.team(me).faab)
@@ -109,6 +152,8 @@ def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0
 
     out.holes = roster_holes(sim)
     out.future_targets = future_targets(sim, baseline)
+    if n_future > 0:
+        out.blocking = blocking_analysis(sim, baseline, out.future_targets[:n_future], n_sims)
     out.opponents = opponent_table(sim, baseline)
     return out
 

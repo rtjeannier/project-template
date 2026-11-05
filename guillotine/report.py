@@ -95,6 +95,25 @@ def render(a: Analysis) -> str:
             f"{r['your_gain']:.1f} | ${r['median_price']:.0f} | {_pct(r['p_you_win'])} |")
     add("")
 
+    if a.blocking:
+        add("## Overbid to block? Future studs")
+        add("")
+        add("Whenever the player hits waivers, you bid X% of your FAAB at that time. **Blocking value** = how much "
+            "your title odds rise if *nobody* gets him vs letting rivals bid for him. **Own-use value** = the extra "
+            "from rostering him yourself at the best bid level.")
+        add("")
+        hdr = " | ".join(f"Bid {int(100 * s)}%" for s in (c["share"] for c in a.blocking[0]["curve"]))
+        add(f"| Player | Usually goes to | P(win) if you pass | Blocking value | Own-use value | {hdr} |")
+        add("|---|---|---:|---:|---:|" + "---:|" * len(a.blocking[0]["curve"]))
+        for b in a.blocking:
+            cells = " | ".join(f"{_pct(c['p_champ'])} (get {_pct(c['p_get'])}, ~${c['avg_paid']:.0f})" for c in b["curve"])
+            add(f"| {b['player']} ({b['pos']}, wk~{b['typical_week']}) | {b['usual_owner']} | {_pct(b['p_pass'])} | "
+                f"{_signed_pct(b['block_value'])} | {_signed_pct(b['own_value'])} | {cells} |")
+        add("")
+        add("Cells: P(win league) at that bid level (how often you get him, average price paid). "
+            "Compare against the noise band above before acting on small differences.")
+        add("")
+
     add("## League board")
     add("")
     add("| Team | FAAB | Proj pts/wk | P(cut this week) | P(win league) | Weakest slots |")
