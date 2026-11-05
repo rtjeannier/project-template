@@ -210,6 +210,89 @@ def _goodbid(b, team_order) -> dict:
             "teams": len(team_order)}
 
 
+
+N_CONDITIONS = 10
+MIN_SEASONS = 200  # a condition needs this many seasons on each side to be shown
+
+
+def _scenarios(weeks, seasons, bids, injuries, players, teams, names, week_list, start_rosters) -> dict:
+    """What has to go right for each team: the conditions that move its title odds most.
+
+    Candidates per team: each rival is cut by week k (the k that matters most), each
+    notable player gets hurt (a rival's) or stays healthy (the team's own), and the team
+    lands each notable player. For each: how often it happens and the team's title odds
+    with and without it. The top N_CONDITIONS by swing x uncertainty are kept, with a
+    per-season bitmask so the page can check any combination.
+    """
+    season_ids = seasons.season.values
+    n = len(season_ids)
+    pos_of = {sid: i for i, sid in enumerate(season_ids)}
+    champ = seasons.set_index("season").champion_id.reindex(season_ids).values
+    team_ids = list(teams.team_id)
+    cut = weeks[weeks.cut].groupby(["season", "team_id"]).week.min().unstack()
+    cut = cut.reindex(index=season_ids, columns=team_ids)  # NaN = never cut (the champion)
+    edge = dict(zip(players.player_id, players.final_edge))
+    pname = dict(zip(players.player_id, players.name))
+    notable = [pid for pid, e in edge.items() if e > -3]  # elite and starter tiers
+    owner = {pid: t for t, pids in start_rosters.items() for pid in pids}
+
+    def mask_of(pairs):
+        m = np.zeros(n, dtype=bool)
+        idx = [pos_of[sid] for sid in pairs]
+        m[idx] = True
+        return m
+
+    hurt = {pid: mask_of(g.season.unique()) for pid, g in injuries.groupby("player_id")} if len(injuries) else {}
+    won = bids[bids.won]
+    landed = {(t, pid): mask_of(g.season.unique()) for (t, pid), g in won.groupby(["team_id", "player_id"])}
+    none = np.zeros(n, dtype=bool)
+
+    out = {"seasons": n, "teams": []}
+    for t in team_ids:
+        win = champ == t
+        cands = []
+
+        def score(mask):
+            k = int(mask.sum())
+            if k < MIN_SEASONS or n - k < MIN_SEASONS:
+                return None
+            f = k / n
+            return abs(win[mask].mean() - win[~mask].mean()) * (f * (1 - f)) ** 0.5
+
+        def add(label, kind, mask):
+            sc = score(mask)
+            if sc is not None:
+                cands.append((sc, label, kind, mask))
+
+        for u in team_ids:
+            if u == t:
+                continue
+            options = [(score(cut[u].values <= k), k) for k in week_list[:-1]]
+            options = [(sc, k) for sc, k in options if sc is not None]
+            if options:
+                _, k = max(options)
+                add(f"{names[u]} is cut by week {k}", "results", cut[u].values <= k)
+        for pid in notable:
+            h = hurt.get(pid, none)
+            if owner.get(pid) == t:
+                add(f"{pname[pid]} (yours) stays healthy", "injury", ~h)
+            else:
+                who = f" ({names[owner[pid]]})" if pid in owner else ""
+                add(f"{pname[pid]}{who} gets hurt", "injury", h)
+            add(f"{names[t]} lands {pname[pid]}", "pickup", landed.get((t, pid), none))
+        cands.sort(key=lambda c: -c[0])
+        top = cands[:N_CONDITIONS]
+        bits = np.zeros(n, dtype=np.int64)
+        conds = []
+        for i, (_, label, kind, mask) in enumerate(top):
+            bits |= mask.astype(np.int64) << i
+            conds.append({"label": label, "kind": kind, "freq": round(float(mask.mean()), 4),
+                          "p_yes": round(float(win[mask].mean()), 4), "p_no": round(float(win[~mask].mean()), 4)})
+        out["teams"].append({"name": names[t], "p_win": round(float(win.mean()), 4), "conditions": conds,
+                             "bits": bits.tolist(), "won": np.flatnonzero(win).tolist()})
+    return out
+
+
 def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, anonymize: bool = False) -> list[Path]:
     d, out = Path(data_dir), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -267,6 +350,10 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     paths = _paths(bids, weeks, seasons, teams, names, pn_all := dict(zip(players.player_id, players.name)),
                    dict(zip(players.player_id, players.pos)), meta["weeks"])
     (out / "paths.json").write_text(json.dumps(paths, separators=(",", ":")))
+    league = json.loads((d / "league.json").read_text())
+    start_rosters = {str(t["id"]): [str(p) for p in t["players"]] for t in league["teams"]}
+    scen = _scenarios(weeks, seasons, bids, injuries, players, teams, names, meta["weeks"], start_rosters)
+    (out / "scenarios.json").write_text(json.dumps(scen, separators=(",", ":")))
     goodbid = _goodbid(b, team_order)
     (out / "goodbid.json").write_text(json.dumps(goodbid, separators=(",", ":")))
     survival = _survival(bids, weeks, teams, meta["weeks"], fb)

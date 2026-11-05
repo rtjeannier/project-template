@@ -222,6 +222,11 @@ The page has:
   situation" table. No model "fair bid" is used. With data where bids were fair ×
   noise, bid % isn't randomized, so treat it as association until a run with bids
   drawn uniformly from 0–100% of FAAB.
+- **What has to go right:** pick a team and see the ~10 conditions that move its title
+  odds most: who gets cut and by when, key injuries (its own players staying healthy,
+  rivals' getting hurt), and key pickups. Each shows how often it happens and the
+  title odds with and without it. Tick any combination to see how often it happens
+  and the title odds when it does.
 - **Week by week, survival by choices:** pick a team and a week. Every season the team
   is alive going into that week is grouped by what it did that week (average bid vs
   fair, FAAB spent, whether it landed a lineup upgrade), and each group gets a survival

@@ -109,6 +109,14 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   </section>
 
   <section class="panel">
+    <h2>What has to go right</h2>
+    <p class="note">The conditions that move a team's title odds the most: who gets cut and when, key injuries, and key pickups. Tick any combination to see how often it happens and the title odds when it does. These are associations, not guarantees.</p>
+    <div class="fgroup" style="max-width:320px"><label class="label" for="scteam">Team</label><select id="scteam"></select></div>
+    <div class="tbl" style="max-height:none"><table id="sctbl"></table></div>
+    <p id="scsum" class="facts"></p>
+  </section>
+
+  <section class="panel">
     <h2>Week by week: survival by choices</h2>
     <p class="note">Pick a team and a week. Every season where the team is alive going into that week is grouped by what it did that week, and each group's line shows how often the team was still alive after each later cut. Bidding vs fair is randomized, so differences there are caused by the bidding; spending and pickups also reflect the situation the team was in.</p>
     <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
@@ -159,18 +167,18 @@ const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
 const MIN_TEAM_BIDS = 100, MIN_CELL = 15;
-let CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, GB, VIEW = "lift", AXIS = "mult";
+let CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, GB, SCEN, VIEW = "lift", AXIS = "mult";
 const sel = {};
 let playerFocus = null;
 
 async function load() {
   try {
-    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, GB] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json", "goodbid.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
+    [CUBE, PLAYERS, SEASONS, SUM, PATHS, SURV, GB, SCEN] = await Promise.all(["cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json", "goodbid.json", "scenarios.json"].map(f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); })));
   } catch (e) {
     $("lede").innerHTML = `<span class="err">Couldn't load the data files (${e.message}). Open this page from a web server, e.g. GitHub Pages or <code>python -m http.server</code> in this folder.</span>`;
     return;
   }
-  renderSummary(); renderGoodBid();
+  renderSummary(); renderGoodBid(); renderScenarioPicker();
   renderPlayers(); renderSeasonPicker(); renderPathsPicker(); renderSurvivalPicker();
 }
 function render() {
@@ -558,6 +566,34 @@ function renderGoodBidSummary() {
 }
 $("gb-all").onclick = () => { GB_MODE = "all"; renderGoodBid(); };
 $("gb-won").onclick = () => { GB_MODE = "won"; renderGoodBid(); };
+
+// ---- What has to go right ----------------------------------------------------------
+function renderScenarioPicker() {
+  const sel_ = $("scteam");
+  sel_.innerHTML = SCEN.teams.map((t, i) => `<option value="${i}">${t.name}${i === CUBE.you_team ? " (you)" : ""}</option>`).join("");
+  sel_.value = CUBE.you_team; sel_.onchange = renderScenarios; renderScenarios();
+}
+function renderScenarios() {
+  const T = SCEN.teams[+$("scteam").value];
+  const kind = { results: "Other teams", injury: "Injury", pickup: "Pickup" };
+  $("sctbl").innerHTML = `<thead><tr><th></th><th>Condition</th><th>Type</th><th class="n">Happens</th><th class="n">Title odds if it does</th><th class="n">…if it doesn't</th></tr></thead><tbody>` +
+    T.conditions.map((c, i) => `<tr><td><input type="checkbox" id="sc-${i}" aria-label="${escapeHtml(c.label)}"></td><td><label for="sc-${i}">${escapeHtml(c.label)}</label></td>
+      <td class="note">${kind[c.kind] || c.kind}</td><td class="n">${pct(c.freq, 0)}</td>
+      <td class="n ${c.p_yes > c.p_no ? "pos" : "neg"}">${pct(c.p_yes)}</td><td class="n">${pct(c.p_no)}</td></tr>`).join("") + `</tbody>`;
+  T.conditions.forEach((_, i) => { $(`sc-${i}`).onchange = scenarioSummary; });
+  scenarioSummary();
+}
+function scenarioSummary() {
+  const T = SCEN.teams[+$("scteam").value];
+  let want = 0; T.conditions.forEach((_, i) => { if ($(`sc-${i}`).checked) want |= (1 << i); });
+  if (!want) { $("scsum").innerHTML = `<span class="note">${T.name} wins the league in ${pct(T.p_win)} of seasons. Tick conditions above to combine them.</span>`; return; }
+  const wonSet = new Set(T.won);
+  let n = 0, w = 0;
+  T.bits.forEach((b, sIdx) => { if ((b & want) === want) { n++; if (wonSet.has(sIdx)) w++; } });
+  $("scsum").innerHTML = n < 30
+    ? `<span class="note">All ticked happen together in only ${n} of ${SCEN.seasons.toLocaleString()} seasons: too few to say.</span>`
+    : `<div><span class="label">All ticked happen</span><b>${pct(n / SCEN.seasons)}</b></div><div><span class="label">${T.name} wins then</span><b>${pct(w / n)}</b></div><div><span class="label">vs overall</span><b>${pct(T.p_win)}</b></div>`;
+}
 function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 load();
 </script>
