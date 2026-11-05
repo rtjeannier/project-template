@@ -119,6 +119,7 @@ class Simulator:
         self._avail = np.ones((len(self.proj.ids), n_w))  # per-sim: 1 if the player can play week k
         self._back = np.zeros(len(self.proj.ids), dtype=int)  # per-sim: first week index he's healthy again
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
+        self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
 
     # ------------------------------------------------------------------ public
 
@@ -186,6 +187,8 @@ class Simulator:
 
             n_elim = min(self.state.settings.eliminations_per_week, len(active) - 1)
             losers = sorted(active, key=lambda t: scores[t])[:n_elim]
+            if self.trace is not None:
+                self.trace.append(("week", sim, j, dict(scores), list(losers), {t: faab[t] for t in active}))
             dumped = []
             for tid in losers:
                 res.elim_counts[tid][j] += 1
@@ -203,6 +206,8 @@ class Simulator:
             champ = max(active, key=lambda t: last_scores.get(t, 0.0))
         res.champion_counts[champ] += 1
         res.user_final_faab.append(faab[self.user])
+        if self.trace is not None:
+            self.trace.append(("champ", sim, champ))
 
     # ------------------------------------------------------------ waiver round
 
@@ -408,6 +413,8 @@ class Simulator:
                 res.user_rule_bids.setdefault(pid, [])
                 if rule == "none":
                     out.pop(p, None)
+                    if self.trace is not None:
+                        self.trace.append(("rule", sim, j, pid, fair.get(p, 0), 0))
                     continue
                 rivals = [(t, expected[(t, p)]) for t in active if t != self.user and (t, p) in expected]
                 if isinstance(rule, str) and rule.startswith("x"):
@@ -429,6 +436,8 @@ class Simulator:
                 amt = int(min(max(amt, 1), faab[self.user]))
                 out[p] = amt
                 res.user_rule_bids[pid].append(amt)
+                if self.trace is not None:
+                    self.trace.append(("rule", sim, j, pid, fair.get(p, 0), amt))
             return out
 
         bids = {tid: team_bids(tid) for tid in active}
@@ -467,6 +476,10 @@ class Simulator:
             if best is None:
                 break
             (amt, _), tid, p = best
+            if self.trace is not None:
+                all_bids = {t: bids[t][p] for t in active if p in bids[t]}
+                self.trace.append(("award", sim, j, proj.ids[p], tid, int(amt), all_bids,
+                                   {t: faab[t] for t in active}))
             self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb)
             if tid == self.user and policy.rules and proj.ids[p] in policy.rules:
                 richest = max((faab[u] for u in active if u != tid), default=0)

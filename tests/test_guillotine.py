@@ -145,3 +145,19 @@ def test_uncertain_replacement_is_higher_far_out(state, sim):
     universe = set(range(len(sim.proj.ids)))
     near, far = sim._replacement(vb, universe, 2, 0.1), sim._replacement(vb, universe, 2, 0.3)
     assert far["RB"] > near["RB"]
+
+
+def test_inspect_export_and_viewer(state, tmp_path):
+    from guillotine.inspect import inspect_player, write
+    from guillotine.viewer import build
+
+    sim = Simulator(state, seed=1)
+    pid = max(sim.run(5).user_gain_now.items(), key=lambda kv: kv[1])[0]
+    data = inspect_player(state, pid, n_sims=6, n_timelines=2, rules=("none", "x1", "x2"))
+    assert len(data["seasons"]) == 18 and len(data["summary"]) == 3
+    for row in data["seasons"]:
+        if row["price"] is not None and row["won_by"] == state.team(state.my_team_id).name:
+            assert row["price"] == row["your_bid"]
+    paths = write(data, tmp_path)
+    html = build([paths[-1]], tmp_path / "inspector.html").read_text()
+    assert "/*DATA*/" not in html and data["player"] in html

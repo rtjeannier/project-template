@@ -1,0 +1,268 @@
+<title>Guillotine Scenario Inspector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: control strip on top, bid curve + season table side by side on wide screens, season drill-down below. */
+:root {
+  --bg: #f5f7f6; --panel: #ffffff; --ink: #18211f; --muted: #5d6b67; --line: #d9e1de;
+  --accent: #0f6b5c; --accent-soft: #dcefea; --win: #1f7a3a; --lose: #b3261e; --flag: #a15c00; --flag-soft: #fbecd6;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #101614; --panel: #17201d; --ink: #e6ecea; --muted: #97a6a1; --line: #2a3632;
+  --accent: #4fc2ad; --accent-soft: #1d3530; --win: #5cc47b; --lose: #f07a70; --flag: #f0b25a; --flag-soft: #3a2c16; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #101614; --panel: #17201d; --ink: #e6ecea; --muted: #97a6a1; --line: #2a3632;
+  --accent: #4fc2ad; --accent-soft: #1d3530; --win: #5cc47b; --lose: #f07a70; --flag: #f0b25a; --flag-soft: #3a2c16; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1280px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px; }
+h1, h2 { font-family: var(--display); letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; }
+h2 { font-size: 21px; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 75ch; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: end; }
+.controls > div { display: grid; gap: 4px; }
+select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+button { cursor: pointer; }
+button[aria-pressed="true"] { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.grid2 { display: grid; gap: 18px; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+@media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+td.num, th.num { text-align: right; font-family: var(--mono); font-size: 13px; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody tr.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.tbl-wrap { max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.you { background: var(--accent-soft); color: var(--accent); }
+.pill.win { color: var(--win); }
+.pill.lose { color: var(--lose); }
+.pill.flag { background: var(--flag-soft); color: var(--flag); }
+.kpis { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.kpi b { font-family: var(--mono); font-size: 18px; display: block; }
+svg text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+svg .title { fill: var(--ink); font-family: var(--body); font-size: 12px; font-weight: 600; }
+.timeline { display: grid; gap: 10px; }
+.wk { border-left: 3px solid var(--line); padding: 4px 0 4px 12px; display: grid; gap: 4px; }
+.wk.cut { border-left-color: var(--lose); }
+.wk h3 { font-family: var(--display); font-size: 17px; margin: 0; }
+.ev { font-size: 14px; }
+.ev.target { font-weight: 600; }
+.bids { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: normal; }
+.note { font-size: 13px; color: var(--muted); max-width: 80ch; }
+.empty { color: var(--muted); font-style: italic; }
+@media (prefers-reduced-motion: no-preference) { tbody tr { transition: background .12s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Guillotine Scenario Inspector</h1>
+    <p class="sub" id="intro"></p>
+  </header>
+
+  <section class="panel">
+    <div class="controls">
+      <div><span class="label">Player</span><div class="tabs" id="players"></div></div>
+      <div><label class="label" for="level">Bid level</label><select id="level"></select></div>
+      <div><label class="label" for="filter">Show seasons</label>
+        <select id="filter">
+          <option value="could">You could bid (alive when he hit waivers)</option>
+          <option value="all">All</option>
+          <option value="got">You got him</option>
+          <option value="missed">You bid and lost him</option>
+          <option value="champ">You won the league</option>
+          <option value="flag">Has a sanity flag</option>
+        </select></div>
+    </div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Bid curve</h2>
+      <p class="note">P(win league) at each bid level, over every simulated season. The band is ±2 standard errors: differences inside it are noise. Bars: how often you got him when you could bid.</p>
+      <div class="scroll"><svg id="curve" viewBox="0 0 520 300" width="100%" role="img" aria-label="Bid curve"></svg></div>
+      <div class="kpis" id="kpis"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Seasons</h2>
+      <p class="note">One row per simulated season at the selected bid level. Click a row to see that season across every bid level and week by week. <span class="pill flag">flag</span> marks something the algorithm shouldn't do.</p>
+      <div class="tbl-wrap"><table id="seasons"><thead></thead><tbody></tbody></table></div>
+      <div class="note" id="flagsum"></div>
+    </section>
+  </div>
+
+  <section class="panel" id="drill">
+    <h2 id="drill-title">Pick a season</h2>
+    <p class="note" id="drill-note">Every bid level replays the same season with the same player outcomes, so differences between rows come only from the bid.</p>
+    <div class="scroll"><table id="compare"><thead></thead><tbody></tbody></table></div>
+    <div class="timeline" id="timeline"></div>
+  </section>
+</div>
+
+<script>
+const DATA = /*DATA*/;
+const $ = (id) => document.getElementById(id);
+const money = (v) => v == null ? "–" : "$" + Math.round(v);
+const pct = (v) => (100 * v).toFixed(0) + "%";
+let cur = { player: 0, level: null, filter: "could", season: null };
+
+function flagsFor(r, bids) {
+  // Checks for things the algorithm should never do. A bid above the bidder's FAAB at
+  // award time is legal (they spent earlier in the same round), so it is skipped, not flagged.
+  const f = [], you = DATA_YOU();
+  const affordable = bids.filter(b => b.faab == null || b.bid <= b.faab);
+  const topOther = Math.max(-1, ...affordable.filter(b => !b.won).map(b => b.bid));
+  if (r.price != null && topOther > r.price) f.push("an affordable higher bid lost");
+  if (r.your_bid != null && r.your_faab_before != null && r.your_bid > r.your_faab_before) f.push("your bid exceeded your FAAB");
+  if (r.won_by === you && r.price != null && r.your_bid != null && r.price !== r.your_bid) f.push("price differs from your bid");
+  if (r.bid_level === "lock" && r.could_bid && r.won_by && r.won_by !== you && r.your_faab_before != null && r.price < r.your_faab_before)
+    f.push("lock lost while you could afford to top it");
+  if (r.your_faab_after != null && r.your_faab_after < 0) f.push("negative FAAB");
+  return f;
+}
+const P = () => DATA[cur.player];
+const DATA_YOU = () => P().you;
+
+function bidsIndex(p) {
+  if (p._bids) return p._bids;
+  const m = new Map();
+  for (const b of p.bids) { const k = b.bid_level + "|" + b.season; if (!m.has(k)) m.set(k, []); m.get(k).push(b); }
+  p._bids = m; return m;
+}
+
+function render() {
+  const p = P();
+  $("intro").textContent = `${p.n_sims} simulated seasons per bid level for ${p.player}, as ${p.you}. ` +
+    `Fair bid = your rational bid each time he's on waivers (same valuation rivals use, no noise); other levels are multiples of it.`;
+  const tabs = $("players"); tabs.innerHTML = "";
+  DATA.forEach((d, i) => { const b = document.createElement("button"); b.textContent = d.player; b.id = "player-" + i;
+    b.setAttribute("aria-pressed", i === cur.player); b.onclick = () => { cur.player = i; cur.season = null; cur.level = null; render(); }; tabs.appendChild(b); });
+  const sel = $("level"); sel.innerHTML = "";
+  for (const s of p.summary) { const o = document.createElement("option"); o.value = s.bid_level; o.textContent = s.bid_level; sel.appendChild(o); }
+  if (!cur.level) { const best = p.summary.reduce((a, b) => b.p_win_league > a.p_win_league ? b : a); cur.level = best.bid_level; }
+  sel.value = cur.level;
+  sel.onchange = () => { cur.level = sel.value; renderTable(); };
+  $("filter").value = cur.filter;
+  $("filter").onchange = () => { cur.filter = $("filter").value; renderTable(); };
+  renderCurve(); renderTable(); renderDrill();
+}
+
+function renderCurve() {
+  const p = P(), s = p.summary, n = p.n_sims;
+  const W = 520, H = 300, L = 44, R = 12, T = 22, B = 64;
+  const ys = s.map(x => x.p_win_league);
+  const se = s.map(x => Math.sqrt(Math.max(x.p_win_league * (1 - x.p_win_league), 1e-4) / n));
+  const ymax = Math.min(1, Math.max(...ys.map((y, i) => y + 2 * se[i])) * 1.15 + 0.01);
+  const x = (i) => L + (i + 0.5) * (W - L - R) / s.length;
+  const y = (v) => T + (1 - v / ymax) * (H - T - B);
+  const bw = (W - L - R) / s.length * 0.55;
+  let g = "";
+  const ticks = 4;
+  for (let k = 0; k <= ticks; k++) { const v = ymax * k / ticks;
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
+    g += `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${(100 * v).toFixed(0)}%</text>`; }
+  s.forEach((d, i) => { // got-him bars (scaled to the same 0..ymax axis as a share of ymax)
+    const h = d.p_get_when_could * (H - T - B);
+    g += `<rect x="${x(i) - bw / 2}" y="${H - B - h}" width="${bw}" height="${h}" fill="var(--accent-soft)"><title>got him ${pct(d.p_get_when_could)} when you could bid</title></rect>`; });
+  let path = "", band = "";
+  s.forEach((d, i) => { path += (i ? "L" : "M") + x(i) + "," + y(ys[i]); });
+  const up = s.map((d, i) => x(i) + "," + y(Math.min(ymax, ys[i] + 2 * se[i]))).join(" ");
+  const dn = s.map((d, i) => x(i) + "," + y(Math.max(0, ys[i] - 2 * se[i]))).reverse().join(" ");
+  g += `<polygon points="${up} ${dn}" fill="var(--accent)" opacity=".14"/>`;
+  g += `<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+  const best = ys.indexOf(Math.max(...ys));
+  s.forEach((d, i) => {
+    g += `<circle cx="${x(i)}" cy="${y(ys[i])}" r="${i === best ? 5 : 3.5}" fill="${i === best ? "var(--accent)" : "var(--panel)"}" stroke="var(--accent)" stroke-width="2"><title>${d.bid_level}: ${pct(ys[i])} win league</title></circle>`;
+    g += `<text x="${x(i)}" y="${H - B + 14}" text-anchor="end" transform="rotate(-35 ${x(i)} ${H - B + 14})">${d.bid_level}</text>`; });
+  g += `<text class="title" x="${L}" y="14">P(win league) by bid level</text>`;
+  $("curve").innerHTML = g;
+  const b = s[best], none = s[0];
+  $("kpis").innerHTML = `<div class="kpi"><span class="label">Best level</span><b>${b.bid_level}</b></div>
+    <div class="kpi"><span class="label">P(win league) there</span><b>${pct(b.p_win_league)}</b></div>
+    <div class="kpi"><span class="label">vs never bidding</span><b>${(100 * (b.p_win_league - none.p_win_league)).toFixed(1)} pts</b></div>
+    <div class="kpi"><span class="label">Noise (±2 SE)</span><b>±${(200 * se[best]).toFixed(1)} pts</b></div>
+    <div class="kpi"><span class="label">You can bid on him in</span><b>${pct(b.p_could_bid)}</b></div>`;
+}
+
+function rowsFor(level) {
+  const p = P(), idx = bidsIndex(p);
+  return p.seasons.filter(r => r.bid_level === level).map(r => ({ ...r, flags: flagsFor(r, idx.get(r.bid_level + "|" + r.season) || []) }));
+}
+
+function renderTable() {
+  const you = DATA_YOU();
+  let rows = rowsFor(cur.level);
+  const allFlags = rows.filter(r => r.flags.length).length;
+  rows = rows.filter(r => cur.filter === "all" || (cur.filter === "could" && r.could_bid) || (cur.filter === "got" && r.won_by === you)
+    || (cur.filter === "missed" && r.could_bid && r.won_by && r.won_by !== you && r.your_bid > 0) || (cur.filter === "champ" && r.you_won_league)
+    || (cur.filter === "flag" && r.flags.length));
+  const cols = [["season", "Season", 1], ["week_available", "Avail wk", 1], ["fair_bid", "Fair", 1], ["your_bid", "Your bid", 1],
+    ["top_rival_bid", "Top rival", 1], ["top_rival", "Rival", 0], ["won_by", "Won by", 0], ["price", "Price", 1],
+    ["your_faab_after", "Your FAAB after", 1], ["richest_rival_faab_after", "Richest rival", 1], ["you_cut_week", "You cut", 1], ["champion", "Champion", 0]];
+  $("seasons").querySelector("thead").innerHTML = "<tr>" + cols.map(c => `<th class="${c[2] ? "num" : ""}">${c[1]}</th>`).join("") + "<th>Flags</th></tr>";
+  const money_cols = new Set(["fair_bid", "your_bid", "top_rival_bid", "price", "your_faab_after", "richest_rival_faab_after"]);
+  const tb = $("seasons").querySelector("tbody");
+  tb.innerHTML = rows.map(r => `<tr data-s="${r.season}" class="${r.season === cur.season ? "sel" : ""}">` + cols.map(([k, , num]) => {
+    let v = r[k];
+    if (money_cols.has(k)) v = money(v);
+    else if (k === "won_by" && v) v = `<span class="pill ${v === you ? "you" : ""}">${v}</span>`;
+    else if (k === "champion" && v) v = `<span class="pill ${v === you ? "win" : ""}">${v}</span>`;
+    else if (k === "you_cut_week") v = v == null ? `<span class="pill win">never</span>` : `<span class="pill lose">wk ${v}</span>`;
+    else if (v == null) v = "–";
+    return `<td class="${num ? "num" : ""}">${v}</td>`; }).join("") +
+    `<td>${r.flags.map(f => `<span class="pill flag">${f}</span>`).join(" ")}</td></tr>`).join("") ||
+    `<tr><td colspan="13" class="empty">No seasons match this filter.</td></tr>`;
+  tb.querySelectorAll("tr[data-s]").forEach(tr => tr.onclick = () => { cur.season = +tr.dataset.s; renderTable(); renderDrill(); });
+  $("flagsum").textContent = allFlags ? `${allFlags} of ${rowsFor(cur.level).length} seasons at this level have a sanity flag.` : "No sanity flags at this bid level.";
+}
+
+function renderDrill() {
+  const p = P(), you = DATA_YOU();
+  if (cur.season == null) { $("drill-title").textContent = "Pick a season"; $("compare").querySelector("thead").innerHTML = ""; $("compare").querySelector("tbody").innerHTML = ""; $("timeline").innerHTML = ""; return; }
+  $("drill-title").textContent = `Season ${cur.season} at every bid level`;
+  const rows = p.seasons.filter(r => r.season === cur.season);
+  $("compare").querySelector("thead").innerHTML = "<tr><th>Bid level</th><th class='num'>Fair</th><th class='num'>Your bid</th><th class='num'>Top rival</th><th>Won by</th><th class='num'>Price</th><th class='num'>Your FAAB after</th><th>You cut</th><th>Champion</th></tr>";
+  $("compare").querySelector("tbody").innerHTML = rows.map(r => `<tr data-l="${r.bid_level}" class="${r.bid_level === cur.level ? "sel" : ""}">
+    <td>${r.bid_level}</td><td class="num">${money(r.fair_bid)}</td><td class="num">${money(r.your_bid)}</td><td class="num">${money(r.top_rival_bid)}</td>
+    <td>${r.won_by ? `<span class="pill ${r.won_by === you ? "you" : ""}">${r.won_by}</span>` : "–"}</td><td class="num">${money(r.price)}</td>
+    <td class="num">${money(r.your_faab_after)}</td><td>${r.you_cut_week == null ? '<span class="pill win">never</span>' : `<span class="pill lose">wk ${r.you_cut_week}</span>`}</td>
+    <td>${r.champion ? `<span class="pill ${r.champion === you ? "win" : ""}">${r.champion}</span>` : "–"}</td></tr>`).join("");
+  $("compare").querySelectorAll("tr[data-l]").forEach(tr => tr.onclick = () => { cur.level = tr.dataset.l; $("level").value = cur.level; renderTable(); renderDrill(); });
+  const tl = p.timelines[cur.level + "|" + cur.season];
+  const box = $("timeline");
+  if (!tl) { box.innerHTML = `<p class="empty">Week-by-week detail is kept for the first ${Object.keys(p.timelines).length / p.summary.length} seasons of each bid level. Pick one of those to see it.</p>`; return; }
+  const weeks = new Map();
+  for (const e of tl) { const w = e.week ?? "end"; if (!weeks.has(w)) weeks.set(w, []); weeks.get(w).push(e); }
+  let html = `<h2>Season ${cur.season}, ${cur.level}: week by week</h2>`;
+  for (const [w, evs] of weeks) {
+    const wkEv = evs.find(e => e.type === "week");
+    const cut = wkEv && wkEv.cut.includes(you);
+    html += `<div class="wk ${wkEv && wkEv.cut.length ? "" : ""} ${cut ? "cut" : ""}"><h3>${w === "end" ? "Final result" : "Week " + w}</h3>`;
+    for (const e of evs) {
+      if (e.type === "your_bid") html += `<div class="ev target">You bid ${money(e.bid)} on ${e.player} (fair bid ${money(e.fair)})</div>`;
+      if (e.type === "award") html += `<div class="ev ${e.target ? "target" : ""}">${e.player} → <span class="pill ${e.team === you ? "you" : ""}">${e.team}</span> for ${money(e.price)}
+        <div class="bids">${Object.entries(e.bids).map(([t, b]) => `${t} ${money(b)}`).join(" · ")}</div></div>`;
+      if (e.type === "week") html += `<div class="ev">Cut: <span class="pill lose">${e.cut.join(", ")}</span> · your score ${e.scores[you] ?? "–"} · your FAAB ${money(e.faab[you])}
+        <div class="bids">${Object.entries(e.scores).map(([t, v]) => `${t} ${v}`).join(" · ")}</div></div>`;
+      if (e.type === "champion") html += `<div class="ev">Champion: <span class="pill ${e.team === you ? "win" : ""}">${e.team}</span></div>`;
+    }
+    html += `</div>`;
+  }
+  box.innerHTML = html;
+}
+
+render();
+</script>

@@ -14,6 +14,9 @@ guillotine = "guillotine.cli:main"
 [tool.setuptools]
 packages = ["guillotine", "guillotine.providers"]
 
+[tool.setuptools.package-data]
+guillotine = ["viewer_template.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

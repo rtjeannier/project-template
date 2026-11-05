@@ -145,6 +145,31 @@ whole because the targets compete for the same budget. "Get him" only counts sea
 where he hit waivers while you were alive. `--future N` sets how many players from
 other rosters are evaluated (default 5).
 
+## Inspecting scenarios
+
+To check the algorithm, or to see when over- or under-bidding pays, export every
+simulated season for one target:
+
+```bash
+python -m guillotine inspect league.json --player "Jahmyr Gibbs" --sims 300 --out inspect_gibbs
+python -m guillotine viewer inspect_gibbs/inspect.json --out inspector.html
+```
+
+`inspect` runs every bid level (none, 0.5×–3× fair, all-in, lock) on the same random
+draws and writes:
+
+- `seasons.csv`: one row per (bid level, season). It has when he hit waivers, your fair
+  bid and actual bid, the top rival bid, who won him and at what price, your FAAB after
+  vs the richest rival's, when you were cut, and the champion.
+- `bids.csv`: every team's bid on him, with their FAAB at the time.
+- `timelines.json`: week-by-week detail (every award with all bids, scores, cuts,
+  FAAB) for the first `--timelines` seasons of each level.
+
+`viewer` builds one HTML page from any number of exports. It shows the bid curve with
+a noise band, a filterable season table with sanity flags (an affordable higher bid
+losing, a price that differs from your bid, a lock losing when you could afford to top
+it, negative FAAB), the same season at every bid level, and the full timeline.
+
 ## League state file
 
 See the docstring in `guillotine/models.py`. One JSON file holds settings, teams

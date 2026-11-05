@@ -38,7 +38,36 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--scoring", default="PPR")
     f.add_argument("--out", default="data/raw/fantasypros")
 
+    i = sub.add_parser("inspect", help="export every simulated scenario for one target player")
+    i.add_argument("league", help="league state JSON file")
+    i.add_argument("--player", required=True, help="player name, e.g. 'Jahmyr Gibbs'")
+    i.add_argument("--sims", type=int, default=300)
+    i.add_argument("--timelines", type=int, default=40, help="seasons per bid level with full week-by-week detail")
+    i.add_argument("--seed", type=int, default=0)
+    i.add_argument("--out", default="inspect_out")
+
+    v = sub.add_parser("viewer", help="build the Scenario Inspector page from inspect.json exports")
+    v.add_argument("files", nargs="+", help="inspect.json files from `inspect`")
+    v.add_argument("--out", default="inspector.html")
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "viewer":
+        from .viewer import build
+
+        print(build(args.files, args.out))
+        return 0
+
+    if args.cmd == "inspect":
+        from .inspect import inspect_player, write
+
+        data = inspect_player(LeagueState.load(args.league), args.player, args.sims, args.timelines, args.seed)
+        for path in write(data, args.out):
+            print(path)
+        for row in data["summary"]:
+            print(f"{row['bid_level']:>12}  P(win league) {100 * row['p_win_league']:5.1f}%  "
+                  f"could bid {100 * row['p_could_bid']:4.0f}%  got him {100 * row['p_get_when_could']:4.0f}%")
+        return 0
 
     if args.cmd == "fetch-fantasypros":
         from .providers.fantasypros import fetch_raw
