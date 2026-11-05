@@ -213,3 +213,15 @@ def test_site_build_from_simulated_data(state, tmp_path):
     assert {"index.html", "cube.json", "players.json", "seasons.json", "summary.json"} <= files
     summary = json.loads((tmp_path / "site" / "summary.json").read_text())
     assert summary["you"] == "You" and all(t["name"].startswith(("Team ", "You")) for t in summary["teams"])
+
+
+def test_free_replacement_never_beats_real_players_this_week(state, sim):
+    # This week's free replacement is chosen by projection, so it can't exceed the best
+    # player actually available.
+    from guillotine.simulate import revealed_sd
+
+    vb = sim.proj.value_basis[0]
+    universe = set(range(len(sim.proj.ids)))
+    repl = sim._replacement(vb, universe, 2, revealed_sd(0))
+    for pos, v in repl.items():
+        assert v <= max(vb[p] for p in universe if sim.proj.pos[p] == pos)

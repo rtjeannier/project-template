@@ -78,11 +78,11 @@ TARGET_RULES = ("none", "x0.5", "x0.75", "x1", "x1.25", "x1.5", "x2", "x3", "all
 def final_edge(sim: Simulator) -> dict[str, float]:
     """Each player's projected points per week above week-17 replacement (two teams left).
     Positive = irreplaceable in the final: he counts for you and against your opponent."""
-    from .simulate import horizon_sd
+    from .simulate import revealed_sd
 
     proj = sim.proj
     vb = proj.value_basis[-1]
-    repl = sim._replacement(vb, set(range(len(proj.ids))), 2, horizon_sd(len(proj.weeks) - 1))
+    repl = sim._replacement(vb, set(range(len(proj.ids))), 2, revealed_sd(len(proj.weeks) - 1))
     return {pid: float(vb[i] - repl.get(proj.pos[i], 0.0)) for i, pid in enumerate(proj.ids)}
 
 

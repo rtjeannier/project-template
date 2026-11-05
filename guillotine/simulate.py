@@ -39,6 +39,14 @@ def horizon_sd(weeks_ahead: int) -> float:
     return float(np.sqrt(PROJ_ERROR_NOW**2 + max(weeks_ahead, 0) * PROJ_ERROR_STEP**2))
 
 
+def revealed_sd(weeks_ahead: int) -> float:
+    """How much will be learned about players between now and a round this far ahead.
+    Zero for this week's waivers: you can't pick a future breakout today, only by
+    projection. Later rounds pick from players whose breakouts have been seen, so the
+    best free player then is likely better than today's projections suggest."""
+    return float(np.sqrt(max(weeks_ahead, 0)) * PROJ_ERROR_STEP)
+
+
 _NORMAL = NormalDist()
 REPL_DRAWS = np.random.default_rng(7).standard_normal((40, 400))  # fixed draws for uncertain replacement levels
 # Injuries: weekly chance a player gets hurt in a game. A share of injuries end his
@@ -301,7 +309,7 @@ class Simulator:
         n_alive = [len(active) - r * e for r in range(weeks_left) if len(active) - r * e >= 2]
         # Replacement level for each round, as seen from now: further-out rounds are less
         # certain, so the best free player is likelier to be someone who broke out.
-        repl = {n: self._replacement(vb, universe, n, horizon_sd(r)) for r, n in enumerate(n_alive)}
+        repl = {n: self._replacement(vb, universe, n, revealed_sd(r)) for r, n in enumerate(n_alive)}
         # Odds as they stand before waivers (this week's projections, current rosters).
         # They're recalculated after every pickup below.
         odds = self._cut_odds(rosters, active, j)
