@@ -142,6 +142,7 @@ class Simulator:
         self._back = np.zeros(len(self.proj.ids), dtype=int)  # per-sim: first week index he's healthy again
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
         self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
+        self.why_no_bid: list | None = None  # set to [] to record why teams skipped a player (diagnostics)
         self._added_this_round: dict = {}  # players each team added in the current waiver round
         # Week-17 value of each player as known in the current round (0 if he's out for the
         # rest of the season). Bench players are judged on this: a backup's job is the final.
@@ -440,13 +441,20 @@ class Simulator:
                 own = max(gain - free[0].get(ps, 0.0), gain - free[-1].get(ps, 0.0))
                 deny = vb[p] - repl[n_alive[-1]].get(ps, 0.0)
                 slot = self._slot_check(rosters[tid], p, vb)
+                why = self.why_no_bid
                 if slot == "blocked":
+                    if why is not None:
+                        why.append((sim, j, proj.ids[p], tid, "blocked by roster limits", gain, own, deny, 0.0))
                     continue  # he'd be the backup dropped to stay within the QB/TE limits
                 bench_up = own < model.min_gain and slot == "upgrade"
                 if own < model.min_gain and deny <= 0 and not bench_up:
+                    if why is not None:
+                        why.append((sim, j, proj.ids[p], tid, "no lineup gain, nothing to deny, not a better backup", gain, own, deny, 0.0))
                     continue  # no use to us and replaceable: nothing to deny
                 value = weighted_par(tid, gain, ps, free, vb[p])
                 if value <= 0 and not bench_up:
+                    if why is not None:
+                        why.append((sim, j, proj.ids[p], tid, "value 0", gain, own, deny, value))
                     continue
                 lock = int(max((faab[u] for u in active if u != tid), default=0)) + 1
                 # The fair bid: the rational bid with no noise. For rivals it's what you could
