@@ -420,6 +420,8 @@ class Simulator:
                 for u in active}
         SLOTS = {"QB": ("QB",), "RB": ("RB",), "WR": ("WR",), "TE": ("TE",), "FLEX": FLEX_POS}
 
+        available = [x for x in set(pool) | set(fa_pool)]
+
         def team_bids(tid: str) -> dict[int, int]:
             out = {}
             roster = rosters[tid]
@@ -457,9 +459,22 @@ class Simulator:
                 return c_fin * ev
 
             o_slot = {k: slot_o(g) for k, g in SLOTS.items()}
+            # This week's alternative: every other player on waivers or free agency now.
+            # A slot that only needs filling this week (a bye, an injury) can be filled by
+            # the next-best available player, so a claim only gets credit for beating him.
+            gain_now = {}
+            for x in available:
+                if now[x] > 0:
+                    g = spec.total(roster + [x], now, proj.pos) - base_now
+                    if g > 1e-9:
+                        gain_now[x] = g
             why = self.why_no_bid
             for p in remaining:
-                g_now = max(0.0, spec.total(roster + [p], now, proj.pos) - base_now)
+                g_now = gain_now.get(p, 0.0)
+                if g_now > 0:
+                    group_now = self._slot_group(roster, p, now)
+                    alt = max((g for x, g in gain_now.items() if x != p and proj.pos[x] in group_now), default=0.0)
+                    g_now = max(0.0, g_now - alt)
                 g_fin = self._final_gain(roster, p, fin, q_out, base_fin, without)
                 if tid == self.user and j > 0:
                     self._note_user_gain(res, sim, j, proj.ids[p], g_fin)
@@ -486,7 +501,7 @@ class Simulator:
                 if det < 0:
                     continue
                 # A lineup claim starts this week or in week 17; otherwise he's a backup.
-                kind = "lineup" if (g_now > 0 or spec.total(roster + [p], fin, proj.pos) > base_fin + 1e-9) else "bench"
+                kind = "lineup" if (gain_now.get(p, 0.0) > 0 or spec.total(roster + [p], fin, proj.pos) > base_fin + 1e-9) else "bench"
                 locked = det == lock and lock <= faab[tid]
                 if locked:
                     # Guaranteeing the win is worth it: bid exactly the lock price (top every

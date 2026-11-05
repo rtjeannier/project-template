@@ -2,7 +2,7 @@
 
 Each team values a player on its own, without guessing rivals' bids:
 
-    V        = P(cut this week) x this week's lineup gain
+    V        = P(cut this week) x this week's gain over the best other player available now
              + P(reach the final and lose it) x expected week-17 lineup gain
     O_slot   = expected best player for the same slot the team could land later
     surplus  = V - O_slot

@@ -41,7 +41,7 @@ weeks matter: **this week**, if the team might be cut now, and **week 17**, the 
 The middle weeks don't enter the price, so a bye week doesn't make a player cheaper.
 
 ```
-V        = P(cut this week) × this week's lineup gain
+V        = P(cut this week) × this week's gain over the best other player available now
          + P(reach the final and lose it) × expected week-17 lineup gain
 O_slot   = P(lose final) × expected best later option for the same slot
 surplus  = V − O_slot                      (no bid if ≤ 0)
@@ -53,6 +53,9 @@ bid      = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at F
   judged on week-17 projections, with P(he's hurt before then) taken off. A player who
   wouldn't start in week 17 is a backup: his value is P(a starter he'd replace is
   out) × how much better he is than the next man up.
+- **This week** only needs the slot filled once (a bye, an injury), so the gain
+  counts only above the next-best player at that slot on waivers or free agency this
+  week. A one-week fill-in is cheap when other options are free.
 - **The slot** is the one held by the starter who drops out of the week-17 lineup.
   QB, RB, WR and TE fill first, then flex takes the best of the rest, so with two great
   RBs and two great WRs a new RB or WR really replaces the worst flex starter, and any
