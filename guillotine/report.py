@@ -20,10 +20,16 @@ def _rule(r) -> str:
         return "$1 lottery ticket"
     if r == "lock":
         return "lock: top richest rival's budget"
+    if r == "all-in":
+        return "all-in"
+    if isinstance(r, int):
+        return f"${r}"
     return f"beat the field {100 * float(r):.0f}%"
 
 
 def _level(r) -> str:
+    if isinstance(r, int):
+        return f"${r}"
     return r if isinstance(r, str) else f"beat {100 * float(r):.0f}%"
 
 
@@ -55,10 +61,10 @@ def render(a: Analysis) -> str:
 
     add("## Who to target, and how much to bid")
     add("")
-    add("Each row is a standing rule: **whenever he's on waivers and you're still alive, bid this way**. "
-        "Rules are set against what the rivals who want him can bid, like Jeopardy wagering: *beat the field X%* "
-        "= enough to top every interested rival X% of the time, judged from their FAAB and needs (not their actual "
-        "bids); *lock* = top the richest interested rival's whole budget. "
+    add("Each row is the best of the bids tried: **whenever he's on waivers and you're still alive, bid this**. "
+        "Tried: none, $1, $50–$400 (capped at what you have), all-in, and *lock* (top the richest interested "
+        "rival's whole budget). Rivals bid rationally with random noise, and lock when guaranteeing the win is "
+        "worth it to them. "
         "Candidates are this week's best pool players plus the players on other rosters who are irreplaceable in "
         "the final (projected above week-17 replacement) and likely to hit waivers while you can bid. "
         "**Final edge** = his projected points/week above week-17 replacement (allowing for how uncertain week 17 "
@@ -76,12 +82,21 @@ def render(a: Analysis) -> str:
             f"{'$' + format(b['avg_paid'], '.0f') if b['avg_paid'] else '-'} | {wk} "
             f"({_pct(b['p_chance'])} of seasons) |")
     add("")
-    add("P(win league) under each rule tried:")
+    add("### Every bid tried")
+    add("")
+    add("P(win league) for each bid; in brackets, how often you get him when you can bid, then your FAAB left vs "
+        "the richest rival's right after you win him (medians).")
     add("")
     for t in a.targets:
-        add(f"- {players[t['player_id']].name}: " + ", ".join(
-            f"{_level(c['rule'])} → {_pct(c['p_champ'])}" for c in t["curve"]))
-    add("")
+        add(f"**{players[t['player_id']].name}**")
+        add("")
+        add("| Bid | P(win league) | Get him | Your FAAB left | Richest rival |")
+        add("|---|---:|---:|---:|---:|")
+        for c in t["curve"]:
+            left = f"${c['left']:.0f}" if c.get("left") is not None else "-"
+            rich = f"${c['richest']:.0f}" if c.get("richest") is not None else "-"
+            add(f"| {_level(c['rule'])} | {_pct(c['p_champ'])} | {_pct(c['p_get'])} | {left} | {rich} |")
+        add("")
 
     add("## This week's pool: what it takes to win each player")
     add("")

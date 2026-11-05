@@ -83,13 +83,12 @@ later pools (from the weakest teams' rosters), scaled by competition
 team is cut. In the last round there's no future, so a team will spend its whole
 budget on an upgrade.
 
-`shade`, `manager_sd` and `bid_noise_sd` are fit to a real league's FAB offers:
-every bid on each round's top player, as a share of the bidder's remaining FAAB,
-was p25 0.10, median 0.23, p75 0.41, p90 0.56. The simulator matches that within
-about 0.02 for weeks 9–12. Its 90th percentile is a bit high (0.67), because a few
-managers go all-in. For a known big spender or hoarder, set `aggression` per team in
-the league file. Set `Simulator.bid_log = []` to record every simulated bid for
-re-calibration.
+Managers are **rational with noise**: everyone uses this valuation, and each bid gets
+random noise (`bid_noise_sd`) so it isn't predictable. There are no per-manager
+personalities (`manager_sd` = 0), but you can set `aggression` per team in the league
+file for a known hoarder or spender. **Lock:** if topping every other team's whole
+FAAB costs less than the player is worth to a manager, they pay exactly that and
+guarantee the win. Set `Simulator.bid_log = []` to record every simulated bid.
 
 **Projection uncertainty grows with the horizon.** A player's true level is a random
 walk around his projection: about ±10% for this week (`PROJ_ERROR_NOW`), with ±8% added
@@ -125,26 +124,23 @@ P(win league), even if that's a $1 lottery ticket. All recommended bids are then
 submitted together as a **bid sheet**, with its own P(win league). Budgets are
 enforced the way Yahoo does it: a claim you can no longer afford is skipped.
 
-**Who to target.** The report's main table is a plan. Candidates are this week's best
-pool players plus the players on other rosters who are **irreplaceable in the final**:
-projected above week-17 replacement (two teams left) and likely to hit waivers while
-you can still bid. For each, the analysis tries a standing rule, "whenever he's on
-waivers and I'm alive, bid like this", on the same random draws:
+**Who to target, and what to bid.** The report's main table is a plan. Candidates
+are this week's best pool players plus the players on other rosters who are
+**irreplaceable in the final**: projected above week-17 replacement (two teams left)
+and likely to hit waivers while you can still bid. For each one, the analysis
+simulates bidding **none, $1, $50, $100, $150, $200, $300, $400, all-in, or lock**
+(top the richest rival's whole budget) whenever he's on waivers and you're alive, on
+the same random draws. It reports which bid gave the best P(win league). For every
+bid it also shows how often you get him, and your FAAB left against the richest
+rival's right after you win him: with twice their money, you can take later players
+they can't afford.
 
-- **none** / **$1** lottery ticket
-- **beat the field 50/75/90%**: the smallest bid that tops every interested rival
-  with that probability. It's estimated the way you would in real life: from each
-  rival's FAAB, need and typical bidding, never from their actual bids. Each rival's
-  bid is lognormal around that estimate and capped by their budget.
-- **lock**: top the richest interested rival's whole budget.
-
-Like Jeopardy wagering, rules are set against what rivals can bid, not your own
-balance. Letting rivals overpay now (so you can afford several irreplaceable players
-later) and staying alive long enough to collect both show up in P(win league). The
-best rule per target forms the plan, which then runs as a whole because the rules
-compete for the same budget. "P(you get him)" only counts seasons where he hit
-waivers while you were alive. `--future N` sets how many players from other rosters
-are evaluated (default 6).
+The trade-offs are counted directly. Paying up now leaves less for later studs.
+Letting a rival overpay makes later studs cheaper for you. Waiting only pays if you
+survive to collect. The best bid per target forms the plan, which then runs as a
+whole because the targets compete for the same budget. "Get him" only counts seasons
+where he hit waivers while you were alive. `--future N` sets how many players from
+other rosters are evaluated (default 5).
 
 ## League state file
 

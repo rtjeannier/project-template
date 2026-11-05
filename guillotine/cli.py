@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--sims", type=int, default=400, help="simulated seasons per scenario")
     a.add_argument("--top", type=int, default=6, help="waiver candidates to evaluate")
     a.add_argument("--seed", type=int, default=0)
-    a.add_argument("--future", type=int, default=6, help="irreplaceable players on other rosters to evaluate as targets")
+    a.add_argument("--future", type=int, default=5, help="irreplaceable players on other rosters to evaluate as targets")
     a.add_argument("--out", help="also write the report to this file")
 
     s = sub.add_parser("sample", help="write a synthetic league state file")

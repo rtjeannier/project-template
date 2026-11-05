@@ -69,10 +69,10 @@ def survive_through(res: SimResults, team_id: str, n_weeks: int) -> float:
     return float(alive[min(n_weeks, len(alive)) - 1])
 
 
-# Standing rules tried for each target: never, a $1 lottery ticket, enough to beat every
-# interested rival 50/75/90% of the time (estimated from their FAAB and need), or "lock"
-# (top the richest interested rival's whole budget).
-TARGET_RULES = ("none", "$1", 0.5, 0.75, 0.9, "lock")
+# Bids tried for each target, whenever he's on waivers and you're alive: never, $1, fixed
+# dollar amounts (capped at what you have then), everything, or "lock" (top the richest
+# interested rival's whole budget).
+TARGET_RULES = ("none", "$1", 50, 100, 150, 200, 300, 400, "all-in", "lock")
 
 
 def final_edge(sim: Simulator) -> dict[str, float]:
@@ -122,6 +122,8 @@ def target_analysis(sim: Simulator, targets: list[str], n_sims: int) -> list[dic
                 "p_get": len(mine) / could if could else 0.0, "p_chance": could / n_sims,
                 "avg_paid": float(np.mean([a for _, a in mine])) if mine else 0.0,
                 "weeks": [r.weeks[j] for j, _ in mine],
+                "left": float(np.median([a for a, _ in r.user_rule_after.get(pid, [])])) if r.user_rule_after.get(pid) else None,
+                "richest": float(np.median([b for _, b in r.user_rule_after.get(pid, [])])) if r.user_rule_after.get(pid) else None,
             })
         best = max(curve, key=lambda c: (round(c["p_champ"], 4), -TARGET_RULES.index(c["rule"])))
         owner = next((t.name for t in sim.state.teams if pid in t.players), "waivers now")
@@ -132,7 +134,7 @@ def target_analysis(sim: Simulator, targets: list[str], n_sims: int) -> list[dic
 
 
 def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0,
-            sim: Simulator | None = None, n_future: int = 6) -> Analysis:
+            sim: Simulator | None = None, n_future: int = 5) -> Analysis:
     sim = sim or Simulator(state, seed=seed)
     me = state.my_team_id
     my_faab = int(state.team(me).faab)
@@ -152,7 +154,7 @@ def analyze(state: LeagueState, n_sims: int = 400, top_k: int = 6, seed: int = 0
                                         suggested_bid=0, p_win_at_suggested=0.0))
 
     # Who to target, and how much of your FAAB to bid whenever each one is available
-    targets = pick_targets(sim, baseline, n_now=3, n_future=n_future)
+    targets = pick_targets(sim, baseline, n_now=2, n_future=n_future)
     out.targets = target_analysis(sim, targets, n_sims)
     out.plan = {t["player_id"]: t["best"]["rule"] for t in out.targets}
     out.plan_result = sim.run(n_sims, UserPolicy("auto", rules=dict(out.plan)))

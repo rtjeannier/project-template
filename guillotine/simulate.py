@@ -86,6 +86,8 @@ class SimResults:
     # player -> sims where he was on waivers in a later round while you were still alive to bid
     user_could_bid: dict[str, set[int]] = field(default_factory=dict)
     user_rule_bids: dict[str, list[int]] = field(default_factory=dict)  # what your standing rules bid
+    # after you win a target: (your FAAB left, richest rival's FAAB)
+    user_rule_after: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
 
     def p_alive_after(self, team_id: str) -> np.ndarray:
         """P(team still alive after each week)."""
@@ -366,6 +368,7 @@ class Simulator:
                 value = weighted_par(tid, gain, ps, free, vb[p])
                 if value <= 0:
                     continue
+                lock = int(max((faab[u] for u in active if u != tid), default=0)) + 1
                 amt = model.bid(
                     value=value,
                     opportunity=opp,
@@ -373,6 +376,7 @@ class Simulator:
                     aggression=aggression[tid],
                     noise=rng.lognormal(0, model.bid_noise_sd),
                     min_bid=settings.min_bid,
+                    lock_price=lock,
                 )
                 if amt >= 0:
                     out[p] = amt
@@ -399,7 +403,11 @@ class Simulator:
                     out.pop(p, None)
                     continue
                 rivals = [(t, expected[(t, p)]) for t in active if t != self.user and (t, p) in expected]
-                if rule == "$1" or not rivals:
+                if rule == "all-in":
+                    amt = int(faab[self.user])
+                elif isinstance(rule, int):
+                    amt = rule  # a fixed dollar amount (capped at what you have)
+                elif rule == "$1" or not rivals:
                     amt = 1
                 elif rule == "lock":
                     amt = int(max(faab[t] for t, _ in rivals)) + 1
@@ -448,6 +456,9 @@ class Simulator:
                 break
             (amt, _), tid, p = best
             self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb)
+            if tid == self.user and policy.rules and proj.ids[p] in policy.rules:
+                richest = max((faab[u] for u in active if u != tid), default=0)
+                res.user_rule_after.setdefault(proj.ids[p], []).append((faab[tid], richest))
             # The pickup changes everyone's elimination odds: recalculate before more claims.
             odds = self._cut_odds(rosters, active, j)
             weight = self._elimination_weights(odds, n_alive)
