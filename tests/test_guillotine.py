@@ -317,11 +317,28 @@ def test_drops_are_only_players_on_the_roster_at_submission(state):
 
 
 def test_backup_pickups_improve_week_17(state):
-    """A backup-only pickup must be better for the final (week 17) than the player dropped."""
+    """A backup-only pickup must be better for the final (week 17) than the player dropped,
+    using week-17 values as known that round (a player out for the season is worth 0)."""
     sim = Simulator(state, seed=8)
     sim.trace = []
+    final_at = {}
+    orig = sim._final_value
+
+    def fv(j):
+        v = orig(j)
+        final_at[(sim._current_sim, j)] = v
+        return v
+
+    sim._final_value = fv
+    orig_run = sim._run_one
+
+    def run_one(s, *a, **k):
+        sim._current_sim = s
+        return orig_run(s, *a, **k)
+
+    sim._run_one = run_one
     sim.run(10)
-    final = {sim.proj.ids[i]: v for i, v in enumerate(sim.proj.means[:, -1])}
+    idx = sim.proj.index
     kind = {(e[1], e[2], e[3], e[4]): e[9] for e in sim.trace if e[0] == "bid"}
     claims = {(e[1], e[2], e[3], e[4]): e[5] for e in sim.trace if e[0] == "claim"}
     checked = 0
@@ -330,7 +347,8 @@ def test_backup_pickups_improve_week_17(state):
             continue
         key = (e[1], e[2], e[3], e[4])
         drop = claims.get(key)
-        if kind.get(key) == "bench" and drop is not None and final[drop] > 0:
-            assert final[e[3]] > final[drop]
+        if kind.get(key) == "bench" and drop is not None:
+            f = final_at[(e[1], e[2])]
+            assert f[idx[e[3]]] > f[idx[drop]]
             checked += 1
-    assert checked >= 0
+    assert checked > 0

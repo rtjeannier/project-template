@@ -678,31 +678,23 @@ class Simulator:
         return plan
 
     def _slot_check(self, roster: list[int], p: int, vb) -> str:
-        """Can player p join this roster, and would he be a better backup than someone there?
+        """Can player p join this roster, and would he be a better backup?
 
-        Starters come from this week's values (vb). Backups are compared on their week-17
-        projection, because a bench spot is for the final: a bye or a short slump now
-        doesn't make a backup worse.
+        He's compared with the player the team would actually have to drop to fit him
+        (the roster rules decide who: lowest week-17 value, keeping 1 backup RB and 1
+        backup WR and at most 1 backup QB / 2 backup TEs), on week-17 projection, because
+        a bench spot is for the final. A bye or a short slump now doesn't make a backup worse.
 
-        "blocked": adding him would break the backup QB/TE limit and he's not clearly
-        better for week 17 than the worst one, so he'd be the one dropped. "upgrade": clearly
-        better for week 17 than the worst bench player in his slot group (QB vs bench QBs;
-        RB/WR/TE vs flex-eligible bench players), or there's an open spot or no backup at
-        his slot yet. "no": neither.
+        "upgrade": clearly better for week 17 than that player, or he fits in an open spot.
+        "blocked": the rules would drop him again (he'd be the worst backup QB/TE).
+        "no": he fits, but isn't clearly better for week 17.
         """
-        proj, fv = self.proj, self._final
-        ps = proj.pos[p]
-        _, starters = self.spec.best(roster, vb, proj.pos)
-        bench = [q for q in roster if q not in starters]
-        same = [q for q in bench if proj.pos[q] == ps]
-        if ps in BENCH_MAX and len(same) >= BENCH_MAX[ps]:
-            return "upgrade" if _clearly_better(fv[p], min(fv[q] for q in same)) else "blocked"
-        if len(roster) < self.state.settings.roster_size:
+        d = self._drop_for(roster, p, vb)
+        if isinstance(d, tuple):  # open roster spot
             return "upgrade"
-        group = same if ps == "QB" else [q for q in bench if proj.pos[q] in FLEX_POS]
-        if not group:
-            return "upgrade"
-        return "upgrade" if _clearly_better(fv[p], min(fv[q] for q in group)) else "no"
+        if d == p:
+            return "blocked"
+        return "upgrade" if _clearly_better(self._final[p], self._final[d]) else "no"
 
     def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, vb, protected=frozenset()) -> None:
         """Drop bench players until the roster fits: at most 1 backup QB and 2 backup TEs,
