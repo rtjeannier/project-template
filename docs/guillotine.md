@@ -85,8 +85,11 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
   what a dollar is worth to it (its FAAB ÷ the best it could hope to add at each
   position), capped by its FAAB. You win him if the money you set aside beats the willingness
   of every rival still alive when he comes back (bid noise affects only the actual bids,
-  not this estimate); the uncertainty is which rivals are still alive. Your money buys the best set it can afford, at most one per position plus
-  injury cover: money spent now shrinks that set. A backup's value is injury cover for
+  not this estimate); the uncertainty is which rivals are still alive. Your money buys the best set it can afford, split across pots for each lineup
+  spot that could be upgraded (QB, two RBs, two WRs, TE, flex) plus injury cover. A second
+  pickup at a position is valued over the lineup after the best first one, and all pots
+  draw on the same money, so winning one stud leaves less for the others and money spent
+  now shrinks the set. A backup's value is injury cover for
   the final only; the weeks before the final count only for players who'd start.
 - **Win vs lose.** Losing the claim keeps all the money, including for a later player in
   this slot, and someone else (assumed your richest rival) paid at least your bid, so it
