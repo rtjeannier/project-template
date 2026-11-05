@@ -98,7 +98,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
     <h3>FAAB left over time (% of today's FAAB): seasons won vs lost</h3>
     <div class="chart-wrap"><svg id="pfaab" viewBox="0 0 640 260" width="100%" role="img" aria-label="FAAB left by week, won vs lost seasons"></svg></div>
     <h3>Missing a player: what it cost</h3>
-    <p class="note">Players who hit waivers while this team was alive (the first time they hit waivers that season). Impact = the team's win rate when it got him minus when it didn't, in percentage points, overall and by when he became available. Blank = fewer than 15 seasons in that group.</p>
+    <p class="note">Players who hit waivers while this team was alive (the first time they hit waivers that season). Paid = this team's median price when it got him (and as a % of its FAAB then). Winning price = the median price whoever got him paid. Who usually wins him = share of these seasons each team got him (the rest: someone else, or nobody). Impact = the team's win rate when it got him minus when it didn't, in percentage points. A dash = fewer than 15 seasons in that group.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="ppsearch">Search</label><input id="ppsearch" placeholder="Player name"></div>
     <div class="tbl"><table id="pplayers"></table></div>
   </section>
@@ -129,7 +129,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-05_06:44_UTC";
+const BUILD = "2026-11-05_06:57_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
@@ -368,24 +368,26 @@ function renderPaths() {
 }
 function renderPathPlayers() {
   const T = PATHS.teams[+$("pteam").value], q = $("ppsearch").value.trim().toLowerCase();
-  const WL = PATHS.when_labels;
-  const impact = (cells, when) => {
+  const impact = (cells) => {
     let ng = 0, wg = 0, nm = 0, wm = 0;
-    for (const [wh, got, n, w] of cells) { if (when != null && wh !== when) continue; if (got) { ng += n; wg += w; } else { nm += n; wm += w; } }
-    if (ng < 15 || nm < 15) return { d: null, ng, nm };
+    for (const [got, n, w] of cells) { if (got) { ng += n; wg += w; } else { nm += n; wm += w; } }
+    if (ng < 15 || nm < 15) return { d: null, ng, nm, pg: ng ? wg / ng : null, pm: nm ? wm / nm : null };
     const pg = wg / ng, pm = wm / nm, se = Math.sqrt(Math.max(pg * (1 - pg), 1e-6) / ng + Math.max(pm * (1 - pm), 1e-6) / nm);
     return { d: pg - pm, se, pg, pm, ng, nm };
   };
   const rows = T.players.filter(p => !q || p.name.toLowerCase().includes(q))
-    .map(p => ({ p, all: impact(p.cells, null), by: WL.map((_, i) => impact(p.cells, i)) }))
+    .map(p => ({ p, all: impact(p.cells) }))
     .sort((a, b) => (b.all.d ?? -9) - (a.all.d ?? -9));
   const cell = (r) => r.d == null ? "–" : `<span class="${Math.abs(r.d) < 2 * r.se ? "flat" : r.d > 0 ? "pos" : "neg"}">${(r.d >= 0 ? "+" : "") + (100 * r.d).toFixed(1)} pts</span>`;
-  $("pplayers").innerHTML = `<thead><tr><th>Player</th><th>Pos</th><th class="n">Available</th><th class="n">Got him</th><th class="n">Win rate got</th><th class="n">Win rate missed</th><th class="n">Impact</th>${WL.map(l => `<th class="n">${l}</th>`).join("")}</tr></thead><tbody>` +
+  const usd = (v) => v == null ? "–" : "$" + Math.round(v).toLocaleString();
+  const who = (p) => (p.winners || []).map(([nm, sh]) => `${nm === T.name ? "<b>" + nm + "</b>" : nm} ${pct(sh, 0)}`).join(", ") || "–";
+  $("pplayers").innerHTML = `<thead><tr><th>Player</th><th>Pos</th><th class="n">Available</th><th class="n">Got him</th><th class="n">${T.name} paid</th><th class="n">Winning price</th><th>Who usually wins him</th><th class="n">Win rate got</th><th class="n">Win rate missed</th><th class="n">Impact</th></tr></thead><tbody>` +
     (rows.map(r => {
-      const a = r.all, n = a.ng + a.nm;
-      return `<tr><td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${n.toLocaleString()}</td><td class="n">${n ? pct(a.ng / n) : "–"}</td>
-      <td class="n">${a.pg == null ? "–" : pct(a.pg)}</td><td class="n">${a.pm == null ? "–" : pct(a.pm)}</td><td class="n">${cell(a)}</td>${r.by.map(b => `<td class="n">${cell(b)}</td>`).join("")}</tr>`;
-    }).join("") || `<tr><td colspan="${7 + WL.length}" class="note">No players match.</td></tr>`) + `</tbody>`;
+      const a = r.all, n = a.ng + a.nm, p = r.p;
+      return `<tr><td>${p.name}</td><td>${p.pos}</td><td class="n">${n.toLocaleString()}</td><td class="n">${n ? pct(a.ng / n) : "–"}</td>
+      <td class="n">${p.paid == null ? "–" : usd(p.paid) + " (" + pct(p.paid_pct, 0) + ")"}</td><td class="n">${usd(p.price)}</td><td>${who(p)}</td>
+      <td class="n">${a.pg == null ? "–" : pct(a.pg)}</td><td class="n">${a.pm == null ? "–" : pct(a.pm)}</td><td class="n">${cell(a)}</td></tr>`;
+    }).join("") || `<tr><td colspan="10" class="note">No players match.</td></tr>`) + `</tbody>`;
 }
 
 

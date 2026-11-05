@@ -60,7 +60,6 @@ def _faab_before(weeks: pd.DataFrame, teams: pd.DataFrame, week_list: list[int])
 
 FAAB_BINS = [-1, 0.10, 0.25, 0.50, 0.75, 10]
 FAAB_LABELS = ["under 10%", "10–25%", "25–50%", "50–75%", "75%+"]
-WHEN_BINS = [(9, 11, "weeks 9–11"), (12, 14, "weeks 12–14"), (15, 17, "weeks 15–17")]
 
 
 def _paths(bids, weeks, seasons, teams, names, pname, ppos, week_list, min_avail: int = 40) -> dict:
@@ -79,11 +78,13 @@ def _paths(bids, weeks, seasons, teams, names, pname, ppos, week_list, min_avail
     w["won"] = w.season.map(champ) == w.team_id
     w["frac"] = w.faab_after_waivers / w.team_id.map(start).clip(lower=1)
     w["bin"] = pd.cut(w.frac, FAAB_BINS, labels=False)
-    out = {"weeks": week_list, "faab_labels": FAAB_LABELS, "when_labels": [x[2] for x in WHEN_BINS], "teams": []}
+    out = {"weeks": week_list, "faab_labels": FAAB_LABELS, "teams": []}
 
     # first week each player hit waivers (any bid on him) in each season
     first = bids[["season", "week", "player_id"]].drop_duplicates().groupby(["season", "player_id"]).week.min().reset_index()
-    got = bids[bids.won][["season", "player_id", "team_id"]].drop_duplicates()
+    won_rows = bids[bids.won].drop_duplicates(["season", "player_id"])
+    won_rows = won_rows.assign(pct=won_rows.price / won_rows.faab.clip(lower=1))
+    got = won_rows[["season", "player_id", "team_id"]]
     for t in teams.team_id:
         tw = w[w.team_id == t]
         by_week = []
@@ -101,16 +102,22 @@ def _paths(bids, weeks, seasons, teams, names, pname, ppos, week_list, min_avail
         av = av.merge(g, on=["season", "player_id"], how="left")
         av["got"] = av.got.fillna(False).astype(bool)
         av["won"] = av.season.map(champ) == t
-        av["when"] = 0
-        for i, (a, b2, _) in enumerate(WHEN_BINS):
-            av.loc[(av.week >= a) & (av.week <= b2), "when"] = i
-        stats = av.groupby(["player_id", "when", "got"]).won.agg(["size", "sum"]).reset_index()
+        stats = av.groupby(["player_id", "got"]).won.agg(["size", "sum"]).reset_index()
         counts = av.groupby("player_id").size()
+        # Who won him, and for how much, in those same seasons (first time he hit waivers).
+        sales = av[["season", "player_id"]].merge(won_rows, on=["season", "player_id"])
         plist = []
         for pid in counts[counts >= min_avail].index:
             sp = stats[stats.player_id == pid]
+            sold = sales[sales.player_id == pid]
+            mine = sold[sold.team_id == t]
+            top = sold.team_id.value_counts()
             plist.append({"id": str(pid), "name": pname.get(pid, str(pid)), "pos": ppos.get(pid, ""),
-                          "cells": sp[["when", "got", "size", "sum"]].astype(int).values.tolist()})
+                          "cells": sp[["got", "size", "sum"]].astype(int).values.tolist(),
+                          "paid": float(mine.price.median()) if len(mine) else None,
+                          "paid_pct": float(mine.pct.median()) if len(mine) else None,
+                          "price": float(sold.price.median()) if len(sold) else None,
+                          "winners": [[names[u], round(float(c) / int(counts[pid]), 3)] for u, c in top.head(3).items()]})
         out["teams"].append({"name": names[t], "seasons": int(len(seasons)), "wins": int((seasons.champion_id == t).sum()),
                              "start_faab": float(start[t]), "by_week": by_week, "players": plist})
     return out

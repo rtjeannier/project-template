@@ -208,8 +208,8 @@ The page has:
   differ from its losing ones: win rate by FAAB left after each week's waivers (only
   seasons it's still alive), median FAAB left in won vs lost seasons, and the cost of
   missing each player (its win rate when it got him minus when it didn't, counting
-  only seasons he hit waivers while it was alive), overall and by when he became
-  available. These are associations: unlike bid multipliers, getting a player isn't
+  only seasons he hit waivers while it was alive), with what the team paid when it got
+  him, the median winning price, and which teams usually win him. These are associations: unlike bid multipliers, getting a player isn't
   randomized.
 - **Players:** most irreplaceable first: median week bid on, times won, and median
   winning price as a % of the winner's FAAB.
