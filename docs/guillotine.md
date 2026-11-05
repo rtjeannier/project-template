@@ -83,7 +83,8 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
   player expected to come back. Money also buys **injury cover**: if a starter gets hurt
   before week 17, it buys his replacement. All of it is weighted by P(lose the final).
 - **Win vs lose.** Losing the claim keeps all the money, including for a later player in
-  this slot. Winning gives his value now but leaves FAAB − b: lower odds on every later
+  this slot, and someone else paid at least your bid, so rivals have that much less to
+  compete with you later. Winning gives his value now but leaves FAAB − b: lower odds on every later
   claim, a later player in this slot only counts above him, and the injury cover he
   provides no longer has to be bought. The fair bid is the price where the two are equal.
   If winning isn't better even at $0 (his surplus over waiting), there's no bid. The bid

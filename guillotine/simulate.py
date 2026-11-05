@@ -500,18 +500,30 @@ class Simulator:
             rounds = len(n_alive)
             # P(rival v is still alive after round r)
             alive_after = {v: 1.0 - np.cumsum(weight[v][:rounds]) for v in active}
-            share_of = {}  # rival whose player it is -> share at each money level, averaged over when he returns
+            # Shares by rival whose player it is, averaged over when he'd return:
+            # share_of[u][k]: this team keeps m_grid[k] (it won and paid money - m_grid[k]).
+            # share_lost[u][k]: this team keeps all its money but lost a bid of
+            #   b = money - m_grid[k], so a rival paid at least b and has that much less.
+            share_of, share_lost = {}, {}
+            spent = money - m_grid  # the bid at each grid point
             for u in active:
                 if u == tid or reach[u] <= 0:
                     continue
                 sh = np.zeros(len(m_grid))
+                sl = np.zeros(len(m_grid))
                 for r in range(rounds - 1):
                     if weight[u][r] <= 0:
                         continue
-                    rest = sum(float(faab[v]) * max(float(alive_after[v][r]), 0.0) for v in active if v not in (tid, u))
+                    others = [v for v in active if v not in (tid, u)]
+                    alive_r = [max(float(alive_after[v][r]), 0.0) for v in others]
+                    rest = sum(float(faab[v]) * a for v, a in zip(others, alive_r))
+                    avg_alive = float(np.mean(alive_r)) if alive_r else 0.0
                     sh += weight[u][r] * np.where(m_grid > 0, m_grid / np.maximum(m_grid + rest, 1e-9), 0.0)
+                    rest_l = np.maximum(rest - spent * avg_alive, 0.0)
+                    sl += weight[u][r] * (money / np.maximum(money + rest_l, 1e-9) if money > 0 else 0.0)
                 share_of[u] = sh / reach[u]
-            opt_x, opt_g, opt_reach, opt_pos, opt_share, opt_mult = [], [], [], [], [], []
+                share_lost[u] = sl / reach[u]
+            opt_x, opt_g, opt_reach, opt_pos, opt_share, opt_mult, opt_share_lost = [], [], [], [], [], [], []
             # Middle weeks a returning player would play for this team: he's freed after round
             # r and helps from round r+1 through the week before the final.
             mid_held = {u: (sum(weight[u][r] * max(0, n_mid - r) for r in range(rounds - 1)) / reach[u])
@@ -531,21 +543,24 @@ class Simulator:
                             opt_mult.append(per_point_final + per_point_mid * mid_held[u])
                             opt_reach.append(reach[u])
                             opt_share.append(share_of[u])
+                            opt_share_lost.append(share_lost[u])
                             opt_pos.append(ps)
             opt_g = np.array(opt_g, dtype=float)
             opt_reach = np.array(opt_reach, dtype=float)
             opt_pos = np.array(opt_pos, dtype=object)
             opt_share = np.array(opt_share, dtype=float).reshape(len(opt_g), len(m_grid))
+            opt_share_lost = np.array(opt_share_lost, dtype=float).reshape(len(opt_g), len(m_grid))
             opt_mult = np.array(opt_mult, dtype=float)  # title chance per point for each option
-            def best_landed(gains, mask) -> np.ndarray:
+            def best_landed(gains, mask, shares=None) -> np.ndarray:
                 """Expected best player reaching waivers for a slot (it needs one), each times
-                this team's share of claims when he'd return, at each money level."""
+                this team's share of claims when he'd return, at each grid point."""
+                shares = opt_share if shares is None else shares
                 g = np.where(mask, np.maximum(gains, 0.0), 0.0)
                 keep = g > 1e-9
                 if not keep.any():
                     return np.zeros(len(m_grid))
                 order = np.argsort(-g[keep])
-                gk, pk, shk = g[keep][order], opt_reach[keep][order], opt_share[keep][order]
+                gk, pk, shk = g[keep][order], opt_reach[keep][order], shares[keep][order]
                 none_before = np.cumprod(np.concatenate([[1.0], 1.0 - pk[:-1]]))
                 return ((gk * pk * none_before)[:, None] * shk).sum(axis=0)
 
@@ -570,6 +585,10 @@ class Simulator:
                     cover += part
                     cover_parts.append((st, grp, mask, g_rep, part))
             future_all = sum(upgrade.values()) + cover  # what this team's money is worth, by amount kept
+            # If it loses a bid of b, it keeps all its money and the winner has b less.
+            future_lost = sum(best_landed(opt_g * opt_mult, in_group[k], opt_share_lost) for k in SLOTS)
+            for st, grp, mask, g_rep, part in cover_parts:
+                future_lost = future_lost + q_out[st] * per_point_final * best_landed(g_rep, mask, opt_share_lost)
 
             # This week's alternative: every other player on waivers or free agency now.
             # A slot that only needs filling this week (a bye, an injury) can be filled by
@@ -626,20 +645,23 @@ class Simulator:
                     if b_s > 0:
                         cover_win += q_out[st] * per_point_final * best_landed(g_rep - b_s, mask) - part
                 future_win = future_all - upgrade[key] + after - cover + cover_win
-                lose = float(future_all[-1])
-                win = value + future_win  # by money kept, m_grid
-                if win[-1] <= lose:
+                lose = future_lost  # by the bid lost: b = money - m_grid
+                win = value + future_win  # by money kept: m_grid
+                if win[-1] <= lose[-1]:
                     if why is not None:
-                        why.append((sim, j, proj.ids[p], tid, "can do as well later", g_now, g_fin, value, lose - float(future_win[-1])))
+                        why.append((sim, j, proj.ids[p], tid, "can do as well later", g_now, g_fin, value, float(lose[-1] - future_win[-1])))
                     continue
                 # Fair bid: the most he can pay and still be better off winning than losing.
-                ok = np.nonzero(win >= lose)[0]
+                # Paying b means winning with money - b, versus losing a bid of b (a rival paid
+                # at least that). The diff rises as b falls; find where it crosses 0.
+                diff = win - lose
+                ok = np.nonzero(diff >= 0)[0]
                 k = int(ok[0])
                 if k == 0:
                     keep_min = 0.0
                 else:  # interpolate between grid points k-1 (not enough) and k (enough)
-                    w0, w1 = win[k - 1], win[k]
-                    keep_min = m_grid[k - 1] + (m_grid[k] - m_grid[k - 1]) * (lose - w0) / max(w1 - w0, 1e-12)
+                    d0, d1 = diff[k - 1], diff[k]
+                    keep_min = m_grid[k - 1] + (m_grid[k] - m_grid[k - 1]) * (-d0) / max(d1 - d0, 1e-12)
                 det = int(max(0.0, money - keep_min))
                 lock = int(max((faab[u] for u in active if u != tid), default=0)) + 1
                 if lock <= det:
@@ -666,7 +688,7 @@ class Simulator:
                     self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
                 if self.value_log is not None and submitting:
                     self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, v_now, v_mid, v_fin, value,
-                                           lose - float(future_win[-1]), lose, key, faab[tid], det))
+                                           float(lose[-1] - future_win[-1]), float(lose[-1]), key, faab[tid], det))
                 fair_all[(tid, p)] = det
                 kinds[(tid, p)] = kind
                 if tid != self.user:
