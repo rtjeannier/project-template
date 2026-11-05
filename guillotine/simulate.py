@@ -134,6 +134,7 @@ class Simulator:
         n_w = len(self.proj.weeks)
         self._avail = np.ones((len(self.proj.ids), n_w))  # per-sim: 1 if the player can play week k
         self._back = np.zeros(len(self.proj.ids), dtype=int)  # per-sim: first week index he's healthy again
+        self._hurt_week = np.full(len(self.proj.ids), n_w)  # per-sim: week index he got hurt (n_w = never)
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
         self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
         self.why_no_bid: list | None = None  # set to [] to record why teams skipped a player (diagnostics)
@@ -261,6 +262,92 @@ class Simulator:
         hurt_now = self._avail[:, j] == 0
         fv[hurt_now & (self._back >= len(self.proj.weeks))] = 0.0
         return fv
+
+    def _out_for_final(self, j: int) -> np.ndarray:
+        """P(each player misses week 17 through an injury that hasn't happened yet), seen
+        from waiver round j. He can get hurt in any game from week j to week 16; a
+        season-ending injury, or a short one still running in week 17, keeps him out.
+        Injuries that already happened are known (one per player per season)."""
+        n_w = len(self.proj.weeks)
+        last = n_w - 1
+        lo, hi = SHORT_INJURY_WEEKS
+        rate = self.inj_rate
+        out = np.zeros(len(rate))
+        for g in range(j, last):  # hurt in the game of week index g
+            k = last - g  # he misses g+1 .. g+d, so week 17 if d >= k
+            p_long = SEASON_ENDING_SHARE + (1 - SEASON_ENDING_SHARE) * max(0, hi - max(k, lo) + 1) / (hi - lo + 1)
+            out += rate * (1 - rate) ** (g - j) * p_long
+        out[self._hurt_week < j] = 0.0
+        return out
+
+    def _expected_final(self, roster: list[int], fin, q) -> float:
+        """Expected week-17 lineup total: the best lineup on week-17 projections, minus for
+        each starter P(he's out) x what the team loses if he is (the next man up plays).
+        This is what makes a backup worth something: he's the next man up."""
+        spec, pos = self.spec, self.proj.pos
+        total, starters = spec.best(roster, fin, pos)
+        loss = 0.0
+        for st in starters:
+            if q[st] > 0:
+                loss += q[st] * (total - spec.total([x for x in roster if x != st], fin, pos))
+        return total - loss
+
+    def _slot_group(self, roster: list[int], p: int, fin) -> tuple[str, ...]:
+        """The positions that could fill the slot p would fill for this team in week 17: his
+        own position for QB/TE or a dedicated RB/WR spot, any flex position if he'd play
+        flex. A player who wouldn't start is a backup, compared with backups like him
+        (QB with QBs, RB/WR/TE with flex players)."""
+        ps = self.proj.pos[p]
+        if ps not in FLEX_POS:
+            return (ps,)
+        label = next((lab for lab, x in self.spec.assign(roster + [p], fin, self.proj.pos) if x == p), None)
+        if label == ps:
+            return (ps,)
+        return FLEX_POS
+
+    def _claim_value(self, tid, roster, p, now, fin, q, c_now, c_final, base_now, base_final) -> dict:
+        """What player p is worth to this team, independent of what anyone else bids.
+
+        V = c_now x (this week's lineup gain) + c_final x (expected week-17 lineup gain)
+          c_now   = P(this team is cut this week): this week's points only matter if
+                    they're needed to survive.
+          c_final = P(this team reaches the final and loses it): week-17 points decide
+                    the title.
+        """
+        g_now = max(0.0, self.spec.total(roster + [p], now, self.proj.pos) - base_now)
+        g_final = max(0.0, self._expected_final(roster + [p], fin, q) - base_final)
+        return {"g_now": g_now, "g_final": g_final, "V": c_now * g_now + c_final * g_final}
+
+    def _slot_opportunity(self, tid, roster, group, rosters, active, weight, n_alive, fin, q,
+                          base_final, c_final, exclude=frozenset()) -> dict:
+        """O: can this team do better in the same slot later?
+
+        Candidates are players at the slot's positions on rival rosters. One reaches
+        waivers only if his team is cut, in round r with P = weight[rival][r], and this team
+        wins him with about future_share / (teams alive then). (No chance from a final
+        loser: the season is over.) Each is valued like V's week-17 part, and O is the
+        expected best one landed, not a sum: the slot needs one player."""
+        share = self.model.future_share
+        rounds = len(n_alive)
+        options = []
+        for u in active:
+            if u == tid:
+                continue
+            pool = [x for x in rosters[u] if self.proj.pos[x] in group and x not in exclude and fin[x] > 0]
+            pool.sort(key=lambda x: -fin[x])
+            land = sum(weight[u][r] * min(1.0, share / n_alive[r + 1]) for r in range(rounds - 1))
+            if land <= 0:
+                continue
+            for x in pool[:FUTURE_TOP_PLAYERS]:
+                g = self._expected_final(roster + [x], fin, q) - base_final
+                if g > 0:
+                    options.append((g, land, x, u))
+        ev, none_yet, top = 0.0, 1.0, []
+        for g, land, x, u in sorted(options, key=lambda o: -o[0]):
+            ev += none_yet * land * g
+            top.append((x, u, g, land))
+            none_yet *= 1.0 - land
+        return {"O17": ev, "O": c_final * ev, "options": top}
 
     def _known_value(self, j: int) -> np.ndarray:
         """Waiver value basis at week j, given injuries that have already happened: a hurt
