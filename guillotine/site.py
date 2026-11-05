@@ -219,7 +219,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     b["share"] = pd.cut(b.bid / b.faab.clip(lower=1), SHARE_EDGES, labels=False)
     # Only bids that went through: did paying more or less, when you got him, change
     # your chance of winning the league? Losing bids are left out.
-    wb = b[b.won]
+    wb = b[b.won & (b.kind != 2)]  # real claims only: $0-2 backup pickups say nothing about price
 
     keys = ["mult", "share", "kind", "edge", "pos", "week", "ratio", "cut", "fair", "team"]
     cube = wb.groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()

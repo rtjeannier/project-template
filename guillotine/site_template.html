@@ -85,7 +85,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
   <section class="panel">
     <h2>When your bid goes through: did the price matter?</h2>
-    <p class="note">Only winning bids: every time a team actually got the player, grouped by what it paid. Losing bids are left out. Keep in mind that a cheap win only happens when rivals bid low (often because they're broke or don't need him), which is itself a good position to be in, so part of the edge for underpaying is the situation, not the price.</p>
+    <p class="note">Only winning bids: every time a team actually got the player, grouped by what it paid. Losing bids and $0–2 backup pickups are left out. Keep in mind that a cheap win only happens when rivals bid low (often because they're broke or don't need him), which is itself a good position to be in, so part of the edge for underpaying is the situation, not the price.</p>
     <div style="display:flex;flex-wrap:wrap;gap:10px 24px">
       <div class="fgroup"><span class="label">Price measured as</span><div class="chips" role="group" aria-label="Price axis">
         <button class="chip" id="axis-mult" aria-pressed="true">Multiple of fair bid</button>
@@ -134,7 +134,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
   <section class="panel">
     <h2>Players</h2>
-    <p class="note">For each player won often enough: the median week teams bid on him, the median fair bid and the median winning price as a % of the bidder's FAAB at the time, and, for winning bids only, the change in win rate (within each team) when the winner paid under fair (below 0.9×) or over fair (above 1.1×) vs about fair. Click a player to chart him above.</p>
+    <p class="note">Most irreplaceable players first (final-week edge). For each player won often enough in real claims (not $0–2 backup pickups): the median week teams bid on him, the median fair bid and the median winning price as a % of the bidder's FAAB at the time, and, for winning bids only, the change in win rate (within each team) when the winner paid under fair (below 0.9×) or over fair (above 1.1×) vs about fair. Click a player to chart him above.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="psearch">Search</label><input id="psearch" placeholder="Player name"></div>
     <div class="tbl"><table id="ptbl"><thead><tr><th>Player</th><th>Pos</th><th class="n">Final edge</th><th class="n">Median week</th><th class="n">Fair, % of FAAB</th><th class="n">Paid, % of FAAB</th><th class="n">Times won</th><th class="n">Won under fair</th><th class="n">Won over fair</th></tr></thead><tbody></tbody></table></div>
   </section>
@@ -316,7 +316,7 @@ function renderPlayers() {
     for (const [m, sh, t, n, w] of p.cells) { g[t][m][0] += n; g[t][m][1] += w; }
     const under = liftFor(g, UNDER, FAIR), over = liftFor(g, OVER, FAIR);
     return { p, under: under.v, over: over.v };
-  }).sort((a, b) => (b.over ?? -9) - (a.over ?? -9));
+  }).sort((a, b) => b.p.edge - a.p.edge);
   const cell = (v) => v == null ? "–" : `<span class="${v > 0.005 ? "pos" : v < -0.005 ? "neg" : "flat"}">${(v >= 0 ? "+" : "") + (100 * v).toFixed(1)} pts</span>`;
   $("ptbl").querySelector("tbody").innerHTML = rows.map(r => `<tr class="click${r.p.id === playerFocus ? " sel" : ""}" data-id="${r.p.id}">
     <td>${r.p.name}</td><td>${r.p.pos}</td><td class="n">${r.p.edge > 0 ? "+" : ""}${r.p.edge.toFixed(1)}</td>
