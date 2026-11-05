@@ -225,3 +225,42 @@ def test_free_replacement_never_beats_real_players_this_week(state, sim):
     repl = sim._replacement(vb, universe, 2, revealed_sd(0))
     for pos, v in repl.items():
         assert v <= max(vb[p] for p in universe if sim.proj.pos[p] == pos)
+
+
+def test_roster_rules_by_slot(state, sim):
+    from guillotine.simulate import BENCH_MAX, BENCH_MIN
+
+    proj, vb = sim.proj, sim.proj.value_basis[0]
+    tid = state.my_team_id
+    roster = list(sim.init_rosters[tid])
+    others = [i for i in range(len(proj.ids)) if i not in roster]
+    # Pile on extra QBs and TEs, then enforce the rules.
+    extra = [i for i in others if proj.pos[i] == "QB"][:3] + [i for i in others if proj.pos[i] == "TE"][:4]
+    roster += extra
+    rosters, fa = {tid: roster}, []
+    sim._enforce_roster(0, 0, tid, extra[-1], rosters, fa, vb)
+    _, starters = sim.spec.best(rosters[tid], vb, proj.pos)
+    bench = [q for q in rosters[tid] if q not in starters]
+    for pos, cap in BENCH_MAX.items():
+        assert sum(proj.pos[q] == pos for q in bench) <= cap
+    assert len(rosters[tid]) <= state.settings.roster_size
+    for pos, need in BENCH_MIN.items():
+        if any(proj.pos[q] == pos for q in sim.init_rosters[tid] if q not in starters):
+            assert sum(proj.pos[q] == pos for q in bench) >= need
+    assert set(fa) == set(roster) - set(rosters[tid]) or fa
+
+
+def test_bench_upgrades_bid_zero_to_two(state, tmp_path):
+    import csv
+    import gzip
+    import json
+
+    from guillotine.dataset import generate
+
+    league = tmp_path / "league.json"
+    league.write_text(json.dumps(make_sample_league(seed=3, n_teams_alive=5, current_week=13)))
+    generate(state, league, n_seasons=6, out_dir=tmp_path / "data", chunk=3)
+    rows = list(csv.DictReader(gzip.open(tmp_path / "data" / "bids.csv.gz", "rt")))
+    bench = [r for r in rows if r["kind"] == "bench"]
+    assert all(int(r["fair_bid"]) == 1 and 0 <= int(r["bid"]) <= 2 for r in bench)
+    assert {r["kind"] for r in rows} <= {"lineup", "deny", "bench"}

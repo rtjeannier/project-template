@@ -29,13 +29,14 @@ MULT_EDGES = [-np.inf, 0.0, 0.5, 0.75, 0.9, 1.1, 1.25, 1.5, 2.0, np.inf]
 MULT_LABELS = ["$0 bid (draw ≤ 0)", "0–0.5×", "0.5–0.75×", "0.75–0.9×", "0.9–1.1× (fair)", "1.1–1.25×",
                "1.25–1.5×", "1.5–2×", "2×+"]
 DIMS = {
+    "kind": ("What the bid was for", ["lineup upgrade", "keep from rivals", "better backup ($1)"]),
     "edge": ("Player in the final", ["replaceable (edge ≤ 0)", "edge 0–2.5", "irreplaceable (edge > 2.5)"]),
     "pos": ("Position", ["QB", "RB", "WR", "TE"]),
     "week": ("Week", None),
     "ratio": ("Bidder's FAAB vs richest rival", ["under half", "half to equal", "1–2×", "over 2×"]),
     "cut": ("Bidder's cut risk that week", ["low (<8%)", "medium (8–15%)", "high (>15%)"]),
     "fair": ("Fair bid", ["$1–10", "$10–50", "$50–150", "$150+"]),
-    "you": ("Bidder", ["other teams", "you"]),
+    "team": ("Bidder", None),
 }
 
 
@@ -86,20 +87,27 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     b["cut"] = pd.cut(b.cut_odds, [-np.inf, 0.08, 0.15, np.inf], labels=False)
     b["fair"] = pd.cut(b.fair_bid, [0, 10, 50, 150, np.inf], labels=False)
     b["you"] = (b.team_id == you).astype(int)
+    team_order = list(teams.team_id)
+    b["team"] = b.team_id.map({t: i for i, t in enumerate(team_order)})
+    b["kind"] = b.kind.map({"lineup": 0, "deny": 1, "bench": 2})
     b = b[b.pos >= 0]
 
-    keys = ["mult", "edge", "pos", "week", "ratio", "cut", "fair", "you"]
+    keys = ["mult", "kind", "edge", "pos", "week", "ratio", "cut", "fair", "team"]
     cube = b.groupby(keys).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
     week_labels = [str(w) for w in meta["weeks"]]
     cube["week"] = cube["week"].map({w: i for i, w in enumerate(meta["weeks"])})
-    dims = {k: {"title": t, "labels": (labs if labs else week_labels)} for k, (t, labs) in DIMS.items()}
+    team_labels = [names[t] for t in team_order]
+    dims = {k: {"title": t, "labels": (labs if labs else (team_labels if k == "team" else week_labels))}
+            for k, (t, labs) in DIMS.items()}
+    champs = seasons.champion_id.value_counts(normalize=True)
     cube_out = {"keys": keys, "rows": cube[keys + ["n", "w"]].astype(int).values.tolist(),
-                "mult_labels": MULT_LABELS, "dims": dims}
+                "mult_labels": MULT_LABELS, "dims": dims, "you_team": team_order.index(you),
+                "team_p_champion": [float(champs.get(t, 0.0)) for t in team_order]}
     (out / "cube.json").write_text(json.dumps(cube_out, separators=(",", ":")))
 
     # --- per player
     pn = dict(zip(players.player_id, players.name))
-    pp = b.groupby(["player_id", "mult", "you"]).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
+    pp = b.groupby(["player_id", "mult", "team"]).agg(n=("won_league", "size"), w=("won_league", "sum")).reset_index()
     counts = b.groupby("player_id").size()
     keep = counts[counts >= 300].index
     plist = []
@@ -108,7 +116,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
         sub = players[players.player_id == pid].iloc[0]
         plist.append({"id": str(pid), "name": pn[pid], "pos": sub.pos, "edge": round(float(sub.final_edge), 2),
                       "n": int(counts[pid]), "median_fair": float(b[b.player_id == pid].fair_bid.median()),
-                      "cells": rows[["mult", "you", "n", "w"]].astype(int).values.tolist()})
+                      "cells": rows[["mult", "team", "n", "w"]].astype(int).values.tolist()})
     plist.sort(key=lambda p: -p["n"])
     (out / "players.json").write_text(json.dumps(plist, separators=(",", ":")))
 
@@ -141,7 +149,6 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
         samp.append({"season": s, "champion": names[champ], "weeks": wk})
     (out / "seasons.json").write_text(json.dumps(samp, separators=(",", ":")))
 
-    champs = seasons.champion_id.value_counts(normalize=True)
     summary = {"seasons": int(meta["seasons"]), "bids": int(len(bids)), "analyzed_bids": int(len(b)),
                "bid_sd": meta["bid_sd"], "you": names[you],
                "teams": [{"name": names[t], "faab": float(f), "p_champion": float(champs.get(t, 0.0)),

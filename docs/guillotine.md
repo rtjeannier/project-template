@@ -145,6 +145,28 @@ whole because the targets compete for the same budget. "Get him" only counts sea
 where he hit waivers while you were alive. `--future N` sets how many players from
 other rosters are evaluated (default 5).
 
+## Roster rules
+
+Starting lineup: QB, 2 RB, 2 WR, TE, 2 W/R/T flex (a TE can start at flex). Bench rules,
+by slot:
+
+- at most 1 backup QB, and at most 2 backup TEs
+- always keep at least 1 backup RB and 1 backup WR
+- 15 players max. When over, a team drops its lowest-value bench player that keeps
+  these rules, never a starter and never the player it just won.
+
+Teams bid on a player if he improves their starting lineup, if keeping him from rivals
+is worth something, or if he's a better backup than their worst bench player in his
+slot (QB vs bench QBs; RB/WR/TE vs flex-eligible bench players). A team never bids on a
+QB or TE who would just be dropped again to stay under the limits. A backup-only
+upgrade has a fair bid of $1 and is bid at random as $0, $1 or $2, unless denial is
+worth more. Each bid in the dataset is tagged `lineup`, `deny` or `bench`.
+
+Bids that add up to more than a team's FAAB are fine, as in Yahoo. Claims are processed
+league-wide from the highest bid down. After each win, any claim the team can no
+longer afford is skipped ("invalid claim"), and claims for players it no longer needs
+are cancelled. Bid amounts never change after submission.
+
 ## Simulated dataset
 
 ```bash
@@ -178,10 +200,15 @@ in that folder.
 
 The page has:
 
-- **Over- or under-bid, by situation:** P(bidder wins the league) by how far over or
-  under fair each bid was, with ±2 SE error bars. Filter by player's final-week edge,
-  position, week, bidder's FAAB vs the richest rival's, cut risk, fair-bid size, and
-  you vs everyone.
+- **Over- or under-bid, by situation:** by default, the **lift within each team**:
+  a team's win rate at each bid level divided by that team's own win rate across the
+  selected bids, averaged over teams with each team counted equally. This removes team
+  strength. Strong teams survive longer and place more bids, so a pooled average is
+  mostly them. A team that wins regardless of bidding shows lift near 1.0, and a long
+  shot that wins more when it overbids shows lift above 1. A pooled view is available
+  too. Filters: what the bid was for, final-week edge, position, week, FAAB vs the
+  richest rival, cut risk, fair-bid size, and bidding team. A per-team table shows each
+  team's underbid / fair / overbid lift.
 - **Players:** underbid vs fair vs overbid outcomes per player. Click one to chart him.
 - **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
   every award, scores and cuts.

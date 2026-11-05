@@ -10,8 +10,10 @@ produces different waivers each time. Nothing is analyzed here: the files are th
 record, to crawl afterwards.
 
 Files (gzip CSV):
-- ``bids.csv.gz``: season, week, team, player, fair bid, multiplier, bid, FAAB at the
-  time, the team's elimination odds that week, whether it won the player, and the price.
+- ``bids.csv.gz``: season, week, team, player, what the bid was for (``lineup`` upgrade,
+  ``deny`` = keeping him from rivals, ``bench`` = a better backup, fair bid $1), fair bid,
+  multiplier, bid, FAAB at the time, the team's elimination odds that week, whether it
+  won the player, and the price.
 - ``weeks.csv.gz``: each alive team's score each week, whether it was cut, and its FAAB
   after waivers.
 - ``drops.csv.gz``: players released to make room after a pickup.
@@ -69,9 +71,9 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
                 champ = e[2]
         for e in sim.trace:
             if e[0] == "bid":
-                _, _, j, pid, tid, amt, fair, m, faab = e
+                _, _, j, pid, tid, amt, fair, m, faab, kind = e
                 price = won.get((j, pid, tid))
-                out["bids"].append((s, weeks[j], tid, pid, fair, None if m is None else round(m, 4), amt, faab,
+                out["bids"].append((s, weeks[j], tid, pid, kind, fair, None if m is None else round(m, 4), amt, faab,
                                     round(odds.get(j, {}).get(tid, 0.0), 4), price is not None, price))
         out["seasons"].append((s, champ, " ".join(cuts)))
     sim.trace = None
@@ -79,7 +81,7 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
 
 
 HEADERS = {
-    "bids": ("season", "week", "team_id", "player_id", "fair_bid", "multiplier", "bid", "faab",
+    "bids": ("season", "week", "team_id", "player_id", "kind", "fair_bid", "multiplier", "bid", "faab",
              "cut_odds", "won", "price"),
     "weeks": ("season", "week", "team_id", "score", "cut", "faab_after_waivers"),
     "drops": ("season", "week", "team_id", "player_id"),

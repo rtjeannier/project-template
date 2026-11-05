@@ -55,6 +55,11 @@ REPL_DRAWS = np.random.default_rng(7).standard_normal((40, 400))  # fixed draws 
 INJURY_RATE = {"QB": 0.015, "RB": 0.025, "WR": 0.02, "TE": 0.02, "K": 0.005, "DEF": 0.0}
 SEASON_ENDING_SHARE = 0.35
 SHORT_INJURY_WEEKS = (1, 4)
+# Bench rules by slot: at most 1 backup QB and 2 backup TEs (TEs can still start at
+# flex); always keep at least 1 backup RB and 1 backup WR.
+BENCH_MAX = {"QB": 1, "TE": 2}
+BENCH_MIN = {"RB": 1, "WR": 1}
+FLEX_POS = ("RB", "WR", "TE")
 ODDS_DRAWS = np.random.default_rng(20261104).standard_normal((2000, 32))  # fixed draws for P(lowest score)
 FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by position
 
@@ -378,31 +383,43 @@ class Simulator:
                 ps = proj.pos[p]
                 own = max(gain - free[0].get(ps, 0.0), gain - free[-1].get(ps, 0.0))
                 deny = vb[p] - repl[n_alive[-1]].get(ps, 0.0)
-                if own < model.min_gain and deny <= 0:
+                slot = self._slot_check(rosters[tid], p, vb)
+                if slot == "blocked":
+                    continue  # he'd be the backup dropped to stay within the QB/TE limits
+                bench_up = own < model.min_gain and slot == "upgrade"
+                if own < model.min_gain and deny <= 0 and not bench_up:
                     continue  # no use to us and replaceable: nothing to deny
                 value = weighted_par(tid, gain, ps, free, vb[p])
-                if value <= 0:
+                if value <= 0 and not bench_up:
                     continue
                 lock = int(max((faab[u] for u in active if u != tid), default=0)) + 1
                 # The fair bid: the rational bid with no noise. For rivals it's what you could
                 # estimate about their bid; over/under-bidding is measured from it.
                 det = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=1.0,
-                                noise=1.0, min_bid=settings.min_bid, lock_price=lock)
+                                noise=1.0, min_bid=settings.min_bid, lock_price=lock) if value > 0 else 0
                 if det < 0:
                     continue
+                # What the bid is for: a lineup upgrade, keeping him from rivals, or just a
+                # better backup. A backup is worth $1 unless denial is worth more.
+                kind = "lineup" if own >= model.min_gain else ("deny" if det > 1 else "bench")
+                if kind == "bench":
+                    det = 1
                 if model.bid_sd is not None:
                     # Every bid is fair x a random multiplier, normal around 1.
                     m = float(rng.normal(1.0, model.bid_sd))
                     # Bidding is free (you only pay if you win), so every team that wants him
                     # bids; a draw at or below 0 is a $0 claim.
-                    amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
+                    if kind == "bench":
+                        amt = int(min(2, round(max(m, 0.0)), faab[tid]))  # $0, $1 or $2
+                    else:
+                        amt = int(min(max(m, 0.0) * det * aggression[tid], faab[tid]))
                 else:
                     m = None
                     amt = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=aggression[tid],
                                     noise=rng.lognormal(0, model.bid_noise_sd), min_bid=settings.min_bid,
-                                    lock_price=lock)
+                                    lock_price=lock) if kind != "bench" else min(1, int(faab[tid]))
                 if submitting and self.trace is not None:
-                    self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid]))
+                    self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
                 if tid != self.user:
                     expected[(tid, p)] = det
                 else:
@@ -529,15 +546,56 @@ class Simulator:
         if p in fa_pool:
             fa_pool.remove(p)
         res.awards.append((sim, j, proj.ids[p], tid, int(amt)))
-        if len(rosters[tid]) > self.state.settings.roster_size:
-            _, starters = self.spec.best(rosters[tid], vb, proj.pos)
-            bench = [q for q in rosters[tid] if q not in starters and q != p]
-            if bench:
-                drop = min(bench, key=lambda q: vb[q])
-                rosters[tid].remove(drop)
-                if self.trace is not None:
-                    self.trace.append(("drop", sim, j, tid, proj.ids[drop]))
-                fa_pool.append(drop)
+        self._enforce_roster(sim, j, tid, p, rosters, fa_pool, vb)
+
+    def _slot_check(self, roster: list[int], p: int, vb) -> str:
+        """Can player p join this roster, and would he be a better backup than someone there?
+
+        "blocked": adding him would break the backup QB/TE limit and he's the worst one, so
+        he'd be the one dropped. "upgrade": better than the worst bench player in his slot
+        group (QB vs bench QBs; RB/WR/TE vs flex-eligible bench players), or there's an open
+        spot or no backup at his slot yet. "no": neither.
+        """
+        proj = self.proj
+        ps = proj.pos[p]
+        _, starters = self.spec.best(roster, vb, proj.pos)
+        bench = [q for q in roster if q not in starters]
+        same = [q for q in bench if proj.pos[q] == ps]
+        if ps in BENCH_MAX and len(same) >= BENCH_MAX[ps]:
+            return "upgrade" if vb[p] > min(vb[q] for q in same) else "blocked"
+        if len(roster) < self.state.settings.roster_size:
+            return "upgrade"
+        group = same if ps == "QB" else [q for q in bench if proj.pos[q] in FLEX_POS]
+        if not group:
+            return "upgrade"
+        return "upgrade" if vb[p] > min(vb[q] for q in group) else "no"
+
+    def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, vb) -> None:
+        """Drop bench players until the roster fits: at most 1 backup QB and 2 backup TEs,
+        at most roster_size players, keeping at least 1 backup RB and 1 backup WR."""
+        proj = self.proj
+        roster = rosters[tid]
+        while True:
+            _, starters = self.spec.best(roster, vb, proj.pos)
+            bench = [q for q in roster if q not in starters]
+            drop = None
+            for pos, cap in BENCH_MAX.items():
+                same = [q for q in bench if proj.pos[q] == pos]
+                if len(same) > cap:
+                    drop = min(same, key=lambda q: vb[q])
+                    break
+            if drop is None and len(roster) > self.state.settings.roster_size:
+                count = {pos: sum(proj.pos[q] == pos for q in bench) for pos in BENCH_MIN}
+                ok = [q for q in bench if q != newest
+                      and not (proj.pos[q] in BENCH_MIN and count[proj.pos[q]] <= BENCH_MIN[proj.pos[q]])]
+                pool = ok or [q for q in bench if q != newest] or bench
+                drop = min(pool, key=lambda q: vb[q]) if pool else None
+            if drop is None:
+                return
+            roster.remove(drop)
+            fa_pool.append(drop)
+            if self.trace is not None:
+                self.trace.append(("drop", sim, j, tid, proj.ids[drop]))
 
     def _note_user_gain(self, res, sim, j, pid, gain):
         entries = res.pool_entries.get(pid)
