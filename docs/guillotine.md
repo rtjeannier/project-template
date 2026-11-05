@@ -214,6 +214,11 @@ The page has:
   bid more) don't dominate. A pooled view is available too. Filters: what the bid was
   for, final-week edge, position, week, FAAB vs the richest rival, cut risk, fair-bid
   size, and bidding team.
+- **Week by week, survival by choices:** pick a team and a week. Every season the team
+  is alive going into that week is grouped by what it did that week (average bid vs
+  fair, FAAB spent, whether it landed a lineup upgrade), and each group gets a survival
+  curve (still alive after each later cut) plus its chance of winning the league.
+  Bidding vs fair is randomized, so those differences are caused by bidding.
 - **Paths to victory:** pick a team and see, week by week, how its winning seasons
   differ from its losing ones: win rate by FAAB left after each week's waivers (only
   seasons it's still alive), median FAAB left in won vs lost seasons, and the cost of

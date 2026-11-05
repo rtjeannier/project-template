@@ -111,6 +111,69 @@ def _paths(bids, weeks, seasons, teams, names, pname, ppos, week_list, min_avail
     return out
 
 
+
+SURVIVAL_DIMS = {
+    "aggr": ("Bidding vs fair that week", ["no bids", "underbid (avg < 0.9×)", "about fair (0.9–1.1×)", "overbid (avg > 1.1×)"]),
+    "spend": ("FAAB spent that week", ["$0", "up to 10%", "10–30%", "over 30%"]),
+    "pickup": ("Pickups that week", ["no lineup upgrade", "landed a lineup upgrade"]),
+}
+
+
+def _survival(bids, weeks, teams, week_list, fb) -> dict:
+    """Week-by-week survival by the choices a team made that week.
+
+    For every (team, season) alive going into week w, group it by what it did that week
+    (average bid multiplier, FAAB spent, whether it landed a lineup upgrade), then record
+    how often it was still alive after each later week's cut and whether it won.
+    """
+    w = weeks[["season", "week", "team_id", "cut", "faab_after_waivers"]].merge(
+        fb[["season", "week", "team_id", "faab_before"]], on=["season", "week", "team_id"], how="left")
+    last = weeks.groupby(["season", "team_id"]).week.max().rename("last_week").reset_index()
+    cutw = weeks[weeks.cut].groupby(["season", "team_id"]).week.max().rename("cut_week").reset_index()
+    w = w.merge(last, on=["season", "team_id"], how="left").merge(cutw, on=["season", "team_id"], how="left")
+    # champion = alive through the final without being cut
+    final = week_list[-1]
+    w["won"] = w.cut_week.isna() & (w.last_week == w.season.map(weeks.groupby("season").week.max()))
+
+    real = bids[bids.fair_bid > 0]
+    agg = real.groupby(["season", "week", "team_id"]).multiplier.mean().rename("avg_mult").reset_index()
+    ups = bids[bids.won & (bids.kind == "lineup")].groupby(["season", "week", "team_id"]).size().rename("ups").reset_index()
+    w = w.merge(agg, on=["season", "week", "team_id"], how="left").merge(ups, on=["season", "week", "team_id"], how="left")
+    w["aggr"] = 0
+    w.loc[w.avg_mult < 0.9, "aggr"] = 1
+    w.loc[(w.avg_mult >= 0.9) & (w.avg_mult <= 1.1), "aggr"] = 2
+    w.loc[w.avg_mult > 1.1, "aggr"] = 3
+    spent = (w.faab_before - w.faab_after_waivers).fillna(0)
+    frac = spent / w.faab_before.clip(lower=1)
+    w["spend"] = 0
+    w.loc[(spent > 0) & (frac <= 0.10), "spend"] = 1
+    w.loc[(frac > 0.10) & (frac <= 0.30), "spend"] = 2
+    w.loc[frac > 0.30, "spend"] = 3
+    w["pickup"] = (w.ups.fillna(0) > 0).astype(int)
+    # alive after week k  <=>  not cut by k  <=>  cut_week is NaN or cut_week > k
+    out = {"weeks": week_list, "dims": {k: {"title": t, "labels": labs} for k, (t, labs) in SURVIVAL_DIMS.items()},
+           "teams": []}
+    for t in teams.team_id:
+        tw = w[w.team_id == t]
+        per_week = []
+        for wk in week_list:
+            x = tw[tw.week == wk]
+            later = [k for k in week_list if k >= wk]
+            groups = {}
+            for dim in SURVIVAL_DIMS:
+                rows = []
+                for g in range(len(SURVIVAL_DIMS[dim][1])):
+                    y = x[x[dim] == g]
+                    alive_after = [int((y.cut_week.isna() | (y.cut_week > k)).sum()) for k in later]
+                    rows.append({"n": int(len(y)), "alive_after": alive_after, "wins": int(y.won.sum())})
+                groups[dim] = rows
+            alive_after = [int((x.cut_week.isna() | (x.cut_week > k)).sum()) for k in later]
+            per_week.append({"week": int(wk), "n": int(len(x)), "alive_after": alive_after,
+                             "wins": int(x.won.sum()), "groups": groups})
+        out["teams"].append(per_week)
+    return out
+
+
 def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, anonymize: bool = False) -> list[Path]:
     d, out = Path(data_dir), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -160,6 +223,8 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     paths = _paths(bids, weeks, seasons, teams, names, pn_all := dict(zip(players.player_id, players.name)),
                    dict(zip(players.player_id, players.pos)), meta["weeks"])
     (out / "paths.json").write_text(json.dumps(paths, separators=(",", ":")))
+    survival = _survival(bids, weeks, teams, meta["weeks"], fb)
+    (out / "survival.json").write_text(json.dumps(survival, separators=(",", ":")))
 
     champs = seasons.champion_id.value_counts(normalize=True)
     cube_out = {"keys": keys, "rows": cube[keys + ["n", "w"]].astype(int).values.tolist(),
