@@ -264,3 +264,22 @@ def test_bench_upgrades_bid_zero_to_two(state, tmp_path):
     bench = [r for r in rows if r["kind"] == "bench"]
     assert all(int(r["fair_bid"]) == 1 and 0 <= int(r["bid"]) <= 2 for r in bench)
     assert {r["kind"] for r in rows} <= {"lineup", "deny", "bench"}
+
+
+def test_claims_sharing_a_drop_process_at_most_once(state):
+    sim = Simulator(state, seed=4)
+    sim.trace = []
+    sim.run(12)
+    claims = {(e[1], e[2], e[3], e[4]): e[5] for e in sim.trace if e[0] == "claim"}
+    used = {}
+    for e in sim.trace:
+        if e[0] != "award":
+            continue
+        _, s, j, pid, tid, amt, all_bids, faab = e
+        assert (s, j, pid, tid) in claims  # every award came from a planned add/drop claim
+        d = claims[(s, j, pid, tid)]
+        if d is not None:  # a real player dropped (not an open spot)
+            key = (s, j, tid, d)
+            assert key not in used, "two claims dropping the same player both processed"
+            used[key] = pid
+        assert amt <= faab[tid]  # the winning claim was affordable when it processed

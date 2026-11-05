@@ -420,6 +420,7 @@ class Simulator:
                                     lock_price=lock) if kind != "bench" else min(1, int(faab[tid]))
                 if submitting and self.trace is not None:
                     self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
+                fair_all[(tid, p)] = det
                 if tid != self.user:
                     expected[(tid, p)] = det
                 else:
@@ -432,6 +433,7 @@ class Simulator:
 
         expected: dict[tuple[str, int], int] = {}
         fair: dict[int, int] = {}
+        fair_all: dict[tuple[str, int], int] = {}
         rival_sd = float(np.hypot(model.manager_sd, model.bid_noise_sd))
         submitting = True  # bids are logged once, when submitted; later re-checks only cancel claims
 
@@ -499,54 +501,98 @@ class Simulator:
                 if p in remaining and faab[self.user] >= policy.price:
                     self._award(sim, j, p, self.user, policy.price, rosters, faab, fa_pool, remaining, claimed, res, vb)
 
+        # Every claim is "add X / drop Y", planned once, after all bids are in.
+        drops = {tid: self._plan_drops(rosters[tid], bids[tid], fair_all, tid, vb, repl[n_alive[-1]])
+                 for tid in active}
+        if self.trace is not None:
+            for tid in active:
+                for p, d in drops[tid].items():
+                    self.trace.append(("claim", sim, j, proj.ids[p], tid,
+                                       proj.ids[d] if isinstance(d, (int, np.integer)) else None))
+        gone: dict[str, set] = {tid: set() for tid in active}  # drops already used by a processed claim
+
         while True:
             best = None
             for tid in active:
                 for p, amt in bids[tid].items():
                     if p not in remaining or amt > faab[tid]:
-                        continue
+                        continue  # taken already, or the team can no longer afford it
+                    d = drops[tid].get(p)
+                    if d in gone[tid]:
+                        continue  # invalid claim due to previous transaction: its drop is gone
                     key = (amt, -priority[tid])
                     if best is None or key > best[0]:
                         best = (key, tid, p)
             if best is None:
                 break
             (amt, _), tid, p = best
+            d = drops[tid].get(p)
             if self.trace is not None:
                 all_bids = {t: bids[t][p] for t in active if p in bids[t]}
                 self.trace.append(("award", sim, j, proj.ids[p], tid, int(amt), all_bids,
                                    {t: faab[t] for t in active}))
-            self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb)
+            gone[tid].add(d)
+            self._award(sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb, drop=d)
             if tid == self.user and policy.rules and proj.ids[p] in policy.rules:
                 richest = max((faab[u] for u in active if u != tid), default=0)
                 res.user_rule_after.setdefault(proj.ids[p], []).append((faab[tid], richest))
-            # The pickup changes everyone's elimination odds: recalculate before more claims.
-            odds = self._cut_odds(rosters, active, j)
-            weight = self._elimination_weights(odds, n_alive)
-            # Priority rolls to the back after a successful claim.
+            # Priority rolls to the back after a successful claim. Bids and drops were fixed
+            # when submitted, so nothing is re-priced or re-planned.
             priority[tid] = max(priority.values()) + 1
-            if not (j == 0 and tid == self.user and policy.mode != "auto"):
-                # Sealed bids: amounts are fixed once submitted. Winning a player can only
-                # cancel a team's other claims (Yahoo's "invalid claim due to previous
-                # transaction"): drop claims on players who no longer help it.
-                still_useful = team_bids(tid)
-                if tid == self.user:
-                    still_useful = apply_rules(still_useful)
-                bids[tid] = {q: a for q, a in bids[tid].items() if q in still_useful}
 
         leftovers = [p for p in set(pool) | set(fa_pool) if p not in claimed]
         leftovers.sort(key=lambda p: -vb[p])
         return [], leftovers[:FA_POOL_KEEP]
 
-    def _award(self, sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb):
+    def _award(self, sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, vb, drop=None):
         proj = self.proj
         faab[tid] -= amt
         rosters[tid].append(p)
+        if isinstance(drop, (int, np.integer)) and drop in rosters[tid]:
+            rosters[tid].remove(drop)
+            fa_pool.append(drop)
+            if self.trace is not None:
+                self.trace.append(("drop", sim, j, tid, proj.ids[drop]))
         remaining.discard(p)
         claimed.add(p)
         if p in fa_pool:
             fa_pool.remove(p)
         res.awards.append((sim, j, proj.ids[p], tid, int(amt)))
         self._enforce_roster(sim, j, tid, p, rosters, fa_pool, vb)
+
+    def _drop_for(self, roster: list[int], p: int, vb):
+        """Who this team would cut to fit p: the first player _enforce_roster removes, or
+        ("open", roster size) if there's room. Open spots are tokens, so two claims for the
+        same open spot are linked like two claims dropping the same player."""
+        trial, fa = {"_": list(roster) + [p]}, []
+        trace, self.trace = self.trace, None
+        try:
+            self._enforce_roster(0, 0, "_", p, trial, fa, vb)
+        finally:
+            self.trace = trace
+        return fa[0] if fa else ("open", len(roster))
+
+    def _plan_drops(self, roster: list[int], claims: dict[int, int], fair_all, tid, vb, repl_final) -> dict:
+        """Give every claim a drop. Going from the highest fair bid down and assuming the
+        claims above it win: if the player would still help (lineup upgrade, better backup,
+        or worth keeping from rivals), he drops the next player, so both claims can go
+        through. If not, he's a backup claim that shares the drop of the claim he'd replace,
+        so only one of them processes."""
+        proj, spec, model = self.proj, self.spec, self.model
+        plan: dict[int, object] = {}
+        current = list(roster)
+        for p in sorted(claims, key=lambda q: -fair_all.get((tid, q), 0)):
+            base = spec.total(current, vb, proj.pos)
+            gain = spec.total(current + [p], vb, proj.pos) - base
+            useful = (gain >= model.min_gain or self._slot_check(current, p, vb) == "upgrade"
+                      or vb[p] - repl_final.get(proj.pos[p], 0.0) > 0)
+            if useful:
+                d = self._drop_for(current, p, vb)
+                plan[p] = d
+                current = [q for q in current if q != d] + [p]
+            else:
+                plan[p] = self._drop_for(roster, p, vb)  # backup claim against the starting roster
+        return plan
 
     def _slot_check(self, roster: list[int], p: int, vb) -> str:
         """Can player p join this roster, and would he be a better backup than someone there?

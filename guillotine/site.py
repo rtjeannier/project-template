@@ -57,7 +57,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
     d, out = Path(data_dir), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     meta = json.loads((d / "meta.json").read_text())
-    bids = pd.read_csv(d / "bids.csv.gz", dtype={"player_id": str, "team_id": str})
+    bids = pd.read_csv(d / "bids.csv.gz", dtype={"player_id": str, "team_id": str, "drop_id": str})
     weeks = pd.read_csv(d / "weeks.csv.gz", dtype={"team_id": str})
     seasons = pd.read_csv(d / "seasons.csv.gz", dtype={"champion_id": str})
     players = pd.read_csv(d / "players.csv", dtype={"player_id": str})
@@ -140,6 +140,8 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 60, a
                 awards.append({"player": pn.get(pid, str(pid)), "pos": players.set_index("player_id").pos.get(pid, ""),
                                "winner": names[str(winner.team_id.iloc[0])] if len(winner) else None,
                                "price": int(winner.price.iloc[0]) if len(winner) else None,
+                               "drop": (pn.get(winner.drop_id.iloc[0], "open spot") if len(winner) and isinstance(winner.drop_id.iloc[0], str)
+                                        else ("open spot" if len(winner) else None)),
                                "bids": [[names[str(r.team_id)], int(r.bid), int(r.fair_bid), round(float(r.multiplier), 2)]
                                         for r in g.itertuples()]})
             awards.sort(key=lambda a: -(a["price"] or 0))

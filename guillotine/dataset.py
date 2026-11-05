@@ -10,7 +10,8 @@ produces different waivers each time. Nothing is analyzed here: the files are th
 record, to crawl afterwards.
 
 Files (gzip CSV):
-- ``bids.csv.gz``: season, week, team, player, what the bid was for (``lineup`` upgrade,
+- ``bids.csv.gz``: season, week, team, player, the player this claim drops (blank = an
+  open roster spot), what the bid was for (``lineup`` upgrade,
   ``deny`` = keeping him from rivals, ``bench`` = a better backup, fair bid $1), fair bid,
   multiplier, bid, FAAB at the time, the team's elimination odds that week, whether it
   won the player, and the price.
@@ -54,9 +55,11 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
     for s in range(*season_range):
         sim.trace = []
         sim._run_one(s, UserPolicy("auto"), _scratch(sim))
-        odds, won, cuts, champ = {}, {}, [], None
+        odds, won, cuts, champ, drop_of = {}, {}, [], None, {}
         for e in sim.trace:
-            if e[0] == "odds":
+            if e[0] == "claim":
+                drop_of[(e[2], e[3], e[4])] = e[5]
+            elif e[0] == "odds":
                 odds[e[2]] = e[3]
             elif e[0] == "award":
                 won[(e[2], e[3], e[4])] = e[5]
@@ -73,7 +76,8 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
             if e[0] == "bid":
                 _, _, j, pid, tid, amt, fair, m, faab, kind = e
                 price = won.get((j, pid, tid))
-                out["bids"].append((s, weeks[j], tid, pid, kind, fair, None if m is None else round(m, 4), amt, faab,
+                out["bids"].append((s, weeks[j], tid, pid, kind, drop_of.get((j, pid, tid)), fair,
+                                    None if m is None else round(m, 4), amt, faab,
                                     round(odds.get(j, {}).get(tid, 0.0), 4), price is not None, price))
         out["seasons"].append((s, champ, " ".join(cuts)))
     sim.trace = None
@@ -81,7 +85,7 @@ def _play(season_range: tuple[int, int]) -> dict[str, list[tuple]]:
 
 
 HEADERS = {
-    "bids": ("season", "week", "team_id", "player_id", "kind", "fair_bid", "multiplier", "bid", "faab",
+    "bids": ("season", "week", "team_id", "player_id", "kind", "drop_id", "fair_bid", "multiplier", "bid", "faab",
              "cut_odds", "won", "price"),
     "weeks": ("season", "week", "team_id", "score", "cut", "faab_after_waivers"),
     "drops": ("season", "week", "team_id", "player_id"),

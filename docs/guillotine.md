@@ -162,10 +162,16 @@ QB or TE who would just be dropped again to stay under the limits. A backup-only
 upgrade has a fair bid of $1 and is bid at random as $0, $1 or $2, unless denial is
 worth more. Each bid in the dataset is tagged `lineup`, `deny` or `bench`.
 
-Bids that add up to more than a team's FAAB are fine, as in Yahoo. Claims are processed
-league-wide from the highest bid down. After each win, any claim the team can no
-longer afford is skipped ("invalid claim"), and claims for players it no longer needs
-are cancelled. Bid amounts never change after submission.
+**Claims are add/drop pairs, as in Yahoo.** Once all bids are in, each team's claims
+are given drops, going from the highest fair bid down and assuming the claims above
+win. If the player would still help (lineup upgrade, better backup, or worth keeping
+from rivals), his claim drops the next player (or uses the next open spot), so both
+can go through. If not, it is a backup claim that shares the drop of the claim it
+would replace. Claims are then processed league-wide from the highest bid down. A
+claim is skipped if its drop is already gone ("invalid claim due to previous
+transaction") or the team can no longer afford it. Each claim's fair bid uses the
+team's whole FAAB, so total claims can exceed the budget and second choices aren't
+bid artificially low. Bids and drops never change after submission.
 
 ## Simulated dataset
 
@@ -200,15 +206,14 @@ in that folder.
 
 The page has:
 
-- **Over- or under-bid, by situation:** by default, the **lift within each team**:
-  a team's win rate at each bid level divided by that team's own win rate across the
-  selected bids, averaged over teams with each team counted equally. This removes team
-  strength. Strong teams survive longer and place more bids, so a pooled average is
-  mostly them. A team that wins regardless of bidding shows lift near 1.0, and a long
-  shot that wins more when it overbids shows lift above 1. A pooled view is available
-  too. Filters: what the bid was for, final-week edge, position, week, FAAB vs the
-  richest rival, cut risk, fair-bid size, and bidding team. A per-team table shows each
-  team's underbid / fair / overbid lift.
+- **Over- or under-bid, by situation:** by default, the **change in win rate vs
+  bidding fair, within each team**. For each team, its win rate at a bid level minus
+  its own win rate when bidding fair in the same situation (percentage points), then
+  averaged over teams with each counted equally. Each team is compared only with
+  itself, so its built-in advantage drops out, and teams that survive longer (and
+  bid more) don't dominate. A pooled view is available too. Filters: what the bid was
+  for, final-week edge, position, week, FAAB vs the richest rival, cut risk, fair-bid
+  size, and bidding team.
 - **Players:** underbid vs fair vs overbid outcomes per player. Click one to chart him.
 - **Seasons:** sample seasons week by week, with every bid's fair value and multiplier,
   every award, scores and cuts.
