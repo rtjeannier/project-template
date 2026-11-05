@@ -74,7 +74,7 @@ A manager then spends a share of **their own budget**:
 
 ```
 willingness = FAAB × value / (value + future opportunity)
-bid         = willingness × shade × aggressiveness × noise        (capped at FAAB)
+bid         = willingness × aggressiveness × noise        (capped at FAAB)
 ```
 
 **Future opportunity** is the expected value of the best replacement the team can

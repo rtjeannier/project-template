@@ -3,7 +3,7 @@
 Each manager prices a player in *their own budget*, not in a league-wide currency:
 
     willingness = FAAB × V / (V + future opportunity)
-    bid         = willingness × shade × aggressiveness × noise      (capped at FAAB)
+    bid         = willingness × aggressiveness × noise      (capped at FAAB)
 
 - **V (value now)** = how much the player raises *this team's* starting lineup per
   week, minus what the team could add for free at that position, times the number
@@ -27,10 +27,9 @@ Each manager prices a player in *their own budget*, not in a league-wide currenc
   spend everything on an upgrade.
 - **Survival**: P(cut) comes from each team's score distribution (see
   ``Simulator._cut_odds``). Teams in danger discount the future more and spend now.
-- **shade**: in a sealed first-price auction a rational bidder bids below what the
-  player is worth to them. **noise** is drawn once per bid so bids aren't
-  predictable. Managers are otherwise identical and rational (``manager_sd`` = 0).
-  Set ``aggression`` per team in the league file to model a known hoarder or spender.
+- **noise**: drawn once per bid so bids aren't predictable. Managers are otherwise
+  identical and rational (``manager_sd`` = 0). Set ``aggression`` per team in the league
+  file to model a known hoarder or spender.
 - **lock**: if topping every other team's whole FAAB costs less than the player is
   worth to a manager, they pay exactly that and guarantee the win.
 
@@ -46,7 +45,6 @@ from dataclasses import dataclass
 
 @dataclass
 class BidModel:
-    shade: float = 0.6  # bid as a share of willingness to pay (rational first-price shading)
     manager_sd: float = 0.0  # lognormal sd of per-manager aggressiveness; 0 = every manager is rational
     bid_noise_sd: float = 0.3  # lognormal noise on each bid, used only when bid_sd is None
     # Every bid = fair bid x a multiplier drawn from Normal(1, bid_sd). 0.61 puts the 95th
@@ -68,5 +66,5 @@ class BidModel:
         # can't lose, so a rational manager pays exactly that, with no noise.
         if lock_price is not None and lock_price <= min(willingness, faab):
             return max(int(lock_price), min_bid)
-        amount = min(willingness * self.shade * aggression * noise, faab)
+        amount = min(willingness * aggression * noise, faab)
         return max(int(amount), min_bid)

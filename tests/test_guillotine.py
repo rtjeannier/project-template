@@ -73,9 +73,9 @@ def test_last_round_bid_uses_most_of_budget():
     from guillotine.bidding import BidModel
     m = BidModel(bid_noise_sd=0.0)
     # No future rounds left: an upgrade is worth (almost) the whole budget.
-    assert m.bid(value=10, opportunity=0, faab=500, aggression=1, noise=1, min_bid=0) == int(500 * m.shade)
+    assert m.bid(value=10, opportunity=0, faab=500, aggression=1, noise=1, min_bid=0) == 500
     # Plenty of future opportunity: same player gets a smaller share.
-    assert m.bid(value=10, opportunity=90, faab=500, aggression=1, noise=1, min_bid=0) == int(50 * m.shade)
+    assert m.bid(value=10, opportunity=90, faab=500, aggression=1, noise=1, min_bid=0) == 50
 
 
 def test_replacement_level_rises_as_teams_are_cut(state, sim):
@@ -104,9 +104,10 @@ def test_sealed_bid_only_wins_when_highest(state, sim):
     res = sim.run(20, UserPolicy("bid", bids={pid: 1}))
     opp = base.opp_max_bid[pid]
     won = {s for s, j, p, t, a in res.awards if j == 0 and p == pid and t == state.my_team_id}
-    # A $1 bid wins exactly in the sims where nobody else bid more than $1 (ties may go either way).
-    assert all(opp[s] <= 1 for s in won)
+    # If nobody else bid $1 or more, a $1 bid always wins. (It can also win when a higher
+    # rival claim is invalid: its drop already used, or no longer affordable.)
     assert all(s in won for s in range(20) if opp[s] < 1)
+    assert all(a == 1 for s, j, p, t, a in res.awards if j == 0 and p == pid and t == state.my_team_id)
 
 
 def test_elimination_weights_sum_to_at_most_one():
