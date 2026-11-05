@@ -127,10 +127,13 @@ enforced the way Yahoo does it: a claim you can no longer afford is skipped.
 **Who to target, and what to bid.** The report's main table is a plan. Candidates
 are this week's best pool players plus the players on other rosters who are
 **irreplaceable in the final**: projected above week-17 replacement (two teams left)
-and likely to hit waivers while you can still bid. For each one, the analysis
-simulates bidding **none, $1, $50, $100, $150, $200, $300, $400, all-in, or lock**
-(top the richest rival's whole budget) whenever he's on waivers and you're alive, on
-the same random draws. It reports which bid gave the best P(win league). For every
+and likely to hit waivers while you can still bid. Whenever one is on waivers and you're alive, the
+analysis first computes your **fair bid**: the rational bid for you at that moment,
+using the same valuation rivals use, with no noise. It then simulates bidding **0.5×,
+0.75×, 1×, 1.25×, 1.5×, 2× and 3× fair**, plus none, all-in and lock (top the richest
+rival's whole budget), on the same random draws. If P(win league) peaks above 1×,
+overbidding pays for that player (to block a rival, or because he's worth more than
+later options); below 1×, underbidding does (let rivals overpay and keep the money). For every
 bid it also shows how often you get him, and your FAAB left against the richest
 rival's right after you win him: with twice their money, you can take later players
 they can't afford.

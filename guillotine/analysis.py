@@ -69,10 +69,10 @@ def survive_through(res: SimResults, team_id: str, n_weeks: int) -> float:
     return float(alive[min(n_weeks, len(alive)) - 1])
 
 
-# Bids tried for each target, whenever he's on waivers and you're alive: never, $1, fixed
-# dollar amounts (capped at what you have then), everything, or "lock" (top the richest
-# interested rival's whole budget).
-TARGET_RULES = ("none", "$1", 50, 100, 150, 200, 300, 400, "all-in", "lock")
+# Bids tried for each target, whenever he's on waivers and you're alive: multiples of your
+# fair bid (the rational bid for you at that moment, no noise), plus none, all-in, and lock.
+# Where P(win league) peaks shows whether over- or under-bidding pays for that player.
+TARGET_RULES = ("none", "x0.5", "x0.75", "x1", "x1.25", "x1.5", "x2", "x3", "all-in", "lock")
 
 
 def final_edge(sim: Simulator) -> dict[str, float]:
@@ -121,6 +121,7 @@ def _rule_point(args) -> dict:
         "avg_paid": float(np.mean([a for _, a in mine])) if mine else 0.0,
         "weeks": [r.weeks[j] for j, _ in mine],
         "bid_median": float(np.median(r.user_rule_bids[pid])) if r.user_rule_bids.get(pid) else 0.0,
+        "fair_median": float(np.median(r.user_fair_bids[pid])) if r.user_fair_bids.get(pid) else None,
         "left": float(np.median([x for x, _ in after])) if after else None,
         "richest": float(np.median([y for _, y in after])) if after else None,
     }
@@ -146,7 +147,9 @@ def target_analysis(sim: Simulator, targets: list[str], n_sims: int, workers: in
         curve = [c for c in points if c["player_id"] == pid]
         best = max(curve, key=lambda c: (round(c["p_champ"], 4), -TARGET_RULES.index(c["rule"])))
         owner = next((t.name for t in sim.state.teams if pid in t.players), "waivers now")
+        fairs = [c["fair_median"] for c in curve if c.get("fair_median") is not None]
         rows.append({"player_id": pid, "owner": owner, "edge": edge.get(pid, 0.0), "curve": curve,
+                     "fair": float(np.median(fairs)) if fairs else None,
                      "best": best, "gain_vs_pass": best["p_champ"] - curve[0]["p_champ"]})
     rows.sort(key=lambda r: -r["gain_vs_pass"])
     return rows

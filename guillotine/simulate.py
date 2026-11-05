@@ -60,7 +60,8 @@ class UserPolicy:
     price: int = 0
     bids: dict[str, int] | None = None  # mode "bid": your sealed bids {player_id: amount}; others bid as modeled
     # Standing rules: whenever one of these players is on waivers (and you're alive), bid by
-    # the rule: "none" (never bid), "$1", a number q in (0, 1) = enough to beat every
+    # the rule: "none" (never bid), "$1", "x1.5" = 1.5 times your fair (rational) bid, an int
+    # = that many dollars, "all-in", a number q in (0, 1) = enough to beat every
     # interested rival with probability q, estimated from what you can see (their FAAB,
     # their need, typical bidding; not their actual bids), or "lock" = top the richest
     # interested rival's whole budget. Applies on top of any mode.
@@ -86,6 +87,7 @@ class SimResults:
     # player -> sims where he was on waivers in a later round while you were still alive to bid
     user_could_bid: dict[str, set[int]] = field(default_factory=dict)
     user_rule_bids: dict[str, list[int]] = field(default_factory=dict)  # what your standing rules bid
+    user_fair_bids: dict[str, list[int]] = field(default_factory=dict)  # your rational bid each time he was available
     # after you win a target: (your FAAB left, richest rival's FAAB)
     user_rule_after: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
 
@@ -382,13 +384,18 @@ class Simulator:
                     out[p] = amt
                     if self.bid_log is not None:
                         self.bid_log.append((sim, j, proj.ids[p], tid, amt, faab[tid]))
+                    # The rational bid with no noise: for rivals, what you could estimate about
+                    # their bid; for you, the "fair" bid that over/under-bidding is measured from.
+                    det = model.bid(value=value, opportunity=opp, faab=faab[tid], aggression=1.0,
+                                    noise=1.0, min_bid=settings.min_bid, lock_price=lock)
                     if tid != self.user:
-                        # What you could estimate about this rival's bid: no noise, typical aggression.
-                        expected[(tid, p)] = model.bid(value=value, opportunity=opp, faab=faab[tid],
-                                                       aggression=1.0, noise=1.0, min_bid=settings.min_bid)
+                        expected[(tid, p)] = det
+                    else:
+                        fair[p] = det
             return out
 
         expected: dict[tuple[str, int], int] = {}
+        fair: dict[int, int] = {}
         rival_sd = float(np.hypot(model.manager_sd, model.bid_noise_sd))
 
         def apply_rules(out: dict[int, int]) -> dict[int, int]:
@@ -403,7 +410,12 @@ class Simulator:
                     out.pop(p, None)
                     continue
                 rivals = [(t, expected[(t, p)]) for t in active if t != self.user and (t, p) in expected]
-                if rule == "all-in":
+                if isinstance(rule, str) and rule.startswith("x"):
+                    # A multiple of your fair bid: x1 = bid exactly what the player is worth to you.
+                    f = fair.get(p, 0)
+                    res.user_fair_bids.setdefault(pid, []).append(f)
+                    amt = max(1, int(round(float(rule[1:]) * f)))
+                elif rule == "all-in":
                     amt = int(faab[self.user])
                 elif isinstance(rule, int):
                     amt = rule  # a fixed dollar amount (capped at what you have)

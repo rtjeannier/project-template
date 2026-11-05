@@ -22,12 +22,17 @@ def _rule(r) -> str:
         return "lock: top richest rival's budget"
     if r == "all-in":
         return "all-in"
+    if isinstance(r, str) and r.startswith("x"):
+        m = float(r[1:])
+        return "fair bid" if m == 1 else f"{r[1:]}× fair ({'over' if m > 1 else 'under'}bid)"
     if isinstance(r, int):
         return f"${r}"
     return f"beat the field {100 * float(r):.0f}%"
 
 
 def _level(r) -> str:
+    if isinstance(r, str) and r.startswith("x"):
+        return f"{r[1:]}× fair"
     if isinstance(r, int):
         return f"${r}"
     return r if isinstance(r, str) else f"beat {100 * float(r):.0f}%"
@@ -61,23 +66,25 @@ def render(a: Analysis) -> str:
 
     add("## Who to target, and how much to bid")
     add("")
-    add("Each row is the best of the bids tried: **whenever he's on waivers and you're still alive, bid this**. "
-        "Tried: none, $1, $50–$400 (capped at what you have), all-in, and *lock* (top the richest interested "
-        "rival's whole budget). Rivals bid rationally with random noise, and lock when guaranteeing the win is "
-        "worth it to them. "
+    add("**Fair bid** = the rational bid for you whenever he's on waivers: his elimination-weighted points above "
+        "replacement plus denial, against the upgrades you could buy later instead (same valuation rivals use, no "
+        "noise). The simulation then bids 0.5×–3× that, none, all-in, and *lock* (top the richest rival's whole "
+        "budget), and keeps the bid with the best P(win league): if it's above 1× fair, overbidding pays for him. "
+        "Rivals bid rationally with random noise, and lock when guaranteeing the win is worth it to them. "
         "Candidates are this week's best pool players plus the players on other rosters who are irreplaceable in "
         "the final (projected above week-17 replacement) and likely to hit waivers while you can bid. "
         "**Final edge** = his projected points/week above week-17 replacement (allowing for how uncertain week 17 "
         "is from here): in the final he counts for you *and* against your opponent. Effects are vs never bidding on him.")
     add("")
-    add("| Player | Pos | Now on | Final edge | Rule | Median bid placed | Δ P(win league) | P(you get him, when you can bid) | Typical price paid | Usually available |")
-    add("|---|---|---|---:|---|---:|---:|---:|---:|---|")
+    add("| Player | Pos | Now on | Final edge | Fair bid | Best bid | Median bid placed | Δ P(win league) | P(you get him, when you can bid) | Typical price paid | Usually available |")
+    add("|---|---|---|---:|---:|---|---:|---:|---:|---:|---|")
     for t in a.targets:
         pl = players[t["player_id"]]
         b = t["best"]
         wk = f"wk {sorted(b['weeks'])[len(b['weeks']) // 2]}" if b["weeks"] else "-"
         bid = f"${b['bid_median']:.0f}" if b["rule"] != "none" else "-"
-        add(f"| {pl.name} | {pl.pos} | {t['owner']} | {t['edge']:+.1f} | {_rule(b['rule'])} | {bid} | "
+        fair = f"${t['fair']:.0f}" if t.get("fair") is not None else "-"
+        add(f"| {pl.name} | {pl.pos} | {t['owner']} | {t['edge']:+.1f} | {fair} | {_rule(b['rule'])} | {bid} | "
             f"{_signed_pct(t['gain_vs_pass'])} | {_pct(b['p_get'])} | "
             f"{'$' + format(b['avg_paid'], '.0f') if b['avg_paid'] else '-'} | {wk} "
             f"({_pct(b['p_chance'])} of seasons) |")
@@ -90,12 +97,14 @@ def render(a: Analysis) -> str:
     for t in a.targets:
         add(f"**{players[t['player_id']].name}**")
         add("")
-        add("| Bid | P(win league) | Get him | Your FAAB left | Richest rival |")
-        add("|---|---:|---:|---:|---:|")
+        add("| Bid | Median $ | P(win league) | Get him | Your FAAB left | Richest rival |")
+        add("|---|---:|---:|---:|---:|---:|")
         for c in t["curve"]:
             left = f"${c['left']:.0f}" if c.get("left") is not None else "-"
             rich = f"${c['richest']:.0f}" if c.get("richest") is not None else "-"
-            add(f"| {_level(c['rule'])} | {_pct(c['p_champ'])} | {_pct(c['p_get'])} | {left} | {rich} |")
+            dollars = f"${c['bid_median']:.0f}" if c["rule"] != "none" else "-"
+            mark = " ◀ best" if c["rule"] == t["best"]["rule"] else ""
+            add(f"| {_level(c['rule'])}{mark} | {dollars} | {_pct(c['p_champ'])} | {_pct(c['p_get'])} | {left} | {rich} |")
         add("")
 
     add("## This week's pool: what it takes to win each player")
