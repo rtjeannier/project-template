@@ -530,13 +530,11 @@ class Simulator:
             alive_at[v] = np.array([sum(weight[o[1]][r] * max(float(alive_after[v][r]), 0.0) for r in range(rounds - 1)) / reach[o[1]]
                                     if reach[o[1]] > 0 and o[1] != v else 0.0 for o in opts], dtype=float)
 
-        bid_sd = model.bid_sd if model.bid_sd else 0.61
-
         def win_chance(tid: str, budgets: np.ndarray, cut_rival: str | None = None, cut_by: float = 0.0) -> np.ndarray:
-            """P(tid wins each option with each budget), options x budgets. Every rival still
-            alive when he comes back bids its willingness x Normal(1, bid_sd) (as rivals bid in
-            this simulation); tid wins if its budget beats all of them. cut_rival has cut_by
-            less money (it won a bid tid lost)."""
+            """P(tid wins each option with each budget), options x budgets. tid wins if its
+            budget beats the willingness of every rival still alive when he comes back (bid
+            noise only affects the actual bids, not this estimate). The uncertainty is which
+            rivals are still alive. cut_rival has cut_by less money (it won a bid tid lost)."""
             if n_opt == 0:
                 return np.zeros((0, len(budgets)))
             out = np.ones((n_opt, len(budgets)))
@@ -545,10 +543,7 @@ class Simulator:
                     continue
                 w = will[v] if v != cut_rival else np.minimum(will[v], max(float(faab[v]) - cut_by, 0.0))
                 cap = float(faab[v]) - (cut_by if v == cut_rival else 0.0)
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    beat = _phi((budgets[None, :] / np.maximum(w[:, None], 1e-9) - 1.0) / bid_sd)
-                beat = np.where(w[:, None] <= 0, 1.0, beat)
-                beat = np.where(budgets[None, :] > cap, 1.0, beat)  # can't bid more than it has
+                beat = (budgets[None, :] > np.minimum(w, cap)[:, None]).astype(float)
                 a_v = alive_at[v][:, None]
                 out *= (1.0 - a_v) + a_v * beat
             return out

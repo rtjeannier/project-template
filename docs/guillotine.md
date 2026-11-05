@@ -80,9 +80,9 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
   (the best few at each position on each roster), in its own title chances, above the
   better of its starter and the best free player. Its willingness to pay = that value ×
   what a dollar is worth to it (its FAAB ÷ the best it could hope to add at each
-  position), capped by its FAAB. When a player comes back, each rival still alive bids its
-  willingness × Normal(1, 0.61), so your chance of winning him rises with the money you
-  set aside. Your money buys the best set it can afford, at most one per position plus
+  position), capped by its FAAB. You win him if the money you set aside beats the willingness
+  of every rival still alive when he comes back (bid noise affects only the actual bids,
+  not this estimate); the uncertainty is which rivals are still alive. Your money buys the best set it can afford, at most one per position plus
   injury cover: money spent now shrinks that set. A backup's value is injury cover for
   the final only; the weeks before the final count only for players who'd start.
 - **Win vs lose.** Losing the claim keeps all the money, including for a later player in
