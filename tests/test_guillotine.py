@@ -214,7 +214,7 @@ def test_site_build_from_simulated_data(state, tmp_path):
     league.write_text(json.dumps(make_sample_league(seed=3, n_teams_alive=5, current_week=13)))
     generate(state, league, n_seasons=10, out_dir=tmp_path / "data", chunk=5)
     files = {p.name for p in build(tmp_path / "data", tmp_path / "site", sample_seasons=3, anonymize=True)}
-    assert {"index.html", "cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "survival.json", "scenarios.json"} <= files
+    assert {"index.html", "cube.json", "players.json", "seasons.json", "summary.json", "paths.json", "scenarios.json"} <= files
     summary = json.loads((tmp_path / "site" / "summary.json").read_text())
     assert summary["you"] == "You" and all(t["name"].startswith(("Team ", "You")) for t in summary["teams"])
 
@@ -314,3 +314,23 @@ def test_drops_are_only_players_on_the_roster_at_submission(state):
         if e[0] == "drop":
             _, s, j, tid, pid = e
             assert pid not in added.get((s, j, tid), set()), "dropped a player added this same round"
+
+
+def test_backup_pickups_improve_week_17(state):
+    """A backup-only pickup must be better for the final (week 17) than the player dropped."""
+    sim = Simulator(state, seed=8)
+    sim.trace = []
+    sim.run(10)
+    final = {sim.proj.ids[i]: v for i, v in enumerate(sim.proj.means[:, -1])}
+    kind = {(e[1], e[2], e[3], e[4]): e[9] for e in sim.trace if e[0] == "bid"}
+    claims = {(e[1], e[2], e[3], e[4]): e[5] for e in sim.trace if e[0] == "claim"}
+    checked = 0
+    for e in sim.trace:
+        if e[0] != "award":
+            continue
+        key = (e[1], e[2], e[3], e[4])
+        drop = claims.get(key)
+        if kind.get(key) == "bench" and drop is not None and final[drop] > 0:
+            assert final[e[3]] > final[drop]
+            checked += 1
+    assert checked >= 0

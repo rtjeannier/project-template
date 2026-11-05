@@ -143,6 +143,9 @@ class Simulator:
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
         self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
         self._added_this_round: dict = {}  # players each team added in the current waiver round
+        # Week-17 value of each player as known in the current round (0 if he's out for the
+        # rest of the season). Bench players are judged on this: a backup's job is the final.
+        self._final = self.proj.means[:, -1].copy()
 
     # ------------------------------------------------------------------ public
 
@@ -257,6 +260,13 @@ class Simulator:
         self._back = np.where(s < n_w, np.minimum(s + d + 1, n_w), 0)
         self._hurt_week, self._hurt_len = s, d  # week index hurt (n_w = never) and weeks out
 
+    def _final_value(self, j: int) -> np.ndarray:
+        """Each player's projected week-17 score, given injuries that have already happened."""
+        fv = self.proj.means[:, -1].copy()
+        hurt_now = self._avail[:, j] == 0
+        fv[hurt_now & (self._back >= len(self.proj.weeks))] = 0.0
+        return fv
+
     def _known_value(self, j: int) -> np.ndarray:
         """Waiver value basis at week j, given injuries that have already happened: a hurt
         player is worth only the share of the remaining weeks he'll be back for."""
@@ -314,6 +324,7 @@ class Simulator:
         proj, spec, model = self.proj, self.spec, self.model
         settings = self.state.settings
         vb = self._known_value(j)
+        self._final = self._final_value(j)
         n_weeks = len(proj.weeks)
         weeks_left = n_weeks - j
 
@@ -669,28 +680,34 @@ class Simulator:
     def _slot_check(self, roster: list[int], p: int, vb) -> str:
         """Can player p join this roster, and would he be a better backup than someone there?
 
-        "blocked": adding him would break the backup QB/TE limit and he's the worst one, so
-        he'd be the one dropped. "upgrade": better than the worst bench player in his slot
-        group (QB vs bench QBs; RB/WR/TE vs flex-eligible bench players), or there's an open
-        spot or no backup at his slot yet. "no": neither.
+        Starters come from this week's values (vb). Backups are compared on their week-17
+        projection, because a bench spot is for the final: a bye or a short slump now
+        doesn't make a backup worse.
+
+        "blocked": adding him would break the backup QB/TE limit and he's not clearly
+        better for week 17 than the worst one, so he'd be the one dropped. "upgrade": clearly
+        better for week 17 than the worst bench player in his slot group (QB vs bench QBs;
+        RB/WR/TE vs flex-eligible bench players), or there's an open spot or no backup at
+        his slot yet. "no": neither.
         """
-        proj = self.proj
+        proj, fv = self.proj, self._final
         ps = proj.pos[p]
         _, starters = self.spec.best(roster, vb, proj.pos)
         bench = [q for q in roster if q not in starters]
         same = [q for q in bench if proj.pos[q] == ps]
         if ps in BENCH_MAX and len(same) >= BENCH_MAX[ps]:
-            return "upgrade" if _clearly_better(vb[p], min(vb[q] for q in same)) else "blocked"
+            return "upgrade" if _clearly_better(fv[p], min(fv[q] for q in same)) else "blocked"
         if len(roster) < self.state.settings.roster_size:
             return "upgrade"
         group = same if ps == "QB" else [q for q in bench if proj.pos[q] in FLEX_POS]
         if not group:
             return "upgrade"
-        return "upgrade" if _clearly_better(vb[p], min(vb[q] for q in group)) else "no"
+        return "upgrade" if _clearly_better(fv[p], min(fv[q] for q in group)) else "no"
 
     def _enforce_roster(self, sim, j, tid, newest, rosters, fa_pool, vb, protected=frozenset()) -> None:
         """Drop bench players until the roster fits: at most 1 backup QB and 2 backup TEs,
-        at most roster_size players, keeping at least 1 backup RB and 1 backup WR."""
+        at most roster_size players, keeping at least 1 backup RB and 1 backup WR. The bench
+        player cut is the one with the lowest week-17 value (starters come from vb)."""
         proj = self.proj
         roster = rosters[tid]
         while True:
@@ -701,14 +718,14 @@ class Simulator:
                 same = [q for q in bench if proj.pos[q] == pos]
                 if len(same) > cap:
                     pick = [q for q in same if q not in protected] or same
-                    drop = min(pick, key=lambda q: vb[q])
+                    drop = min(pick, key=lambda q: self._final[q])
                     break
             if drop is None and len(roster) > self.state.settings.roster_size:
                 count = {pos: sum(proj.pos[q] == pos for q in bench) for pos in BENCH_MIN}
                 ok = [q for q in bench if q != newest and q not in protected
                       and not (proj.pos[q] in BENCH_MIN and count[proj.pos[q]] <= BENCH_MIN[proj.pos[q]])]
                 pool = ok or [q for q in bench if q != newest and q not in protected] or bench
-                drop = min(pool, key=lambda q: vb[q]) if pool else None
+                drop = min(pool, key=lambda q: self._final[q]) if pool else None
             if drop is None:
                 return
             roster.remove(drop)
