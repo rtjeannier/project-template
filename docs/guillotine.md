@@ -97,8 +97,10 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
 - **Win vs lose.** Losing the claim keeps all the money, including for a later player in
   this slot, and someone else (assumed your richest rival) paid at least your bid, so it
   has that much less to compete with you later. Winning gives his value now but leaves FAAB − b: lower odds on every later
-  claim, a later player in this slot only counts above him, and the injury cover he
-  provides no longer has to be bought. The fair bid is the price where the two are equal.
+  claim, and later pickups are valued on the roster *with him on it*: he takes one lineup
+  spot, so later players for that spot only count above him, while the other spots (other
+  RB/WR, TE, flex) can still be upgraded as before. The injury cover he provides no longer
+  has to be bought. The fair bid is the price where the two are equal.
   If winning isn't better even at $0 (his surplus over waiting), there's no bid. The bid
   never needs to exceed the lock price (every rival's whole FAAB + 1).
 - **P(cut)**: each team's weekly score is treated as roughly normal (mean = its best

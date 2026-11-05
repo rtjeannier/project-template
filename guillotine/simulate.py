@@ -639,35 +639,39 @@ class Simulator:
             # lineup after the best first one (he replaces the weaker starter); flex #1 over the
             # lineup after the best RB and WR pickups, flex #2 after flex #1 too. All pots draw
             # on the same money.
-            def marginal(base_roster, positions) -> np.ndarray:
-                add_b = spec.adder(base_roster, fin, proj.pos)
-                b0 = add_b()
-                ratio = np.zeros(n_opt)
-                for i, o in enumerate(opts):
-                    if o[2] in positions and my_val[i] > 0 and gain_opt[tid][i] > 0:
-                        g2 = max(0.0, add_b(o[0]) - b0)
-                        ratio[i] = min(1.0, (1.0 - q_out[o[0]]) * g2 / gain_opt[tid][i])
-                return ratio
+            def make_pots(base_roster, vals, gains) -> dict[str, np.ndarray]:
+                """Pots for a roster: vals = each option's title chance if bought onto it,
+                gains = its week-17 gain over it (for the second pickups' marginal gains)."""
+                def marginal(extra, positions) -> np.ndarray:
+                    add_b = spec.adder(base_roster + extra, fin, proj.pos)
+                    b0 = add_b()
+                    ratio = np.zeros(n_opt)
+                    for i, o in enumerate(opts):
+                        if o[2] in positions and vals[i] > 0 and gains[i] > 0:
+                            g2 = max(0.0, add_b(o[0]) - b0)
+                            ratio[i] = min(1.0, (1.0 - q_out[o[0]]) * g2 / gains[i])
+                    return ratio
 
-            pots: dict[str, np.ndarray] = {}
-            pot_pos = {"QB": ("QB",), "TE": ("TE",), "RB1": ("RB",), "RB2": ("RB",), "WR1": ("WR",), "WR2": ("WR",),
-                       "FLEX1": FLEX_POS, "FLEX2": FLEX_POS}
-            first_pick = []
-            for ps in ("QB", "TE"):
-                pots[ps] = np.where(opt_pos == ps, my_val, 0.0)
-            for ps in ("RB", "WR"):
-                v1 = np.where(opt_pos == ps, my_val, 0.0)
-                pots[ps + "1"] = v1
-                if n_opt and v1.max() > 0:
-                    best_i = int(v1.argmax())
-                    first_pick.append(opts[best_i][0])
-                    pots[ps + "2"] = v1 * marginal(roster + [opts[best_i][0]], (ps,))
-            if n_opt:
-                v_flex = np.where(np.isin(opt_pos, FLEX_POS), my_val, 0.0)
-                pots["FLEX1"] = v_flex * marginal(roster + first_pick, FLEX_POS)
-                if pots["FLEX1"].max() > 0:
-                    best_flex = opts[int(pots["FLEX1"].argmax())][0]
-                    pots["FLEX2"] = v_flex * marginal(roster + first_pick + [best_flex], FLEX_POS)
+                out: dict[str, np.ndarray] = {}
+                first_pick = []
+                for ps in ("QB", "TE"):
+                    out[ps] = np.where(opt_pos == ps, vals, 0.0)
+                for ps in ("RB", "WR"):
+                    v1 = np.where(opt_pos == ps, vals, 0.0)
+                    out[ps + "1"] = v1
+                    if n_opt and v1.max() > 0:
+                        best_i = int(v1.argmax())
+                        first_pick.append(opts[best_i][0])
+                        out[ps + "2"] = v1 * marginal([opts[best_i][0]], (ps,))
+                if n_opt:
+                    v_flex = np.where(np.isin(opt_pos, FLEX_POS), vals, 0.0)
+                    out["FLEX1"] = v_flex * marginal(first_pick, FLEX_POS)
+                    if out["FLEX1"].max() > 0:
+                        best_flex = opts[int(out["FLEX1"].argmax())][0]
+                        out["FLEX2"] = v_flex * marginal(first_pick + [best_flex], FLEX_POS)
+                return out
+
+            pots = make_pots(roster, my_val, gain_opt[tid])
             # Injury cover: the best few replacements for each starter, valued as P(he's out)
             # x the replacement's gain over the next man up (or the best free player).
             cover_items = []  # (starter, positions, option indices, gains)
@@ -692,7 +696,7 @@ class Simulator:
             _src = _ii[:, None] - _ii[None, :]
             conv_src, conv_bad = np.clip(_src, 0, None), _src < 0
 
-            def budget_value(chance, pot_vals=None, cover_vals=None) -> np.ndarray:
+            def budget_value(chance, pot_vals=None, cover_vals=None, all_pots=None) -> np.ndarray:
                 """Best total title chance from later pickups, for every budget on m_grid. The
                 budget is split across the pots (and injury cover); within each, the money set
                 aside goes to whichever player gives the most value x P(winning him with it)."""
@@ -700,7 +704,7 @@ class Simulator:
                 if n_opt == 0 or money <= 0:
                     return f
                 curves = []
-                for name, base_vals in pots.items():
+                for name, base_vals in (pots if all_pots is None else all_pots).items():
                     vals = base_vals if pot_vals is None or name not in pot_vals else pot_vals[name]
                     m = vals > 0
                     if m.any():
@@ -756,30 +760,32 @@ class Simulator:
                 value = v_now + v_mid + v_fin
                 group = self._slot_group(roster, p, fin)
                 key = "FLEX" if group == FLEX_POS else group[0]
-                # Win vs lose. Lose: keep all the money (later upgrades in every slot, including
-                # this one, plus injury cover). Win at price b: his value now, and only FAAB - b
-                # for later, where this slot's later option only counts if he's better than p.
-                # Winning him: later pickups at his position(s) only count above him, and if a
-                # starter he could replace gets hurt, he plays, so a bought replacement only
-                # counts above him too.
-                g_p = (1.0 - q_out[p]) * max(0.0, add_fin(p) - base_fin)
-                g_p_now = gain_now.get(p, 0.0)
+                # Win vs lose. Lose: keep all the money for later upgrades on today's roster
+                # (every slot, plus injury cover). Win at price b: his value now, and FAAB - b
+                # for later upgrades on the roster with him on it. He takes one lineup spot; the
+                # other spots can still be upgraded as before. The pots are rebuilt on that roster.
                 me = pool_idx.get(p)
-                g_after = np.maximum(gain_opt[tid] - g_p, 0.0)
-                g0_after = np.maximum(gnow_opt[tid] - g_p_now, 0.0)
-                shrink = np.where(gain_opt[tid] > 0, g_after / np.maximum(gain_opt[tid], 1e-12), 0.0)
+                with_p = roster + [p]
+                add_p = spec.adder(with_p, fin, proj.pos)
+                base_p = add_p()
+                add_p_now = spec.adder(with_p, now, proj.pos)
+                base_p_now = add_p_now()
+                g_after = np.array([0.0 if (o[1] == tid or i == me) else (1.0 - q_out[o[0]]) * max(0.0, add_p(o[0]) - base_p)
+                                    for i, o in enumerate(opts)], dtype=float)
+                g0_after = np.array([max(0.0, add_p_now(o[0]) - base_p_now) if (o[1] is None and i != me) else 0.0
+                                     for i, o in enumerate(opts)], dtype=float)
+                shrink = np.where(gain_opt[tid] > 0, np.minimum(g_after / np.maximum(gain_opt[tid], 1e-12), 1.0), 0.0)
                 after_val = opt_reach * (g_after * per_point_final
                                          + np.where(is_now, mid_opt[tid] * shrink, g_after * per_point_mid * opt_mid)
                                          + g0_after * pp_now[tid])
-                factor = np.where(my_val > 0, after_val / np.maximum(my_val, 1e-15), 0.0)
-                slot_vals = {name: v * factor for name, v in pots.items() if set(pot_pos[name]) & set(group)}
+                pots_win = make_pots(with_p, after_val, g_after)
                 cover_vals = {}
                 for c, (st, grp, idx, g_rep, base_rf) in enumerate(cover_items):
                     if proj.pos[p] in grp:
                         b_s = max(0.0, add_without[st](p) - base_rf)
                         if b_s > 0:
                             cover_vals[c] = np.maximum(g_rep - b_s, 0.0)
-                future_win = budget_value(chance, slot_vals, cover_vals)
+                future_win = budget_value(chance, None, cover_vals, all_pots=pots_win)
                 lose = future_lost  # by the bid lost: b = money - m_grid
                 if me is not None and my_val[me] > 0:
                     # Losing him means someone else has him: he's not one of the options then.
