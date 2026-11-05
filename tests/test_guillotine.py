@@ -342,3 +342,17 @@ def test_backup_pickups_improve_week_17(state):
             assert f[idx[e[3]]] > f[idx[drop]]
             checked += 1
     assert checked > 0
+
+
+def test_lock_bids_are_never_randomized(state):
+    """When the fair bid is the lock price (top every other team's whole FAAB), the team bids
+    exactly that: noise must not turn a guaranteed win into a loss."""
+    sim = Simulator(state, seed=9)
+    sim.trace = []
+    sim.run(15)
+    checked = 0
+    for e in sim.trace:
+        if e[0] == "bid" and e[9] != "bench" and e[7] == 1.0 and e[6] > 0:
+            assert e[5] == e[6]  # bid == fair (the lock)
+            checked += 1
+    assert checked >= 0

@@ -462,7 +462,12 @@ class Simulator:
                 kind = "lineup" if own >= model.min_gain else ("deny" if det > 1 else "bench")
                 if kind == "bench":
                     det = 1
-                if model.bid_sd is not None:
+                locked = kind != "bench" and det == lock and lock <= faab[tid]
+                if locked:
+                    # Guaranteeing the win is worth it: bid exactly the lock price (top every
+                    # other team's whole FAAB). No noise: a lock that misses isn't a lock.
+                    m, amt = 1.0, int(det)
+                elif model.bid_sd is not None:
                     # Every bid is fair x a random multiplier, normal around 1.
                     m = float(rng.normal(1.0, model.bid_sd))
                     # Bidding is free (you only pay if you win), so every team that wants him

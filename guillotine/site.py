@@ -323,7 +323,10 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
             ww = sw[sw.week == w]
             if ww.empty:
                 break
-            wb = sb[(sb.week == w) & ((sb.bid > 0) | sb.won)]
+            # every claim on players someone bid on above $0 or won, including $0 claims
+            wk_b = sb[sb.week == w]
+            contested = set(wk_b[(wk_b.bid > 0) | wk_b.won].player_id)
+            wb = wk_b[wk_b.player_id.isin(contested)]
             awards = []
             for pid, g in wb.groupby("player_id"):
                 g = g.sort_values("bid", ascending=False)
