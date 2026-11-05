@@ -47,9 +47,9 @@ adds to P(this team wins the league).
 V          = [P(cut this week) − P(cut this week with him)] × P(title | survive this week)
            + weeks between now and the final × title chance per point those weeks × his gain
            + P(reach the final) × title chance per week-17 point × his week-17 gain
-money(m)   = title chance m dollars can still buy: for each slot, the best player expected
-             to reach waivers × your share of claims (valued for the weeks he'd play and
-             the final), plus injury cover for each starter in the final
+money(m)   = best title chance m dollars can still buy: split the budget across
+             positions (and injury cover); each part goes to the later player with the most
+             value × P(winning him with that much)
 fair bid   = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
 bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
 ```
@@ -76,15 +76,18 @@ bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at
 - **The slot** is the one held by the starter who drops out of the week-17 lineup.
   QB, RB, WR and TE fill first, then flex takes the best of the rest, so with two great
   RBs and two great WRs a new RB or WR replaces the worst flex starter.
-- **What money buys later.** A rival's player reaches waivers only if his team is cut.
-  You then win the claim with your share of the money still in the league: FAAB kept /
-  (FAAB kept + the FAAB of rivals expected to still be alive then). Losing one claim to a
-  richer team means losing the next too, so the share applies once per slot to the best
-  player expected to come back. Money also buys **injury cover**: if a starter gets hurt
-  before week 17, it buys his replacement. All of it is weighted by P(lose the final).
+- **What money buys later.** Every manager values every player who could come back
+  (the best few at each position on each roster), in its own title chances, above the
+  better of its starter and the best free player. Its willingness to pay = that value ×
+  what a dollar is worth to it (its FAAB ÷ the best it could hope to add at each
+  position), capped by its FAAB. When a player comes back, each rival still alive bids its
+  willingness × Normal(1, 0.61), so your chance of winning him rises with the money you
+  set aside. Your money buys the best set it can afford, at most one per position plus
+  injury cover: money spent now shrinks that set. A backup's value is injury cover for
+  the final only; the weeks before the final count only for players who'd start.
 - **Win vs lose.** Losing the claim keeps all the money, including for a later player in
-  this slot, and someone else paid at least your bid, so rivals have that much less to
-  compete with you later. Winning gives his value now but leaves FAAB − b: lower odds on every later
+  this slot, and someone else (assumed your richest rival) paid at least your bid, so it
+  has that much less to compete with you later. Winning gives his value now but leaves FAAB − b: lower odds on every later
   claim, a later player in this slot only counts above him, and the injury cover he
   provides no longer has to be bought. The fair bid is the price where the two are equal.
   If winning isn't better even at $0 (his surplus over waiting), there's no bid. The bid
