@@ -40,15 +40,30 @@ Each team values a claim on its own, without guessing what rivals will bid. Only
 weeks matter: **this week**, if the team might be cut now, and **week 17**, the final.
 The middle weeks don't enter the price, so a bye week doesn't make a player cheaper.
 
+Everything is valued in **title chances**: a player, or a dollar kept, is worth what it
+adds to P(this team wins the league).
+
 ```
-V          = P(cut this week) × this week's gain over the best other player available now
-           + P(reach the final and lose it) × expected week-17 lineup gain
-money(m)   = what m dollars can still buy later: for each slot, the best player expected
-             to reach waivers × your share of claims, plus injury cover for each starter
+V          = [P(cut this week) − P(cut this week with him)] × P(title | survive this week)
+           + weeks between now and the final × title chance per point those weeks × his gain
+           + P(reach the final) × title chance per week-17 point × his week-17 gain
+money(m)   = title chance m dollars can still buy: for each slot, the best player expected
+             to reach waivers × your share of claims (valued for the weeks he'd play and
+             the final), plus injury cover for each starter in the final
 fair bid   = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
 bid        = fair bid × multiplier ~ Normal(1, 0.61) × aggression   (capped at FAAB)
 ```
 
+- **This week:** P(cut) is computed from every team's score distribution, with and
+  without his points. A third of a point barely moves it; a starter on a team at risk
+  moves it a lot.
+- **The weeks in between** use his week-17 projection as his weekly level (byes don't
+  count against him), and a point there is worth about what a point is worth this week.
+- **The final:** P(win) = P(your week-17 score beats your likely opponent's), where the
+  opponent is the rivals' average weighted by their chance of reaching the final.
+- **Rest-of-season odds** (P(cut in each week), P(reach the final), P(title)) come from
+  playing the remaining weeks 1,000 times with each team's score distribution: this
+  week's lineup now, the week-17 lineup after.
 - **Lineup gain** is how much the player raises *that team's* best lineup. Week 17 is
   judged on week-17 projections, with P(he's hurt before then) taken off. A player who
   wouldn't start in week 17 is a backup: his value is P(a starter he'd replace is

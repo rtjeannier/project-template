@@ -250,9 +250,10 @@ def test_bids_only_when_better_than_waiting_and_within_budget(state):
     sim.value_log = []
     sim.run(n_sims=4)
     assert sim.value_log
-    for (_, _, _, _, g_now, g_fin, c_now, c_fin, v, o_slot, other, slot, faab, fair) in sim.value_log:
-        assert v > o_slot
-        assert abs(v - (c_now * g_now + c_fin * g_fin)) < 1e-9
+    for (_, _, _, _, g_now, g_fin, v_now, v_mid, v_fin, v, wait, money, slot, faab, fair) in sim.value_log:
+        assert v > wait  # better than waiting for this slot
+        assert abs(v - (v_now + v_mid + v_fin)) < 1e-12
+        assert min(v_now, v_mid, v_fin) >= 0
         assert 0 <= fair <= max(faab, 0) + 1
 
 

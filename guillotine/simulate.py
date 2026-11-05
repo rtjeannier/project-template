@@ -44,6 +44,12 @@ def horizon_sd(weeks_ahead: int) -> float:
 
 _NORMAL = NormalDist()
 
+
+def _phi(x):
+    """Standard normal CDF, vectorized (tanh approximation, error < 0.0002)."""
+    x = np.asarray(x, dtype=float)
+    return 0.5 * (1.0 + np.tanh(0.7978845608 * (x + 0.044715 * x ** 3)))
+
 # Injuries: weekly chance a player gets hurt in a game. A share of injuries end his
 # season; the rest keep him out 1-4 weeks. Kept modest because ROS projections already
 # price in some missed time.
@@ -66,6 +72,7 @@ BENCH_MARGIN_PCT, BENCH_MARGIN_PTS = 0.10, 0.5
 def _clearly_better(new: float, old: float) -> bool:
     return new >= old * (1 + BENCH_MARGIN_PCT) and new - old >= BENCH_MARGIN_PTS
 ODDS_DRAWS = np.random.default_rng(20261104).standard_normal((2000, 32))  # fixed draws for P(lowest score)
+SEASON_DRAWS = np.random.default_rng(20261105).standard_normal((1000, 10, 32))  # fixed draws for the rest-of-season odds
 FLEX_SHARE = {"RB": 0.4, "WR": 0.5, "TE": 0.1}  # how flex starts split by position
 
 
@@ -139,9 +146,10 @@ class Simulator:
         self.bid_log: list | None = None  # set to [] to record (sim, week_idx, player, team, bid, faab)
         self.trace: list | None = None  # set to [] to record every award, rule bid, score and cut
         self.why_no_bid: list | None = None  # set to [] to record why teams skipped a player (diagnostics)
-        # set to [] to record every valuation: (sim, week_idx, player, team, gain now, gain wk17,
-        # P(cut now), P(lose final), V, value of waiting for this slot, value of all the money
-        # kept, slot, FAAB, fair bid)
+        # set to [] to record every valuation, in title chances: (sim, week_idx, player, team,
+        # points gained now, points gained wk17, value from this week, from weeks between, from
+        # the final, total V, value of waiting for this slot, value of all the money kept,
+        # slot, FAAB, fair bid)
         self.value_log: list | None = None
         self._added_this_round: dict = {}  # players each team added in the current waiver round
         # Week-17 value of each player as known in the current round (0 if he's out for the
@@ -404,21 +412,43 @@ class Simulator:
         # Odds as they stand before waivers (this week's projections, current rosters).
         # They're recalculated after every pickup below.
         odds = self._cut_odds(rosters, active, j)
-        weight = self._elimination_weights(odds, n_alive)
         priority = {tid: r for r, tid in enumerate(rng.permutation(active))}
         claimed: set[int] = set()
 
-        # Valuation inputs for this round. Bids weigh two things only: this week's points
-        # (they matter if the team might be cut now) and week 17 (the final).
+        # Valuation inputs for this round. Everything is valued in title chances: a player
+        # or a dollar is worth what it adds to P(this team wins the league).
         now = self._now
         fin = self._final
         q_out = self._out_for_final(j)
         one_left = len(n_alive) == 1  # the final: this week is week 17 and nothing comes later
+        rounds = len(n_alive)
+        n_mid = max(rounds - 2, 0)  # weeks between this one and the final
+        # This week's score distribution of every team (as in _cut_odds), and its week-17
+        # lineup: mean and spread.
+        col = {t: i for i, t in enumerate(active)}
+        mu_now, sd_now, mu17, sd17 = {}, {}, {}, {}
+        err17 = horizon_sd(n_weeks - 1 - j)
+        for t in active:
+            _, st_now = spec.best(rosters[t], now, proj.pos)
+            m = now[st_now]
+            mu_now[t] = float(m.sum())
+            sd_now[t] = float(np.sqrt((proj.sd[st_now, j] ** 2).sum() + ((m * PROJ_ERROR_NOW) ** 2).sum()))
+            tot, st17 = spec.best(rosters[t], fin, proj.pos)
+            mu17[t] = float(tot)
+            sd17[t] = float(np.sqrt((proj.sd[st17, -1] ** 2).sum() + ((fin[st17] * err17) ** 2).sum()))
+        draws = {t: mu_now[t] + sd_now[t] * ODDS_DRAWS[:, col[t]] for t in active}
+        # Rest-of-season odds: play the remaining weeks 1,000 times with these score
+        # distributions (this week's lineups now, week-17 lineups after). weight[t][r] =
+        # P(t is cut in round r); in the last round, P(t loses the final).
+        weight = self._season_odds(active, n_alive, e, mu_now, sd_now, mu17, sd17)
         # P(a rival's player reaches waivers later): his team is cut in round r (not the
         # final, after which there are no waivers). Whether this team then gets him depends
         # on its money: see share() in team_bids.
         reach = {u: sum(weight[u][r] for r in range(len(n_alive) - 1)) for u in active}
         SLOTS = {"QB": ("QB",), "RB": ("RB",), "WR": ("WR",), "TE": ("TE",), "FLEX": FLEX_POS}
+        # P(team reaches the final) and P(team wins the league)
+        p_final = {t: 1.0 if rounds == 1 else max(0.0, 1.0 - sum(weight[t][: rounds - 1])) for t in active}
+        p_title = {t: max(0.0, 1.0 - sum(weight[t])) for t in active}
 
         available = [x for x in set(pool) | set(fa_pool)]
         alt_fin = self._best_per_pos(available, fin, ALT_PER_POS)  # free week-17 alternatives
@@ -426,8 +456,34 @@ class Simulator:
         def team_bids(tid: str) -> dict[int, int]:
             out = {}
             roster = rosters[tid]
-            c_now = 0.0 if one_left else weight[tid][0]  # P(cut this week)
-            c_fin = weight[tid][-1]  # P(reach the final and lose it)
+            # This week: P(cut) as a function of extra points scored, against every other
+            # team's score distribution. A point matters only if it can change who's lowest.
+            if not one_left:
+                others_min = np.min(np.vstack([draws[u] for u in active if u != tid]), axis=0)
+
+                def p_cut(extra: float) -> float:
+                    return float(_phi((others_min - mu_now[tid] - extra) / max(sd_now[tid], 1e-6)).mean())
+
+                cut0 = p_cut(0.0)
+                title_if_survive = p_title[tid] / max(1.0 - weight[tid][0], 1e-9)
+                # Weeks 10-16 (between now and the final): a point there is worth about as much
+                # as a point this week, times P(title). Players are valued at their week-17 level.
+                per_point_mid = (p_cut(-0.5) - p_cut(0.5)) * p_title[tid]
+            else:
+                per_point_mid = 0.0
+            # The final: P(win it) = P(my week-17 score > my opponent's). The opponent is the
+            # average rival weighted by its chance of reaching the final.
+            rivals = [u for u in active if u != tid]
+            wsum = sum(p_final[u] for u in rivals)
+            if wsum > 0:
+                opp_mu = sum(p_final[u] * mu17[u] for u in rivals) / wsum
+                opp_sd = sum(p_final[u] * sd17[u] for u in rivals) / wsum
+            else:
+                opp_mu, opp_sd = mu17[tid], sd17[tid]
+            sig = float(np.hypot(sd17[tid], opp_sd)) or 1.0
+            z = (mu17[tid] - opp_mu) / sig
+            # Title chance per extra week-17 point: P(reach final) x density of the final margin.
+            per_point_final = p_final[tid] * float(np.exp(-0.5 * z * z) / np.sqrt(2 * np.pi)) / sig
             base_now = spec.total(roster, now, proj.pos)
             base_fin, starters = spec.best(roster, fin, proj.pos)
             without = {st: spec.total([y for y in roster if y != st], fin, proj.pos) for st in starters}
@@ -455,7 +511,11 @@ class Simulator:
                     rest = sum(float(faab[v]) * max(float(alive_after[v][r]), 0.0) for v in active if v not in (tid, u))
                     sh += weight[u][r] * np.where(m_grid > 0, m_grid / np.maximum(m_grid + rest, 1e-9), 0.0)
                 share_of[u] = sh / reach[u]
-            opt_x, opt_g, opt_reach, opt_pos, opt_share = [], [], [], [], []
+            opt_x, opt_g, opt_reach, opt_pos, opt_share, opt_mult = [], [], [], [], [], []
+            # Middle weeks a returning player would play for this team: he's freed after round
+            # r and helps from round r+1 through the week before the final.
+            mid_held = {u: (sum(weight[u][r] * max(0, n_mid - r) for r in range(rounds - 1)) / reach[u])
+                        if reach[u] > 0 else 0.0 for u in active}
             if not one_left:
                 for u in active:
                     if u == tid or reach[u] <= 0:
@@ -468,6 +528,7 @@ class Simulator:
                         for x in sorted(xs, key=lambda y: -fin[y])[:FUTURE_TOP_PLAYERS]:
                             opt_x.append(x)
                             opt_g.append((1.0 - q_out[x]) * (spec.total(roster + [x], fin, proj.pos) - base_fin))
+                            opt_mult.append(per_point_final + per_point_mid * mid_held[u])
                             opt_reach.append(reach[u])
                             opt_share.append(share_of[u])
                             opt_pos.append(ps)
@@ -475,6 +536,7 @@ class Simulator:
             opt_reach = np.array(opt_reach, dtype=float)
             opt_pos = np.array(opt_pos, dtype=object)
             opt_share = np.array(opt_share, dtype=float).reshape(len(opt_g), len(m_grid))
+            opt_mult = np.array(opt_mult, dtype=float)  # title chance per point for each option
             def best_landed(gains, mask) -> np.ndarray:
                 """Expected best player reaching waivers for a slot (it needs one), each times
                 this team's share of claims when he'd return, at each money level."""
@@ -488,7 +550,7 @@ class Simulator:
                 return ((gk * pk * none_before)[:, None] * shk).sum(axis=0)
 
             in_group = {k: np.isin(opt_pos, g) for k, g in SLOTS.items()}
-            upgrade = {k: c_fin * best_landed(opt_g, in_group[k]) for k in SLOTS}
+            upgrade = {k: best_landed(opt_g * opt_mult, in_group[k]) for k in SLOTS}
             # Injury cover: a starter can get hurt before week 17. Money buys his replacement.
             cover = np.zeros(len(m_grid))
             cover_parts = []  # (starter, positions that can replace him, replacement gains, his part of cover)
@@ -504,7 +566,7 @@ class Simulator:
                     rest = [y for y in roster if y != st]
                     g_rep = np.array([(1.0 - q_out[x]) * (spec.total(rest + [x], fin, proj.pos) - without[st]) if mask[i] else 0.0
                                       for i, x in enumerate(opt_x)])
-                    part = q_out[st] * c_fin * best_landed(g_rep, mask)
+                    part = q_out[st] * per_point_final * best_landed(g_rep, mask)
                     cover += part
                     cover_parts.append((st, grp, mask, g_rep, part))
             future_all = sum(upgrade.values()) + cover  # what this team's money is worth, by amount kept
@@ -541,14 +603,17 @@ class Simulator:
                     if why is not None:
                         why.append((sim, j, proj.ids[p], tid, "blocked by roster limits", g_now, g_fin, 0.0, 0.0))
                     continue  # he'd be the backup dropped to stay within the QB/TE limits
-                value = c_now * g_now + c_fin * g_fin
+                v_now = (cut0 - p_cut(g_now)) * title_if_survive if (g_now > 0 and not one_left) else 0.0
+                v_mid = per_point_mid * n_mid * g_fin
+                v_fin = per_point_final * g_fin
+                value = v_now + v_mid + v_fin
                 group = self._slot_group(roster, p, fin)
                 key = "FLEX" if group == FLEX_POS else group[0]
                 # Win vs lose. Lose: keep all the money (later upgrades in every slot, including
                 # this one, plus injury cover). Win at price b: his value now, and only FAAB - b
                 # for later, where this slot's later option only counts if he's better than p.
                 g_p = spec.total(roster + [p], fin, proj.pos) - base_fin
-                after = c_fin * best_landed(opt_g - g_p, in_group[key]) if len(opt_g) else np.zeros(len(m_grid))
+                after = best_landed((opt_g - g_p) * opt_mult, in_group[key]) if len(opt_g) else np.zeros(len(m_grid))
                 # Winning him also changes what injury cover the money still has to buy: if a
                 # starter he could replace gets hurt, he plays, so a bought replacement only
                 # counts above him.
@@ -559,7 +624,7 @@ class Simulator:
                     rest = [y for y in roster if y != st]
                     b_s = max(0.0, spec.total(rest + [p], fin, proj.pos) - without[st])
                     if b_s > 0:
-                        cover_win += q_out[st] * c_fin * best_landed(g_rep - b_s, mask) - part
+                        cover_win += q_out[st] * per_point_final * best_landed(g_rep - b_s, mask) - part
                 future_win = future_all - upgrade[key] + after - cover + cover_win
                 lose = float(future_all[-1])
                 win = value + future_win  # by money kept, m_grid
@@ -600,7 +665,7 @@ class Simulator:
                 if submitting and self.trace is not None:
                     self.trace.append(("bid", sim, j, proj.ids[p], tid, max(amt, 0), det, m, faab[tid], kind))
                 if self.value_log is not None and submitting:
-                    self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, c_now, c_fin, value,
+                    self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, v_now, v_mid, v_fin, value,
                                            lose - float(future_win[-1]), lose, key, faab[tid], det))
                 fair_all[(tid, p)] = det
                 kinds[(tid, p)] = kind
@@ -929,6 +994,29 @@ class Simulator:
             below = ranked[k:k + depth + 1]
             out[pos] = float(np.mean(below)) if below else 0.0
         return out
+
+    @staticmethod
+    def _season_odds(active, n_alive, per_week, mu_now, sd_now, mu17, sd17) -> dict[str, list[float]]:
+        """P(each team is cut in each remaining round), from simulating the rest of the
+        season with fixed draws. Round 0 uses this week's score distributions, later rounds
+        the week-17 lineups. The last round is the final: "cut" = losing it."""
+        k, n = SEASON_DRAWS.shape[0], len(active)
+        mu_a = np.array([[mu_now[t] for t in active], [mu17[t] for t in active]])
+        sd_a = np.array([[sd_now[t] for t in active], [sd17[t] for t in active]])
+        dead = np.zeros((k, n), dtype=bool)
+        counts = np.zeros((len(n_alive), n))
+        rows = np.arange(k)
+        for r in range(len(n_alive)):
+            i = 0 if r == 0 else 1
+            sc = mu_a[i] + sd_a[i] * SEASON_DRAWS[:, r % SEASON_DRAWS.shape[1], :n]
+            sc = np.where(dead, np.inf, sc)
+            for _ in range(per_week if r < len(n_alive) - 1 else 1):
+                lo = sc.argmin(axis=1)
+                counts[r] += np.bincount(lo, minlength=n)
+                dead[rows, lo] = True
+                sc[rows, lo] = np.inf
+        p = counts / k
+        return {t: [float(x) for x in p[:, c]] for c, t in enumerate(active)}
 
     @staticmethod
     def _elimination_weights(p_cut: dict[str, float], n_alive: list[int]) -> dict[str, list[float]]:
