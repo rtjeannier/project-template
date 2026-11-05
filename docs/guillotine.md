@@ -53,7 +53,9 @@ value(player, team) = Σ over remaining rounds r of
 - **Lineup gain**: how much the player raises *that team's* starting lineup. Walker
   replacing Henry counts even though both are good RBs.
 - **Free gain / dynamic replacement**: what the team could add for $0. The
-  replacement level at a position is the best player the remaining teams won't
+  replacement level at a position is the average of the (teams alive + 1) players
+  just below the ones the remaining teams would start (with 2 teams left, QBs 3–5),
+  because backups held by other teams block some of them. Before that, it was the best player the remaining teams won't
   start. It rises every round as eliminated rosters flood waivers. With few teams
   left, a solid starter can be at or below replacement.
 - **P(cut in round r)**: each team's weekly score is treated as roughly normal. The

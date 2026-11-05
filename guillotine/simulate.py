@@ -730,8 +730,11 @@ class Simulator:
             entries[-1] = (sim, j, gain)
 
     def _replacement(self, vb, universe, n_active: int) -> dict[str, float]:
-        """Dynamic replacement level: the best player at each position the remaining
-        teams won't start. It rises as teams are cut and their rosters hit waivers.
+        """Dynamic replacement level: what a team can expect to get for free at each
+        position: the average of the (teams alive + 1) players just below the ones the
+        remaining teams would start (with 2 teams left, QBs 3-5), because backups held by
+        the other teams block some of them. It rises as teams are cut and their rosters hit
+        waivers.
 
         No "breakout" adjustment: an earlier version took the expected k-th best of
         randomly perturbed projections, which at deep positions put replacement above
@@ -748,7 +751,12 @@ class Simulator:
             starters = slots.get(pos, 0) + flex * FLEX_SHARE.get(pos, 0)
             starters += superflex * (0.8 if pos == "QB" else 0.07)
             k = int(round(n_active * starters))
-            out[pos] = sorted(vals, reverse=True)[k] if k < len(vals) else 0.0
+            ranked = sorted(vals, reverse=True)
+            # Not just the first player below the starters: teams also hold backups, which
+            # blocks some of them. Average the next (teams alive + 1): with 2 teams left,
+            # QBs 3-5.
+            below = ranked[k:k + n_active + 1]
+            out[pos] = float(np.mean(below)) if below else 0.0
         return out
 
     @staticmethod
