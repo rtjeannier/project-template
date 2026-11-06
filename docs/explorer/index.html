@@ -126,7 +126,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
   <section class="panel">
     <h2>What has to go right</h2>
-    <p class="note">The conditions that move a team's title odds the most: who gets cut and when, key injuries, and key pickups. Each is judged only on the seasons where it could matter (for example, a pickup only counts seasons where the player hit waivers while the team was alive), so simply surviving long isn't credited to it. Tick any combination to see how often it happens and the title odds when it does; the Seasons list below then shows only seasons where all ticked conditions happened. These are associations, not guarantees.</p>
+    <p class="note">The conditions that move a team's title odds the most: who gets cut and when, key injuries, and key pickups. Each is judged only on the seasons where it could matter (for example, a pickup only counts seasons where the player hit waivers while the team was alive), so simply surviving long isn't credited to it. When = the typical week it happened (median, with the middle half of seasons in brackets). Tiers use each player's week-17 edge over a replacement: elite = more than 2.5 points, starter-grade = more than 0. Tick any combination to see how often it happens and the title odds when it does; the Seasons list below then shows only seasons where all ticked conditions happened. These are associations, not guarantees.</p>
     <div class="fgroup" style="max-width:320px"><label class="label" for="scteam">Team</label><select id="scteam"></select></div>
     <div class="tbl" style="max-height:none"><table id="sctbl"></table></div>
     <p id="scsum" class="facts"></p>
@@ -143,7 +143,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-06_15:12_UTC";
+const BUILD = "2026-11-06_15:30_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
@@ -463,11 +463,12 @@ function renderScenarioPicker() {
 }
 function renderScenarios() {
   const T = SCEN.teams[+$("scteam").value];
-  const kind = { results: "Other teams", injury: "Injury", pickup: "Pickup" };
-  $("sctbl").innerHTML = `<thead><tr><th></th><th>Condition</th><th>Type</th><th class="n">Happens</th><th class="n">Title odds if it does</th><th class="n">…if it doesn't</th></tr></thead><tbody>` +
+  const kind = { results: "Other teams", injury: "Injury", pickup: "Pickup", tier: "Pickup (any player of a tier)" };
+  const when = w => !w ? "–" : (w[0] === w[2] ? `wk ${w[1]}` : `wk ${w[1]} <span class="note">(${w[0]}–${w[2]})</span>`);
+  $("sctbl").innerHTML = `<thead><tr><th></th><th>Condition</th><th>Type</th><th class="n">When</th><th class="n">Happens</th><th class="n">Title odds if it does</th><th class="n">…if it doesn't</th></tr></thead><tbody>` +
     T.conditions.map((c, i) => `<tr><td><input type="checkbox" id="sc-${i}" aria-label="${escapeHtml(c.label)}"></td>
       <td><label for="sc-${i}">${escapeHtml(c.label)}</label><div class="note">counted in ${escapeHtml(c.where)} (${pct(c.share, 0)} of seasons)</div></td>
-      <td class="note">${kind[c.kind] || c.kind}</td><td class="n">${pct(c.freq, 0)}</td>
+      <td class="note">${kind[c.kind] || c.kind}</td><td class="n">${when(c.when)}</td><td class="n">${pct(c.freq, 0)}</td>
       <td class="n ${c.p_yes > c.p_no ? "pos" : "neg"}">${pct(c.p_yes)}</td><td class="n">${pct(c.p_no)}</td></tr>`).join("") + `</tbody>`;
   T.conditions.forEach((_, i) => { $(`sc-${i}`).onchange = () => { scenarioSummary(); renderSeasonPicker(); }; });
   scenarioSummary();

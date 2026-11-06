@@ -25,7 +25,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-N_CONDITIONS = 10  # conditions shown per team in "What has to go right"
+N_CONDITIONS = 14  # conditions shown per team (at most 31: the page uses 32-bit masks)
+N_TIER = 6  # of which reserved for "lands an elite RB by week k" style conditions
+TIER_WEEKS = (11, 14)  # the "by week k" windows for tier conditions in "What has to go right"
 MIN_SEASONS = 200  # a condition needs this many seasons on each side to be shown
 SHARE_EDGES = [-np.inf, 0.05, 0.10, 0.25, 0.50, 0.75, np.inf]
 SHARE_LABELS = ["under 5%", "5–10%", "10–25%", "25–50%", "50–75%", "75%+"]
@@ -138,7 +140,12 @@ def _scenarios(weeks, seasons, bids, injuries, players, teams, names, week_list,
     the plain benefit of surviving long doesn't get credited to it:
     - "Rival U is cut by week k": seasons where the team is still alive after week k.
     - "Team lands player X": seasons where X hit waivers while the team was alive.
+    - "Team lands an elite RB by week k" (any player of that tier and position): seasons
+      where the team is alive for week k's waivers. Tiers come from the week-17 edge:
+      elite = edge > 2.5, starter-grade or better = edge > 0.
+    - "Team loses a starter-grade player for the season by week k": same seasons.
     - Injuries (rivals' players get hurt, the team's own stay healthy): all seasons.
+    Each condition also says when it happens: the middle half of the weeks it happened in.
     For each: how often it happens within those seasons, and the team's title odds when it
     does vs when it doesn't. The top N_CONDITIONS by swing x uncertainty are kept, with
     per-season bitmasks (where it counts, and whether it happened) so the page can check
@@ -171,6 +178,33 @@ def _scenarios(weeks, seasons, bids, injuries, players, teams, names, week_list,
     avail_week = {pid: g.droplevel(0).reindex(season_ids).fillna(np.inf).values for pid, g in first_wk.groupby(level=0)}
     landed = {(t, pid): mask_of(g.season.unique()) for (t, pid), g in bids[bids.won].groupby(["team_id", "player_id"])}
 
+    def week_of(df, cols):
+        """First week per key and season, as {key: array over seasons (nan = never)}."""
+        g = df.groupby(cols + ["season"]).week.min()
+        out = {}
+        for key, x in g.groupby(level=list(range(len(cols)))):
+            out[key] = x.droplevel(list(range(len(cols)))).reindex(season_ids).values.astype(float)
+        return out
+
+    won_b = bids[bids.won].merge(players[["player_id", "pos", "final_edge"]], on="player_id", how="left")
+    landed_wk = week_of(won_b, ["team_id", "player_id"])
+    hurt_wk = {pid: v for pid, v in week_of(injuries, ["player_id"]).items()} if len(injuries) else {}
+    hurt_wk = {(k[0] if isinstance(k, tuple) else k): v for k, v in hurt_wk.items()}
+    tiers = [("an elite", 2.5), ("a starter-grade or better", 0.0)]
+    tier_wk = {}  # (team, tier label, position) -> first week it landed one, per season
+    for lab, lo in tiers:
+        x = won_b[won_b.final_edge > lo]
+        for (t, pos), v in week_of(x, ["team_id", "pos"]).items():
+            tier_wk[(t, lab, pos)] = v
+        for t, v in week_of(x[x.pos.isin(["RB", "WR", "TE"])].assign(any="ANY"), ["team_id"]).items():
+            tier_wk[((t[0] if isinstance(t, tuple) else t), lab, "ANY")] = v
+    lost = injuries[injuries.season_ending].merge(players[["player_id", "final_edge"]], on="player_id", how="left") if len(injuries) else injuries
+    lost_wk = {}
+    for lab, lo in tiers:
+        if len(lost):
+            for t, v in week_of(lost[lost.final_edge > lo], ["team_id"]).items():
+                lost_wk[((t[0] if isinstance(t, tuple) else t), lab)] = v
+
     out = {"seasons": n, "teams": []}
     for t in team_ids:
         win = champ == t
@@ -184,10 +218,18 @@ def _scenarios(weeks, seasons, bids, injuries, players, teams, names, week_list,
             f = m / k
             return abs(win[pop & ev].mean() - win[pop & ~ev].mean()) * (f * (1 - f)) ** 0.5 * (k / n) ** 0.5
 
-        def add(label, where, kind, pop, ev):
+        def add(label, where, kind, pop, ev, when=None):
             sc = score(pop, ev)
             if sc is not None:
-                cands.append((sc, label, where, kind, pop, ev))
+                cands.append((sc, label, where, kind, pop, ev, when))
+
+        def by_week(label_of, where_of, kind, wk_arr):
+            """'By week k' versions of an event that first happens in week wk_arr, for an early
+            and a middle window, judged on seasons the team is alive for week k's waivers."""
+            if wk_arr is None:
+                return
+            for k in TIER_WEEKS:
+                add(label_of(k), where_of(k), kind, my_cut >= k, wk_arr <= k, wk_arr)
 
         for u in team_ids:
             if u == t:
@@ -201,28 +243,45 @@ def _scenarios(weeks, seasons, bids, injuries, players, teams, names, week_list,
             if opts:
                 _, k = max(opts)
                 add(f"{names[u]} is cut by week {k}", f"seasons you're alive after week {k}", "results",
-                    my_cut > k, cut[u].values <= k)
+                    my_cut > k, cut[u].values <= k, cut[u].values)
         for pid in notable:
             h = hurt.get(pid, nowhere)
             if owner.get(pid) == t:
                 add(f"{pname[pid]} (yours) stays healthy", "all seasons", "injury", everywhere, ~h)
             else:
                 who = f" ({names[owner[pid]]})" if pid in owner else ""
-                add(f"{pname[pid]}{who} gets hurt", "all seasons", "injury", everywhere, h)
+                add(f"{pname[pid]}{who} gets hurt", "all seasons", "injury", everywhere, h, hurt_wk.get(pid))
             aw = avail_week.get(pid)
             if aw is not None:
                 pop = my_cut >= aw  # he hit waivers while you were alive
                 add(f"{names[t]} lands {pname[pid]}", "seasons he hit waivers while you were alive", "pickup",
-                    pop, landed.get((t, pid), nowhere))
+                    pop, landed.get((t, pid), nowhere), landed_wk.get((t, pid)))
+        alive_k = lambda k: f"seasons you're alive for week {k} waivers"
+        for lab, _ in tiers:
+            for pos in ("RB", "WR", "TE", "QB", "ANY"):
+                what = "RB, WR or TE" if pos == "ANY" else pos
+                by_week(lambda k, lab=lab, what=what: f"{names[t]} lands {lab} {what} by week {k}", alive_k,
+                        "tier", tier_wk.get((t, lab, pos)))
+            by_week(lambda k, lab=lab: f"{names[t]} loses {lab} player for the season by week {k}", alive_k,
+                    "injury", lost_wk.get((t, lab)))
         cands.sort(key=lambda c: -c[0])
-        top = cands[:N_CONDITIONS]
+        # Keep room for the tier-level conditions, so named players don't crowd them out.
+        tier_c = [c for c in cands if c[3] == "tier"][:N_TIER]
+        other = [c for c in cands if c[3] != "tier"][:N_CONDITIONS - len(tier_c)]
+        top = sorted(tier_c + other, key=lambda c: -c[0])
         pop_bits = np.zeros(n, dtype=np.int64)
         ev_bits = np.zeros(n, dtype=np.int64)
         conds = []
-        for i, (_, label, where, kind, pop, ev) in enumerate(top):
+        for i, (_, label, where, kind, pop, ev, when) in enumerate(top):
             pop_bits |= pop.astype(np.int64) << i
             ev_bits |= (pop & ev).astype(np.int64) << i
-            conds.append({"label": label, "where": where, "kind": kind, "share": round(float(pop.mean()), 4),
+            wk = None
+            if when is not None:
+                w = np.asarray(when, dtype=float)[pop & ev]
+                w = w[np.isfinite(w) & (w < big)]
+                if len(w):
+                    wk = [int(np.percentile(w, 25)), int(np.median(w)), int(np.percentile(w, 75))]
+            conds.append({"label": label, "where": where, "kind": kind, "when": wk, "share": round(float(pop.mean()), 4),
                           "freq": round(float(ev[pop].mean()), 4),
                           "p_yes": round(float(win[pop & ev].mean()), 4), "p_no": round(float(win[pop & ~ev].mean()), 4)})
         out["teams"].append({"name": names[t], "p_win": round(float(win.mean()), 4), "conditions": conds,
