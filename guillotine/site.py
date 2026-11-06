@@ -414,7 +414,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
         samp.append({"season": s, "champion": names[champ], "weeks": wk})
     (out / "seasons.json").write_text(json.dumps(samp, separators=(",", ":")))
 
-    overbid = _overbid(bids, seasons, teams, names, you, meta["weeks"])
+    overbid = _overbid(bids, seasons, teams, names, you, meta["weeks"], meta.get("bid_sd"))
 
     import datetime as _dt
     summary = {"built_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "seasons": int(meta["seasons"]), "bids": int(len(bids)), "analyzed_bids": int(len(b)),
@@ -427,38 +427,77 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
     return sorted(out.iterdir())
 
 
-OVERBID_EDGES = [0, 0.6, 0.8, 0.95, 1.05, 1.25, 1.6, np.inf]
-OVERBID_LABELS = ["under 0.6×", "0.6–0.8×", "0.8–0.95×", "about fair (0.95–1.05×)", "1.05–1.25×", "1.25–1.6×", "over 1.6×"]
+# Distance from the fair price, the same in both directions: 1.6x over is as far as 1/1.6x
+# under (and, with lognormal noise, as likely).
+OVERBID_STEPS = [1.1, 1.25, 1.6, 2.0]
+OVERBID_LABELS = ["within 10%", "10–25%", "25–60% (up to 1.6×)", "1.6–2×", "2× or more"]
 STUD_FAIR = 150
+OVERBID_CAP = 1.6  # the "without crazy overbids" ceiling
 
 
-def _overbid(bids, seasons, teams, names, you, weeks) -> dict:
-    """What over- and underbidding did to title chances. Bid multipliers are random, so
-    comparing bids by multiplier is a fair experiment. Lock bids (exactly 1x: topping every
-    rival's whole FAAB) aren't random and are left out, as are small bids (fair < $10)."""
+def _overbid(bids, seasons, teams, names, you, weeks, bid_sd) -> dict:
+    """What over- and underbidding did to title chances, from actual simulated outcomes.
+
+    Bid multipliers are random, so grouping bids by multiplier is a fair experiment. Each
+    bid is grouped by direction (over/under) and distance from fair, and compared with bids
+    within 10% of fair. Lock bids (exactly 1x: topping every rival's whole FAAB) aren't
+    random and are left out, as are small bids (fair < $10).
+
+    "Without crazy overbids": each team's title odds if its stud bids (fair $150+) had never
+    been drawn above OVERBID_CAP x fair, rivals unchanged. Seasons are reweighted (importance
+    weighting): a season where one of its stud draws was above the cap gets weight 0, and
+    otherwise 1 / P(draw <= cap) per stud draw, which is exactly the odds under noise that
+    never goes above the cap."""
+    from math import erf, log, sqrt
+
     b = bids[(bids.multiplier != 1.0) & (bids.fair_bid >= 10)].merge(
         seasons[["season", "champion_id"]], on="season")
     b["title"] = b.team_id.astype(str) == b.champion_id.astype(str)
-    b["m"] = pd.cut(b.multiplier, OVERBID_EDGES, labels=False)
+    lm = np.log(b.multiplier.clip(lower=1e-6))
+    steps = np.log(OVERBID_STEPS)
+    b["dist"] = np.searchsorted(steps, np.abs(lm), side="right")  # 0 = within 10%, ... 4 = 2x or more
+    b["over"] = lm > 0
 
-    def rows(x):
-        base = float(x.title.mean()) if len(x) else 0.0
-        g = x.groupby("m").agg(n=("title", "size"), got=("won", "mean"), title=("title", "mean"),
-                               paid=("price", "mean"))
+    def side(x, base, n0):
+        g = x.groupby("dist").agg(n=("title", "size"), got=("won", "mean"), title=("title", "mean"), paid=("price", "mean"))
         out = []
         for i in range(len(OVERBID_LABELS)):
             if i in g.index and g.loc[i, "n"] > 0:
                 r = g.loc[i]
-                se = float(np.sqrt(base * (1 - base) / r.n))
-                out.append([int(r.n), float(r.got), None if pd.isna(r.paid) else float(r.paid),
-                            float(r.title - base), se])
+                se = float(np.sqrt(base * (1 - base) * (1 / r.n + 1 / max(n0, 1))))
+                out.append([int(r.n), float(r.got), None if pd.isna(r.paid) else float(r.paid), float(r.title - base), se])
             else:
                 out.append([0, None, None, None, None])
-        return {"base": base, "rows": out}
+        return out
+
+    def table(x):
+        near = x[x.dist == 0]
+        base = float(near.title.mean()) if len(near) else 0.0
+        return {"fair": base, "n_fair": int(len(near)),
+                "under": side(x[~x.over], base, len(near)), "over": side(x[x.over], base, len(near))}
 
     ys = b[b.team_id.astype(str) == str(you)]
-    studs = b.fair_bid >= STUD_FAIR
-    tables = {"all": rows(b), "all_studs": rows(b[studs]), "you": rows(ys), "you_studs": rows(ys[ys.fair_bid >= STUD_FAIR])}
+    tables = {"all": table(b), "all_studs": table(b[b.fair_bid >= STUD_FAIR]),
+              "you": table(ys), "you_studs": table(ys[ys.fair_bid >= STUD_FAIR])}
+
+    # Without crazy overbids, team by team.
+    sd = bid_sd or 0.42
+    p_ok = 0.5 * (1 + erf(log(OVERBID_CAP) / sd / sqrt(2)))
+    st = b[b.fair_bid >= STUD_FAIR]
+    sids = seasons.season.values
+    champ = seasons.set_index("season").champion_id.astype(str).reindex(sids)
+    capped = []
+    for t in teams.team_id:
+        x = st[st.team_id.astype(str) == str(t)]
+        g = x.groupby("season").multiplier.agg(n="size", bad=lambda m: bool((m > OVERBID_CAP).any()))
+        w = pd.Series(1.0, index=sids)
+        w.loc[g.index] = np.where(g.bad, 0.0, p_ok ** -g.n.astype(float))
+        y = (champ == str(t)).astype(float).values
+        ess = float(w.sum() ** 2 / (w ** 2).sum())
+        pw = float((w.values * y).sum() / w.sum())
+        capped.append({"team": names[t], "is_you": str(t) == str(you), "actual": float(y.mean()), "capped": pw,
+                       "se": float(np.sqrt(pw * (1 - pw) / max(ess, 1))), "ess": ess,
+                       "crazy_share": float(g.bad.sum()) / len(sids)})
 
     # Each team's first week (every team alive and bidding): how much it overbid overall,
     # weighted by fair price, in fifths of its own seasons.
@@ -477,4 +516,5 @@ def _overbid(bids, seasons, teams, names, you, weeks) -> dict:
         style.append({"team": names[t], "is_you": str(t) == str(you),
                       "rates": [float(g.loc[q, "mean"]) if q in g.index else None for q in range(5)],
                       "n": [int(g.loc[q, "size"]) if q in g.index else 0 for q in range(5)]})
-    return {"labels": OVERBID_LABELS, "stud_fair": STUD_FAIR, "tables": tables, "style": style, "week": int(weeks[0])}
+    return {"labels": OVERBID_LABELS, "steps": OVERBID_STEPS, "stud_fair": STUD_FAIR, "cap": OVERBID_CAP,
+            "tables": tables, "capped": capped, "style": style, "week": int(weeks[0])}

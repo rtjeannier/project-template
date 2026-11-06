@@ -88,11 +88,15 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
   <section class="panel" id="overbid">
     <h2>Overbidding vs underbidding</h2>
     <p id="obblurb"></p>
+    <h3 id="obcap-h"></h3>
+    <p class="note" id="obcap-note"></p>
+    <div class="tbl" style="max-height:none"><table id="obcap"></table></div>
+    <h3>By direction and distance from fair</h3>
     <div style="display:flex;flex-wrap:wrap;gap:8px 24px;align-items:end">
       <div class="fgroup"><span class="label">Whose bids</span><div style="display:flex;gap:6px"><button class="chip" id="ob-all">All teams</button><button class="chip" id="ob-you">You</button></div></div>
       <div class="fgroup"><span class="label">Which bids</span><div style="display:flex;gap:6px"><button class="chip" id="ob-any">All bids</button><button class="chip" id="ob-studs">Studs</button></div></div>
     </div>
-    <div class="tbl" style="max-height:none"><table id="obtbl"><thead><tr><th>Bid vs fair price</th><th class="n">Bids</th><th class="n">Got the player</th><th class="n">Avg price paid</th><th class="n">Title chance vs average</th></tr></thead><tbody></tbody></table></div>
+    <div class="tbl" style="max-height:none"><table id="obtbl"></table></div>
     <p class="note" id="obnote"></p>
     <h3 id="obstyle-h"></h3>
     <p class="note">Each team's seasons split into fifths by how far above or below its fair prices it bid that week overall (weighted by fair price). Each cell: how often it won the league. Each team is compared only with itself.</p>
@@ -143,7 +147,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-06_15:30_UTC";
+const BUILD = "2026-11-06_15:58_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
@@ -183,44 +187,60 @@ function renderSummary() {
     `<tr><td>${t.is_you ? `<span class="pill">${t.name}</span>` : t.name}</td><td class="n">${money(t.faab)}</td><td class="n">${pct(t.p_champion)}</td></tr>`).join("");
 }
 
-let OB_WHO = "all", OB_STUDS = true;
+let OB_WHO = "you", OB_STUDS = true;
 function renderOverbid() {
-  const O = SUM.overbid; if (!O) { $("overbid").hidden = true; return; }
+  const O = SUM.overbid; if (!O || !O.capped) { $("overbid").hidden = true; return; }
   const pts = v => (v >= 0 ? "+" : "−") + Math.abs(100 * v).toFixed(1) + " pts";
   const cls = (v, se) => Math.abs(v) < 2 * se ? "flat" : (v > 0 ? "pos" : "neg");
-  const T = O.tables;
-  // Blurb from your stud bids (or all teams' if you have too few)
-  const mine = T.you_studs.rows[6][0] >= 500, tb = mine ? T.you_studs : T.all_studs;
-  const over = tb.rows[6], under = tb.rows.slice(0, 3).filter(r => r[0] > 0);
-  const nU = Math.max(under.reduce((a, r) => a + r[0], 0), 1);
-  const underAvg = under.reduce((a, r) => a + r[3] * r[0], 0) / nU;
-  const underGot = under.reduce((a, r) => a + r[1] * r[0], 0) / nU;
-  const underSe = Math.sqrt(tb.base * (1 - tb.base) / nU);
-  const who = mine ? escapeHtml(SUM.you) : "a team", its = mine ? "its" : "its";
-  $("obblurb").innerHTML = `Every bid is the team's fair price times a random multiplier, so comparing bids by multiplier is a fair experiment. ` +
-    `On studs (fair price $${O.stud_fair}+), bidding <b>over 1.6× fair</b> got ${who} the player ${pct(over[1], 0)} of the time ` +
-    `at an average of ${money(over[2])}, and changed ${its} title chance by <b class="${cls(over[3], over[4])}">${pts(over[3])}</b>. ` +
-    `Bidding <b>under fair</b> almost never landed him (${pct(underGot, 0)}) and changed title chance by <b class="${cls(underAvg, underSe)}">${pts(underAvg)}</b>. ` +
-    `Missing a stud is cheap because the money is still there for later; overpaying is what hurts.`;
+  const pill = (name, me) => me ? `<span class="pill">${escapeHtml(name)}</span>` : escapeHtml(name);
+  const capX = O.cap + "×";
+  // Summary: your title odds without crazy overbids, and the matched over/under rows.
+  const me = O.capped.find(c => c.is_you), ys = O.tables.you_studs;
+  const o3 = ys.over[3], u3 = ys.under[3];
+  $("obblurb").innerHTML = `These numbers are actual simulated outcomes: for each bid, did that team go on to win the league that season. ` +
+    `Every bid is the fair price times a random multiplier, so grouping bids by multiplier is a fair experiment. ` +
+    `If ${escapeHtml(SUM.you)} had never bid more than ${capX} fair on a stud (fair $${O.stud_fair}+), its title chance would be ` +
+    `<b>${pct(me.capped)}</b> instead of ${pct(me.actual)} (<b class="${cls(me.capped - me.actual, me.se)}">${pts(me.capped - me.actual)}</b>). ` +
+    `Compared with bidding within 10% of fair, a stud bid 1.6–2× <b>over</b> changed it by <b class="${cls(o3[3], o3[4])}">${pts(o3[3])}</b>; ` +
+    `the same distance <b>under</b> (0.5–0.63×) by <b class="${cls(u3[3], u3[4])}">${pts(u3[3])}</b>. Missing a stud is cheap because the money is still there for later; overpaying is what hurts.`;
+  // Without crazy overbids, each team
+  $("obcap-h").textContent = `Without crazy overbids (stud bids above ${capX} fair)`;
+  $("obcap-note").textContent = `Each team's title odds if its own stud bids had never come out above ${capX} fair, rivals unchanged. ` +
+    `Estimated by reweighting the simulated seasons: seasons with such a bid are dropped and the rest weighted up, so this is the same league with that team's wild bids never made. ` +
+    `± is 2 standard errors; grey means within noise.`;
+  $("obcap").innerHTML = `<thead><tr><th>Team</th><th class="n">Seasons with a crazy stud bid</th><th class="n">Title odds</th><th class="n">Without its crazy bids</th><th class="n">Change</th></tr></thead><tbody>` +
+    O.capped.slice().sort((a, b) => b.actual - a.actual).map(c => {
+      const d = c.capped - c.actual;
+      return `<tr><td>${pill(c.team, c.is_you)}</td><td class="n">${pct(c.crazy_share, 0)}</td><td class="n">${pct(c.actual)}</td><td class="n">${pct(c.capped)}</td>` +
+        `<td class="n"><span class="${cls(d, c.se)}">${pts(d)}</span> <span class="flat">±${(200 * c.se).toFixed(1)}</span></td></tr>`;
+    }).join("") + `</tbody>`;
+  // Direction and distance
   const key = (OB_WHO === "you" ? "you" : "all") + (OB_STUDS ? "_studs" : "");
-  const t = T[key];
+  const t = O.tables[key];
   $("ob-all").setAttribute("aria-pressed", OB_WHO === "all"); $("ob-you").setAttribute("aria-pressed", OB_WHO === "you");
   $("ob-any").setAttribute("aria-pressed", !OB_STUDS); $("ob-studs").setAttribute("aria-pressed", OB_STUDS);
-  $("obtbl").querySelector("tbody").innerHTML = O.labels.map((lab, i) => {
-    const r = t.rows[i];
-    if (!r[0]) return `<tr><td>${lab}</td><td class="n">0</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>`;
-    return `<tr><td>${lab}</td><td class="n">${r[0].toLocaleString()}</td><td class="n">${pct(r[1], 0)}</td><td class="n">${money(r[2])}</td>` +
-      `<td class="n"><span class="${cls(r[3], r[4])}">${pts(r[3])}</span> <span class="flat">±${(200 * r[4]).toFixed(1)}</span></td></tr>`;
-  }).join("");
-  $("obnote").textContent = `${OB_WHO === "you" ? SUM.you + "'s" : "All teams'"} ${OB_STUDS ? `bids with a fair price of $${O.stud_fair}+` : "bids with a fair price of $10+"}: average title chance ${pct(t.base)}. ` +
-    `Title chance vs average is in percentage points, ±2 standard errors; grey means within noise. Lock bids (topping every rival's whole FAAB) aren't random and are left out.`;
+  const range = i => {
+    const lo = i === 0 ? 1 : O.steps[i - 1], hi = O.steps[i];
+    const f = v => (+v.toFixed(2)) + "×";
+    return { over: hi ? `${f(lo)}–${f(hi)}` : `${f(lo)}+`, under: hi ? `${f(1 / hi)}–${f(1 / lo)}` : `≤${f(1 / lo)}` };
+  };
+  const cell = (r, showPaid) => !r[0] ? `<td class="n">–</td><td class="n">–</td>${showPaid ? `<td class="n">–</td>` : ""}` :
+    `<td class="n">${pct(r[1], 0)}</td>${showPaid ? `<td class="n">${money(r[2])}</td>` : ""}<td class="n"><span class="${cls(r[3], r[4])}">${pts(r[3])}</span> <span class="flat">±${(200 * r[4]).toFixed(1)}</span></td>`;
+  $("obtbl").innerHTML = `<thead><tr><th>Distance from fair</th><th class="n">Under: range</th><th class="n">Got him</th><th class="n">Title vs fair</th>` +
+    `<th class="n">Over: range</th><th class="n">Got him</th><th class="n">Avg paid</th><th class="n">Title vs fair</th></tr></thead><tbody>` +
+    O.labels.map((lab, i) => { const rg = range(i);
+      return `<tr><td>${lab}</td><td class="n note">${rg.under}</td>${cell(t.under[i], false)}<td class="n note">${rg.over}</td>${cell(t.over[i], true)}</tr>`; }).join("") + `</tbody>`;
+  $("obnote").textContent = `${OB_WHO === "you" ? SUM.you + "'s" : "All teams'"} ${OB_STUDS ? `bids with a fair price of $${O.stud_fair}+` : "bids with a fair price of $10+"}. ` +
+    `Title vs fair = title chance after bids in that range minus after bids within 10% of fair (${pct(t.fair)} over ${t.n_fair.toLocaleString()} bids), in percentage points, ±2 standard errors; grey means within noise. ` +
+    `Distances are the same both ways: 1.6× over is as far from fair as 0.63× under. Lock bids (topping every rival's whole FAAB) aren't random and are left out.`;
+  // Week-1 style
   $("obstyle-h").textContent = `Week ${O.week}: each team's overall bidding style`;
   const heads = ["Most under", "Under", "Middle", "Over", "Most over"];
   $("obstyle").innerHTML = `<thead><tr><th>Team</th>${heads.map(h => `<th class="n">${h}</th>`).join("")}</tr></thead><tbody>` +
     O.style.slice().sort((a, b) => b.rates[2] - a.rates[2]).map(r => {
       const nT = Math.max(r.n.reduce((a, v) => a + v, 0), 1);
       const avg = r.rates.reduce((a, v, i) => a + (v || 0) * r.n[i], 0) / nT;
-      return `<tr><td>${r.is_you ? `<span class="pill">${escapeHtml(r.team)}</span>` : escapeHtml(r.team)}</td>` +
+      return `<tr><td>${pill(r.team, r.is_you)}</td>` +
         r.rates.map((v, i) => {
           if (v == null) return `<td class="n">–</td>`;
           const se = Math.sqrt(avg * (1 - avg) / Math.max(r.n[i], 1));
