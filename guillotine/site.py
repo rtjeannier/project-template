@@ -355,12 +355,67 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
         samp.append({"season": s, "champion": names[champ], "weeks": wk})
     (out / "seasons.json").write_text(json.dumps(samp, separators=(",", ":")))
 
+    overbid = _overbid(bids, seasons, teams, names, you, meta["weeks"])
+
     import datetime as _dt
     summary = {"built_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "seasons": int(meta["seasons"]), "bids": int(len(bids)), "analyzed_bids": int(len(b)),
-               "bid_sd": meta["bid_sd"], "you": names[you],
+               "bid_sd": meta["bid_sd"], "you": names[you], "overbid": overbid,
                "teams": [{"name": names[t], "faab": float(f), "p_champion": float(champs.get(t, 0.0)),
                           "is_you": bool(t == you)} for t, f in zip(teams.team_id, teams.start_faab)]}
     (out / "summary.json").write_text(json.dumps(summary))
     page = Path(__file__).with_name("site_template.html").read_text()
     (out / "index.html").write_text(page.replace("__BUILD__", summary["built_at"].replace(" ", "_")))
     return sorted(out.iterdir())
+
+
+OVERBID_EDGES = [0, 0.6, 0.8, 0.95, 1.05, 1.25, 1.6, np.inf]
+OVERBID_LABELS = ["under 0.6×", "0.6–0.8×", "0.8–0.95×", "about fair (0.95–1.05×)", "1.05–1.25×", "1.25–1.6×", "over 1.6×"]
+STUD_FAIR = 150
+
+
+def _overbid(bids, seasons, teams, names, you, weeks) -> dict:
+    """What over- and underbidding did to title chances. Bid multipliers are random, so
+    comparing bids by multiplier is a fair experiment. Lock bids (exactly 1x: topping every
+    rival's whole FAAB) aren't random and are left out, as are small bids (fair < $10)."""
+    b = bids[(bids.multiplier != 1.0) & (bids.fair_bid >= 10)].merge(
+        seasons[["season", "champion_id"]], on="season")
+    b["title"] = b.team_id.astype(str) == b.champion_id.astype(str)
+    b["m"] = pd.cut(b.multiplier, OVERBID_EDGES, labels=False)
+
+    def rows(x):
+        base = float(x.title.mean()) if len(x) else 0.0
+        g = x.groupby("m").agg(n=("title", "size"), got=("won", "mean"), title=("title", "mean"),
+                               paid=("price", "mean"))
+        out = []
+        for i in range(len(OVERBID_LABELS)):
+            if i in g.index and g.loc[i, "n"] > 0:
+                r = g.loc[i]
+                se = float(np.sqrt(base * (1 - base) / r.n))
+                out.append([int(r.n), float(r.got), None if pd.isna(r.paid) else float(r.paid),
+                            float(r.title - base), se])
+            else:
+                out.append([0, None, None, None, None])
+        return {"base": base, "rows": out}
+
+    ys = b[b.team_id.astype(str) == str(you)]
+    studs = b.fair_bid >= STUD_FAIR
+    tables = {"all": rows(b), "all_studs": rows(b[studs]), "you": rows(ys), "you_studs": rows(ys[ys.fair_bid >= STUD_FAIR])}
+
+    # Each team's first week (every team alive and bidding): how much it overbid overall,
+    # weighted by fair price, in fifths of its own seasons.
+    w0 = b[b.week == weeks[0]].copy()
+    w0["lm"] = np.log(w0.multiplier)
+    ts = w0.groupby(["season", "team_id"]).apply(lambda x: np.average(x.lm, weights=x.fair_bid), include_groups=False).rename("a").reset_index()
+    ts = ts.merge(seasons[["season", "champion_id"]], on="season")
+    ts["title"] = ts.team_id.astype(str) == ts.champion_id.astype(str)
+    ts["q"] = ts.groupby("team_id")["a"].transform(lambda v: pd.qcut(v, 5, labels=False, duplicates="drop"))
+    style = []
+    for t in teams.team_id:
+        x = ts[ts.team_id.astype(str) == str(t)]
+        if len(x) < 500:
+            continue
+        g = x.groupby("q").title.agg(["mean", "size"])
+        style.append({"team": names[t], "is_you": str(t) == str(you),
+                      "rates": [float(g.loc[q, "mean"]) if q in g.index else None for q in range(5)],
+                      "n": [int(g.loc[q, "size"]) if q in g.index else 0 for q in range(5)]})
+    return {"labels": OVERBID_LABELS, "stud_fair": STUD_FAIR, "tables": tables, "style": style, "week": int(weeks[0])}
