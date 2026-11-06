@@ -645,30 +645,35 @@ class Simulator:
                 def marginal(extra, positions) -> np.ndarray:
                     add_b = spec.adder(base_roster + extra, fin, proj.pos)
                     b0 = add_b()
+                    taken = set(extra)  # a player already picked for an earlier pot can't be bought again
                     ratio = np.zeros(n_opt)
                     for i, o in enumerate(opts):
-                        if o[2] in positions and vals[i] > 0 and gains[i] > 0:
+                        if o[2] in positions and vals[i] > 0 and gains[i] > 0 and o[0] not in taken:
                             g2 = max(0.0, add_b(o[0]) - b0)
                             ratio[i] = min(1.0, (1.0 - q_out[o[0]]) * g2 / gains[i])
                     return ratio
 
+                # Each pot's best player is taken before the next pot is valued: the harder
+                # slots (TE, RB1, RB2, WR1, WR2) first, flex last, so no player fills two pots.
                 out: dict[str, np.ndarray] = {}
-                first_pick = []
-                for ps in ("QB", "TE"):
-                    out[ps] = np.where(opt_pos == ps, vals, 0.0)
+                picks = []
+                def take(name):
+                    if len(out[name]) and out[name].max() > 0:
+                        picks.append(opts[int(out[name].argmax())][0])
+                out["QB"] = np.where(opt_pos == "QB", vals, 0.0)
+                out["TE"] = np.where(opt_pos == "TE", vals, 0.0)
+                take("TE")
                 for ps in ("RB", "WR"):
                     v1 = np.where(opt_pos == ps, vals, 0.0)
-                    out[ps + "1"] = v1
-                    if n_opt and v1.max() > 0:
-                        best_i = int(v1.argmax())
-                        first_pick.append(opts[best_i][0])
-                        out[ps + "2"] = v1 * marginal([opts[best_i][0]], (ps,))
+                    out[ps + "1"] = v1 * marginal(picks, (ps,)) if picks else v1
+                    take(ps + "1")
+                    out[ps + "2"] = v1 * marginal(picks, (ps,))
+                    take(ps + "2")
                 if n_opt:
                     v_flex = np.where(np.isin(opt_pos, FLEX_POS), vals, 0.0)
-                    out["FLEX1"] = v_flex * marginal(first_pick, FLEX_POS)
-                    if out["FLEX1"].max() > 0:
-                        best_flex = opts[int(out["FLEX1"].argmax())][0]
-                        out["FLEX2"] = v_flex * marginal(first_pick + [best_flex], FLEX_POS)
+                    out["FLEX1"] = v_flex * marginal(picks, FLEX_POS)
+                    take("FLEX1")
+                    out["FLEX2"] = v_flex * marginal(picks, FLEX_POS)
                 return out
 
             pots = make_pots(roster, my_val, gain_opt[tid])
