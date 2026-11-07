@@ -3,8 +3,9 @@
 ``python -m guillotine simulate-data LEAGUE.json --seasons 5000 --out sim_data``
 
 Every season is played straight through from the league file. Every team bids its fair
-bid (the rational bid, no noise) times a random multiplier drawn from Lognormal(0, bid_sd)
-(median 1x, always positive),
+bid (the rational bid, no noise); a share of bids (noise_share) are multiplied by a random
+draw from Lognormal(0, bid_sd) (median 1x, always positive), capped so an overpay eats at
+most noise_cap of what a fair bid would leave. Lock bids have no multiplier (empty),
 independently for each bid, so there is no fixed strategy and the same cut sequence
 produces different waivers each time. Nothing is analyzed here: the files are the raw
 record, to crawl afterwards.
@@ -144,6 +145,7 @@ def generate(state: LeagueState, league_path: str | Path, n_seasons: int, out_di
             w.writerow((t.id, t.name, t.faab, t.id == state.my_team_id))
     shutil.copy(league_path, out / "league.json")
     (out / "meta.json").write_text(json.dumps({
-        "seasons": n_seasons, "seed": seed, "bid_sd": sim.model.bid_sd, "weeks": sim.proj.weeks,
+        "seasons": n_seasons, "seed": seed, "bid_sd": sim.model.bid_sd, "noise_share": sim.model.noise_share,
+        "noise_cap": sim.model.noise_cap, "weeks": sim.proj.weeks,
         "you": state.my_team_id}))
     return sorted(out.iterdir())

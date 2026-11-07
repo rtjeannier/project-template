@@ -5,7 +5,9 @@
     money(m) = what m dollars still buy later (each slot's best returning player x the
                team's share of claims, plus injury cover), weighted by P(lose the final)
     fair bid = the most b with  V + money(FAAB - b | won)  >=  money(FAAB | lost)
-    bid      = fair bid x multiplier ~ Lognormal(0, bid_sd) x aggression   (capped at FAAB)
+    bid      = fair bid x multiplier x aggression; the multiplier is 1 for 90% of bids and
+               Lognormal(0, bid_sd) for 10%; an overpay never eats more than half of
+               what a fair bid would leave
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ class BidModel:
     # positive. 0.42 = ln 2 / 1.645 puts the 95th percentile at 2x fair and the 5th at 0.5x.
     # None = old per-manager lognormal noise.
     bid_sd: float | None = 0.42
+    noise_share: float = 0.1  # share of bids that get the random multiplier; the rest are exactly fair
+    noise_cap: float = 0.5  # an overpay can eat at most this share of the money a fair bid would leave
     pool_consider: int = 15  # only the top-N pool players (this week + week 17) get bids
     min_gain: float = 0.1  # weekly points gain over the free alternative below which a team doesn't bother
 

@@ -592,6 +592,12 @@ class Simulator:
                                     (sum(weight[o[1]][r] * max(float(alive_after[v][r]), 0.0) for r in range(rounds - 1)) / reach[o[1]]
                                      if reach[o[1]] > 0 and o[1] != v else 0.0) for o in opts], dtype=float)
 
+        # Same-round players (on waivers now): each rival's actual reservation price for him,
+        # limited by the money it would still have when he's decided (from a dry run of the
+        # round). Filled after a first pass; until then the rule-of-thumb willingness is used.
+        will_now: dict[str, np.ndarray] = {}
+        plan_cache: dict = {}  # each team's pots, and each claim's pots if won (same in both passes)
+
         def win_chance(tid: str, budgets: np.ndarray, cut_rival: str | None = None, cut_by: float = 0.0) -> np.ndarray:
             """P(tid wins each option with each budget), options x budgets. tid wins if its
             budget beats the willingness of every rival still alive when he comes back (bid
@@ -603,9 +609,14 @@ class Simulator:
             for v in active:
                 if v == tid:
                     continue
-                w = will[v] if v != cut_rival else np.minimum(will[v], max(float(faab[v]) - cut_by, 0.0))
-                cap = float(faab[v]) - (cut_by if v == cut_rival else 0.0)
-                wc = np.minimum(w, cap)[:, None]
+                base = np.where(is_now, will_now[v], will[v]) if v in will_now else will[v]
+                # A rival that won a bid tid lost (cut_rival) has cut_by less for later rounds.
+                # Same-round players aren't adjusted: the dry run already says what each
+                # rival has left when they're decided.
+                cap = np.full(n_opt, float(faab[v]))
+                if v == cut_rival:
+                    cap = np.where(is_now, cap, max(float(faab[v]) - cut_by, 0.0))
+                wc = np.minimum(base, cap)[:, None]
                 beat = ((budgets[None, :] > wc) | (wc <= 0)).astype(float)  # a rival that wouldn't pay anything isn't competing
                 a_v = alive_at[v][:, None]
                 out *= (1.0 - a_v) + a_v * beat
@@ -676,24 +687,32 @@ class Simulator:
                     out["FLEX2"] = v_flex * marginal(picks, FLEX_POS)
                 return out
 
-            pots = make_pots(roster, my_val, gain_opt[tid])
-            # Injury cover: the best few replacements for each starter, valued as P(he's out)
-            # x the replacement's gain over the next man up (or the best free player).
-            cover_items = []  # (starter, positions, option indices, gains)
-            if n_opt:
-                labels = {x: lab for lab, x in spec.assign(roster, fin, proj.pos) if x is not None}
-                for st, lab in labels.items():
-                    if q_out[st] <= 0:
-                        continue
-                    grp = FLEX_POS if lab in ("FLEX", "SUPERFLEX") else (lab,)
-                    idx = [i for i in np.argsort(-fin[[o[0] for o in opts]]) if opts[i][2] in grp and opts[i][1] != tid][:COVER_OPTIONS]
-                    if not idx:
-                        continue
-                    add_rf = add_without[st]
-                    base_rf = without[st]
-                    g_rep = np.array([(1.0 - q_out[opts[i][0]]) * max(0.0, add_rf(opts[i][0]) - base_rf)
-                                      for i in idx])
-                    cover_items.append((st, grp, np.array(idx, dtype=int), g_rep, base_rf))
+            def team_plan():
+                """This team's money pots and injury-cover items: they don't depend on
+                rivals' prices, so both passes use the same ones."""
+                pots = make_pots(roster, my_val, gain_opt[tid])
+                # Injury cover: the best few replacements for each starter, valued as P(he's out)
+                # x the replacement's gain over the next man up (or the best free player).
+                cover_items = []  # (starter, positions, option indices, gains)
+                if n_opt:
+                    labels = {x: lab for lab, x in spec.assign(roster, fin, proj.pos) if x is not None}
+                    for st, lab in labels.items():
+                        if q_out[st] <= 0:
+                            continue
+                        grp = FLEX_POS if lab in ("FLEX", "SUPERFLEX") else (lab,)
+                        idx = [i for i in np.argsort(-fin[[o[0] for o in opts]]) if opts[i][2] in grp and opts[i][1] != tid][:COVER_OPTIONS]
+                        if not idx:
+                            continue
+                        add_rf = add_without[st]
+                        base_rf = without[st]
+                        g_rep = np.array([(1.0 - q_out[opts[i][0]]) * max(0.0, add_rf(opts[i][0]) - base_rf)
+                                          for i in idx])
+                        cover_items.append((st, grp, np.array(idx, dtype=int), g_rep, base_rf))
+                return pots, cover_items
+
+            if tid not in plan_cache:
+                plan_cache[tid] = team_plan()
+            pots, cover_items = plan_cache[tid]
 
             # For splitting a budget between pots: row = total budget, column = amount to the
             # next pot, conv_src = what's left for the pots before it.
@@ -732,7 +751,7 @@ class Simulator:
             b_pts = np.linspace(0.0, money, LOSE_GRID) if money > 0 else np.zeros(1)
             lost_vals = np.array([budget_value(win_chance(tid, m_grid, richest, bb))[-1] for bb in b_pts])
             future_lost = np.interp(money - m_grid, b_pts, lost_vals)  # by the bid lost: b = money - m_grid
-            if self.money_log is not None and submitting:
+            if self.money_log is not None and submitting and logging_pass:
                 self.money_log.append((sim, j, tid, money, m_grid.copy(), future_all.copy(), per_point_final, per_point_mid,
                                        [(proj.ids[o[0]], o[2], float(gain_opt[tid][i]), float(opt_reach[i]), float(val_opt[tid][i]), chance[i].copy())
                                         for i, o in enumerate(opts)]))
@@ -745,7 +764,7 @@ class Simulator:
                     if g > 1e-9:
                         gain_now[x] = g
             gain_fin = {x: self._final_gain(roster, x, fin, q_out, base_fin, without, (add_fin, add_without)) for x in remaining}
-            why = self.why_no_bid
+            why = self.why_no_bid if logging_pass else None
             for p in remaining:
                 # His gains over the current roster. What else this team could add instead (on
                 # waivers now or later) is on the "lose" side below, priced like he is.
@@ -770,26 +789,33 @@ class Simulator:
                 # for later upgrades on the roster with him on it. He takes one lineup spot; the
                 # other spots can still be upgraded as before. The pots are rebuilt on that roster.
                 me = pool_idx.get(p)
-                with_p = roster + [p]
-                add_p = spec.adder(with_p, fin, proj.pos)
-                base_p = add_p()
-                add_p_now = spec.adder(with_p, now, proj.pos)
-                base_p_now = add_p_now()
-                g_after = np.array([0.0 if (o[1] == tid or i == me) else (1.0 - q_out[o[0]]) * max(0.0, add_p(o[0]) - base_p)
-                                    for i, o in enumerate(opts)], dtype=float)
-                g0_after = np.array([max(0.0, add_p_now(o[0]) - base_p_now) if (o[1] is None and i != me) else 0.0
-                                     for i, o in enumerate(opts)], dtype=float)
-                shrink = np.where(gain_opt[tid] > 0, np.minimum(g_after / np.maximum(gain_opt[tid], 1e-12), 1.0), 0.0)
-                after_val = opt_reach * (g_after * per_point_final
-                                         + np.where(is_now, mid_opt[tid] * shrink, g_after * per_point_mid * opt_mid)
-                                         + g0_after * pp_now[tid])
-                pots_win = make_pots(with_p, after_val, g_after)
-                cover_vals = {}
-                for c, (st, grp, idx, g_rep, base_rf) in enumerate(cover_items):
-                    if proj.pos[p] in grp:
-                        b_s = max(0.0, add_without[st](p) - base_rf)
-                        if b_s > 0:
-                            cover_vals[c] = np.maximum(g_rep - b_s, 0.0)
+                def win_plan():
+                    """Pots and injury cover if he's won (rebuilt with him on the roster)."""
+                    with_p = roster + [p]
+                    add_p = spec.adder(with_p, fin, proj.pos)
+                    base_p = add_p()
+                    add_p_now = spec.adder(with_p, now, proj.pos)
+                    base_p_now = add_p_now()
+                    g_after = np.array([0.0 if (o[1] == tid or i == me) else (1.0 - q_out[o[0]]) * max(0.0, add_p(o[0]) - base_p)
+                                        for i, o in enumerate(opts)], dtype=float)
+                    g0_after = np.array([max(0.0, add_p_now(o[0]) - base_p_now) if (o[1] is None and i != me) else 0.0
+                                         for i, o in enumerate(opts)], dtype=float)
+                    shrink = np.where(gain_opt[tid] > 0, np.minimum(g_after / np.maximum(gain_opt[tid], 1e-12), 1.0), 0.0)
+                    after_val = opt_reach * (g_after * per_point_final
+                                             + np.where(is_now, mid_opt[tid] * shrink, g_after * per_point_mid * opt_mid)
+                                             + g0_after * pp_now[tid])
+                    pots_win = make_pots(with_p, after_val, g_after)
+                    cover_vals = {}
+                    for c, (st, grp, idx, g_rep, base_rf) in enumerate(cover_items):
+                        if proj.pos[p] in grp:
+                            b_s = max(0.0, add_without[st](p) - base_rf)
+                            if b_s > 0:
+                                cover_vals[c] = np.maximum(g_rep - b_s, 0.0)
+                    return pots_win, cover_vals
+
+                if (tid, p) not in plan_cache:
+                    plan_cache[(tid, p)] = win_plan()
+                pots_win, cover_vals = plan_cache[(tid, p)]
                 future_win = budget_value(chance, None, cover_vals, all_pots=pots_win)
                 lose = future_lost  # by the bid lost: b = money - m_grid
                 if me is not None and my_val[me] > 0:
@@ -823,8 +849,8 @@ class Simulator:
                     continue
                 # A lineup claim starts this week or in week 17; otherwise he's a backup.
                 kind = "lineup" if (gain_now.get(p, 0.0) > 0 or add_fin(p) > base_fin + 1e-9) else "bench"
-                reserve[(tid, p)] = (det, kind, lock)
-                if self.value_log is not None and submitting:
+                reserve[(tid, p)] = (det, kind, lock, value)
+                if self.value_log is not None and submitting and logging_pass:
                     self.value_log.append((sim, j, proj.ids[p], tid, g_now, g_fin, v_now, v_mid, v_fin, value,
                                            float(lose[-1] - future_win[-1]), float(lose[-1]), key, faab[tid], det))
             return out
@@ -838,10 +864,12 @@ class Simulator:
             most any rival would pay for him: no point paying more than it takes to beat the
             others. Then the random multiplier for this bid."""
             out = {}
-            for (t, p), (res_price, kind, lock) in reserve.items():
+            for (t, p), (res_price, kind, lock, _) in reserve.items():
                 if t != tid:
                     continue
-                top_rival = max((reserve[(u, p)][0] for u in active if u != tid and (u, p) in reserve), default=0)
+                # The most any rival would pay, limited by the money it would still have then.
+                top_rival = max((min(reserve[(u, p)][0], at.get(p, left)[u]) for u in active
+                                 if u != tid and (u, p) in reserve), default=0)
                 det = int(min(res_price, top_rival + 1)) if top_rival + 1 <= res_price else int(res_price)
                 det = max(det, settings.min_bid)
                 locked = det >= lock and lock <= faab[tid]
@@ -849,12 +877,17 @@ class Simulator:
                     # Guaranteeing the win is worth it: bid exactly the lock price (top every
                     # other team's whole FAAB). No noise: a lock that misses isn't a lock.
                     det = lock
-                    m, amt = 1.0, int(det)
+                    m, amt = None, int(det)  # m = None marks a lock (no noise by design)
                 elif model.bid_sd is not None:
-                    # Every bid is fair x a random multiplier: lognormal, median 1, always
-                    # positive. Overpays (up to 2x and beyond) are as likely as matching lowballs.
-                    m = float(rng.lognormal(0.0, model.bid_sd))
-                    amt = int(min(m * det * aggression[tid], faab[tid]))
+                    # Most bids are exactly fair. A share of them (noise_share) get a random
+                    # multiplier: lognormal, median 1, so overpays and lowballs are equally
+                    # likely. An overpay can eat at most noise_cap of the money a fair bid
+                    # would leave, so noise never spends a team's planned reserve.
+                    m = float(rng.lognormal(0.0, model.bid_sd)) if rng.random() < model.noise_share else 1.0
+                    amt = m * det * aggression[tid]
+                    if amt > det:
+                        amt = min(amt, det + model.noise_cap * max(float(faab[tid]) - det, 0.0))
+                    amt = int(min(amt, faab[tid]))
                 else:
                     m = None
                     amt = int(min(det * aggression[tid] * rng.lognormal(0, model.bid_noise_sd), faab[tid]))
@@ -918,6 +951,24 @@ class Simulator:
 
         if self.trace is not None:
             self.trace.append(("odds", sim, j, dict(odds)))
+        # Pass 1: every team's reservation prices, guessing rivals' prices with the rule of
+        # thumb. Then a dry run of the round on those prices (no noise) says who would win
+        # what, and how much money each team would still have when each player is decided.
+        # Pass 2: reservations again, now pricing same-round players by rivals' actual
+        # reservations (limited by that money). A team then sets money aside only for
+        # same-round players it expects to win; one it expects to lose costs it nothing.
+        logging_pass = False
+        for tid in active:
+            team_bids(tid)
+        at, left = self._dry_run(reserve, active, rosters, faab, priority, settings.min_bid)
+        for v in active:
+            arr = np.zeros(len(opts))
+            for i, o in enumerate(opts):
+                if o[1] is None and (v, o[0]) in reserve:
+                    arr[i] = min(float(reserve[(v, o[0])][0]), at.get(o[0], left)[v])
+            will_now[v] = arr
+        reserve.clear()
+        logging_pass = True
         for tid in active:
             team_bids(tid)
         bids = {tid: place_bids(tid) for tid in active}
@@ -975,12 +1026,13 @@ class Simulator:
                     d = drops[tid].get(p)
                     if d in gone[tid] or (isinstance(d, (int, np.integer)) and d not in rosters[tid]):
                         continue  # invalid claim due to previous transaction: its drop is gone
-                    key = (amt, -priority[tid])
+                    # Ties: waiver priority, then (within a team) the player it values more.
+                    key = (amt, -priority[tid], reserve[(tid, p)][3] if (tid, p) in reserve else 0.0)
                     if best is None or key > best[0]:
                         best = (key, tid, p)
             if best is None:
                 break
-            (amt, _), tid, p = best
+            (amt, _, _), tid, p = best
             d = drops[tid].get(p)
             if self._would_cut_new(rosters[tid], p, d, self._added_this_round.get(tid, set())):
                 bids[tid].pop(p, None)  # invalid: it would push out a player won this same round
@@ -1000,6 +1052,43 @@ class Simulator:
 
         leftovers = [p for p in set(pool) | set(fa_pool) if p not in claimed]
         return [], self._best_per_pos(leftovers, worth, FA_KEEP_PER_POS)
+
+    def _dry_run(self, reserve, active, rosters, faab, priority, min_bid):
+        """Predict a waiver round from every team's reservation prices, without noise: each
+        team bids the lower of its reservation and the top rival's + 1 (or the lock), claims
+        get their planned drops (claims sharing a drop are alternatives: only one goes
+        through), and they process like the real round. Returns, for each player decided,
+        every team's money at that moment, and everyone's money at the end."""
+        bid = {}
+        for (t, p), (r, _, lock, _) in reserve.items():
+            top = max((reserve[(u, p)][0] for u in active if u != t and (u, p) in reserve), default=0)
+            b = max(min(r, top + 1), min_bid)
+            if b >= lock and lock <= faab[t]:
+                b = lock
+            bid[(t, p)] = b
+        claims = {t: {p: b for (u, p), b in bid.items() if u == t} for t in active}
+        plan = {t: self._plan_drops(rosters[t], claims[t], bid, t) for t in active}
+        money = {t: float(faab[t]) for t in active}
+        pri = dict(priority)
+        taken, gone, at = set(), {t: set() for t in active}, {}
+        while True:
+            best = None
+            for t in active:
+                for p, b in claims[t].items():
+                    if p in taken or b > money[t] or plan[t].get(p) in gone[t]:
+                        continue
+                    key = (b, -pri[t], reserve[(t, p)][3])
+                    if best is None or key > best[0]:
+                        best = (key, t, p)
+            if best is None:
+                break
+            (b, _, _), t, p = best
+            at[p] = dict(money)
+            taken.add(p)
+            gone[t].add(plan[t].get(p))
+            money[t] -= b
+            pri[t] = max(pri.values()) + 1
+        return at, money
 
     def _award(self, sim, j, p, tid, amt, rosters, faab, fa_pool, remaining, claimed, res, drop=None):
         proj = self.proj

@@ -18,7 +18,9 @@ class LineupSpec:
             if slot in NON_STARTING_SLOTS or count <= 0:
                 continue
             if slot in FLEX_ELIGIBILITY:
-                self.flex.append((frozenset(FLEX_ELIGIBILITY[slot]), count))
+                # A tuple, not a set: on a tie the first position listed wins, so lineups don't
+                # depend on Python's per-process ordering of a set of strings.
+                self.flex.append((tuple(FLEX_ELIGIBILITY[slot]), count))
             else:
                 self.dedicated.append((slot, count))
         self.flex.sort(key=lambda fc: len(fc[0]))

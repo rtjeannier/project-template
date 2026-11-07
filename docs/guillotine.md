@@ -52,7 +52,8 @@ money(m)   = best title chance m dollars can still buy: split the budget across
              value × P(winning him with that much)
 reserve    = the most b such that  V + money(FAAB − b) after winning ≥ money(FAAB) after losing
 fair bid   = min(reserve, the highest rival's reserve + $1)   (no need to pay more than that)
-bid        = fair bid × multiplier ~ Lognormal(0, 0.42) × aggression   (capped at FAAB)
+bid        = fair bid for 90% of bids; for 10%, fair bid × multiplier ~ Lognormal(0, 0.42),
+             an overpay eating at most half of what a fair bid would leave (locks: no noise)
 ```
 
 - **This week:** P(cut) is computed from every team's score distribution, with and
@@ -88,7 +89,17 @@ bid        = fair bid × multiplier ~ Lognormal(0, 0.42) × aggression   (capped
   what a dollar is worth to it (its FAAB ÷ the best it could hope to add at each
   position), capped by its FAAB. You win him if the money you set aside beats the willingness
   of every rival still alive when he comes back (bid noise affects only the actual bids,
-  not this estimate); the uncertainty is which rivals are still alive. Your money buys the best set it can afford, split across pots for each lineup
+  not this estimate); the uncertainty is which rivals are still alive.
+- **Players in this same round** are priced by rivals' *actual* reservation prices, not
+  the rule of thumb. The round is valued twice: a first pass gives every team's
+  reservations; a dry run of the round on those (no noise) says who would win what and
+  how much money each team would still have when each player is decided; the second pass
+  prices same-round players by each rival's reservation, limited by that money. So a team
+  sets money aside only for same-round players it expects to win. A claim it expects to
+  lose is still bid at its reservation, but costs it nothing for its other claims. In the
+  last round (week 17) money has no other use, so a team that expects to lose its top
+  target still bids everything on it, and on the next player too. When a team's claims
+  tie, the player it values more processes first. Your money buys the best set it can afford, split across pots for each lineup
   spot that could be upgraded (QB, two RBs, two WRs, TE, two flex) plus injury cover. A second
   pickup at a position is valued over the lineup after the best first one, and all pots
   draw on the same money, so winning one stud leaves less for the others and money spent
@@ -201,9 +212,11 @@ bid artificially low. Bids and drops never change after submission.
 python -m guillotine simulate-data league.json --seasons 20000 --out sim_data
 ```
 
-Plays every season straight through. Every team bids its fair bid times a random
-multiplier drawn from a lognormal with median 1×: always positive, with the 95th
-percentile at 2× fair and the 5th at 0.5× fair. Each bid is drawn independently: there is no fixed strategy, and
+Plays every season straight through. 90% of bids are exactly the fair bid; the other
+10% are the fair bid times a random multiplier drawn from a lognormal with median 1×
+(always positive; 95th percentile 2× fair, 5th 0.5× fair). An overpay can eat at most
+half of the money a fair bid would leave, so noise never spends a team's whole planned
+reserve. Lock bids get no noise. Each bid is drawn independently: there is no fixed strategy, and
 the same cut sequence produces different waivers in each season. Since the multipliers
 are random, comparing outcomes across them later is a fair experiment.
 

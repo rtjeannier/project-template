@@ -318,7 +318,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
     b = b.merge(players[["player_id", "pos", "final_edge"]], on="player_id", how="left")
     b = b.merge(seasons[["season", "champion_id"]], on="season", how="left")
     b["won_league"] = b.team_id == b.champion_id
-    b["mult"] = pd.cut(b.multiplier, MULT_EDGES, labels=False, right=True)
+    b["mult"] = pd.cut(b.multiplier.fillna(1.0), MULT_EDGES, labels=False, right=True)  # locks (no multiplier) count as fair
     b["edge"] = pd.cut(b.final_edge, [-np.inf, 0, 2.5, np.inf], labels=False)
     b["pos"] = b.pos.map({p: i for i, p in enumerate(DIMS["pos"][1])}).fillna(-1).astype(int)
     ratio = b.faab / b.richest_rival.clip(lower=1)
@@ -402,7 +402,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
                                "price": int(winner.price.iloc[0]) if len(winner) else None,
                                "drop": (pn.get(winner.drop_id.iloc[0], "open spot") if len(winner) and isinstance(winner.drop_id.iloc[0], str)
                                         else ("open spot" if len(winner) else None)),
-                               "bids": [[names[str(r.team_id)], int(r.bid), int(r.fair_bid), round(float(r.multiplier), 2)]
+                               "bids": [[names[str(r.team_id)], int(r.bid), int(r.fair_bid), None if pd.isna(r.multiplier) else round(float(r.multiplier), 2)]
                                         for r in g.itertuples()]})
             awards.sort(key=lambda a: -(a["price"] or 0))
             hurt = injuries[(injuries.season == s) & (injuries.week == w)]
@@ -414,7 +414,7 @@ def build(data_dir: str | Path, out_dir: str | Path, sample_seasons: int = 200, 
         samp.append({"season": s, "champion": names[champ], "weeks": wk})
     (out / "seasons.json").write_text(json.dumps(samp, separators=(",", ":")))
 
-    overbid = _overbid(bids, seasons, teams, names, you, meta["weeks"], meta.get("bid_sd"))
+    overbid = _overbid(bids, seasons, teams, names, you, meta["weeks"], meta.get("bid_sd"), meta.get("noise_share", 1.0))
 
     import datetime as _dt
     summary = {"built_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "seasons": int(meta["seasons"]), "bids": int(len(bids)), "analyzed_bids": int(len(b)),
@@ -435,10 +435,11 @@ STUD_FAIR = 150
 OVERBID_CAP = 1.6  # the "without crazy overbids" ceiling
 
 
-def _overbid(bids, seasons, teams, names, you, weeks, bid_sd) -> dict:
+def _overbid(bids, seasons, teams, names, you, weeks, bid_sd, noise_share=1.0) -> dict:
     """What over- and underbidding did to title chances, from actual simulated outcomes.
 
-    Bid multipliers are random, so grouping bids by multiplier is a fair experiment. Each
+    Bid noise is random (1 in noise_share bids gets a multiplier; the rest are exactly fair),
+    so grouping bids by multiplier is a fair experiment. Each
     bid is grouped by direction (over/under) and distance from fair, and compared with bids
     within 10% of fair. Lock bids (exactly 1x: topping every rival's whole FAAB) aren't
     random and are left out, as are small bids (fair < $10).
@@ -450,7 +451,7 @@ def _overbid(bids, seasons, teams, names, you, weeks, bid_sd) -> dict:
     never goes above the cap."""
     from math import erf, log, sqrt
 
-    b = bids[(bids.multiplier != 1.0) & (bids.fair_bid >= 10)].merge(
+    b = bids[bids.multiplier.notna() & (bids.fair_bid >= 10)].merge(  # no multiplier = a lock bid
         seasons[["season", "champion_id"]], on="season")
     b["title"] = b.team_id.astype(str) == b.champion_id.astype(str)
     lm = np.log(b.multiplier.clip(lower=1e-6))
@@ -482,7 +483,7 @@ def _overbid(bids, seasons, teams, names, you, weeks, bid_sd) -> dict:
 
     # Without crazy overbids, team by team.
     sd = bid_sd or 0.42
-    p_ok = 0.5 * (1 + erf(log(OVERBID_CAP) / sd / sqrt(2)))
+    p_ok = 1 - noise_share * (1 - 0.5 * (1 + erf(log(OVERBID_CAP) / sd / sqrt(2))))  # P(a stud bid stays <= cap)
     st = b[b.fair_bid >= STUD_FAIR]
     sids = seasons.season.values
     champ = seasons.set_index("season").champion_id.astype(str).reindex(sids)
@@ -517,4 +518,5 @@ def _overbid(bids, seasons, teams, names, you, weeks, bid_sd) -> dict:
                       "rates": [float(g.loc[q, "mean"]) if q in g.index else None for q in range(5)],
                       "n": [int(g.loc[q, "size"]) if q in g.index else 0 for q in range(5)]})
     return {"labels": OVERBID_LABELS, "steps": OVERBID_STEPS, "stud_fair": STUD_FAIR, "cap": OVERBID_CAP,
+            "noise_share": noise_share,
             "tables": tables, "capped": capped, "style": style, "week": int(weeks[0])}
