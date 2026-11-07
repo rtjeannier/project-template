@@ -147,7 +147,7 @@ tbody tr.click:hover, tbody tr.sel { background: var(--accent-soft); }
 
 <script>
 const $ = (id) => document.getElementById(id);
-const BUILD = "2026-11-06_15:58_UTC";
+const BUILD = "2026-11-07_07:53_UTC";
 const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
 const money = (v) => v == null ? "–" : "$" + Math.round(v);
 const FAIR = 4, UNDER = [0, 1, 2, 3], OVER = [5, 6, 7, 8];
@@ -198,7 +198,7 @@ function renderOverbid() {
   const me = O.capped.find(c => c.is_you), ys = O.tables.you_studs;
   const o3 = ys.over[3], u3 = ys.under[3];
   $("obblurb").innerHTML = `These numbers are actual simulated outcomes: for each bid, did that team go on to win the league that season. ` +
-    `Every bid is the fair price times a random multiplier, so grouping bids by multiplier is a fair experiment. ` +
+    `${O.noise_share < 1 ? `${Math.round(100 * O.noise_share)}% of bids get a random multiplier and the rest are exactly fair` : "Every bid is the fair price times a random multiplier"}, so grouping bids by multiplier is a fair experiment. ` +
     `If ${escapeHtml(SUM.you)} had never bid more than ${capX} fair on a stud (fair $${O.stud_fair}+), its title chance would be ` +
     `<b>${pct(me.capped)}</b> instead of ${pct(me.actual)} (<b class="${cls(me.capped - me.actual, me.se)}">${pts(me.capped - me.actual)}</b>). ` +
     `Compared with bidding within 10% of fair, a stud bid 1.6–2× <b>over</b> changed it by <b class="${cls(o3[3], o3[4])}">${pts(o3[3])}</b>; ` +
@@ -397,7 +397,7 @@ function renderSeason() {
   $("weeks").innerHTML = S.weeks.map(w => {
     const cut = w.scores.filter(s => s[2]).map(s => s[0]);
     const aw = w.awards.map(a => `<div class="aw">${a.player} <span class="label">${a.pos}</span> → ${a.winner ? `<span class="pill">${a.winner}</span> for ${money(a.price)}, drops ${a.drop}` : "<i>no winner</i>"}
-      <div class="bids">${a.bids.map(([t, bid, fair, m]) => `${t === you ? "<b>" + t + "</b>" : t} ${money(bid)} (fair ${money(fair)}, ${m}×)`).join(" · ")}</div></div>`).join("");
+      <div class="bids">${a.bids.map(([t, bid, fair, m]) => `${t === you ? "<b>" + t + "</b>" : t} ${money(bid)} (fair ${money(fair)}, ${m == null ? "lock" : m + "×"})`).join(" · ")}</div></div>`).join("");
     return `<div class="wk"><h3>Week ${w.week}</h3>
       <div class="awards">${aw || '<span class="note">No bids above $0 this week.</span>'}</div>
       ${(w.injuries || []).length ? `<div class="aw">Injured in this week's games: ${w.injuries.map(([pl, t, out, ending]) => `${pl} (${t === you ? "<b>" + t + "</b>" : t}), ${out === 0 ? "no games left to miss" : ending ? "out for the season" : "out " + out + " week" + (out > 1 ? "s" : "")}`).join(" · ")}</div>` : ""}
