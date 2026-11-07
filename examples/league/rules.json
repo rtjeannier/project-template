@@ -1,0 +1,30 @@
+{
+ "format": "guillotine-rules/1",
+ "name": "Sample guillotine league",
+ "season": 2026,
+ "last_week": 17,
+ "roster": {
+  "starters": {
+   "QB": 1,
+   "RB": 2,
+   "WR": 3,
+   "TE": 1,
+   "FLEX": 1,
+   "K": 1,
+   "DEF": 1
+  },
+  "bench": 6
+ },
+ "eliminations": {
+  "per_week": 1
+ },
+ "waivers": {
+  "type": "faab",
+  "budget": 1000,
+  "min_bid": 0,
+  "priority": "rolling"
+ },
+ "scoring": {
+  "description": "half PPR (projections in this example are already points)"
+ }
+}

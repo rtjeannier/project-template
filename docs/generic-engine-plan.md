@@ -1,16 +1,17 @@
 # Plan: a generic guillotine simulator fed by a weekly data process
 
-Goal: one engine that simulates any guillotine league from three inputs, a separate data
-layer that produces those inputs (Yahoo first), and a runner that does fetch → simulate →
-report every week without hand edits.
+Goal: one engine that simulates any guillotine league from three input files, run at
+least once a week. The engine never fetches data: an AI agent (or a person) gathers the
+league's state and projections, writes the input folder, and launches the run.
 
 ```
-league config ──┐
-                ├─► data adapters (Yahoo, FantasyPros) ─► snapshot + projections (saved per week)
-credentials ────┘                                              │
-                                                               ▼
-                                     engine (no network) ─► sim data ─► report / explorer
+agent (Yahoo, FantasyPros, news) ─► league folder: rules + snapshot + projections
+                                                  │  guillotine validate / run
+                                                  ▼
+                                engine (no network) ─► sim data ─► report
 ```
+
+The input format is specified in [inputs.md](inputs.md), written for the agent.
 
 ## 1. The inputs
 
@@ -72,7 +73,9 @@ K/DEF, 2 cuts a week, last-standing final, priority waivers, TE premium), and a 
 run: the week-9 Guillotine 2025 inputs converted to the new format give the same results as
 today with the same seed (or the differences are explained, one by one).
 
-## 3. Data layer (Yahoo first)
+## 3. Data sourcing (done by an agent, not code here)
+
+Out of scope for the engine. Notes for writing the agent's instructions later:
 
 - **Yahoo Fantasy API**: league settings → `rules`; rosters, FAAB, priority, cut teams →
   `snapshot`; transactions → history. Needs a Yahoo developer app (you register it) and an
@@ -87,12 +90,11 @@ today with the same seed (or the differences are explained, one by one).
 ## 4. Weekly runner
 
 ```
-guillotine run leagues/guillotine-2025.json            # fetch, save, simulate, build, publish
-guillotine run leagues/guillotine-2025.json --no-fetch # rerun the saved snapshot
+guillotine validate leagues/guillotine-2025/week-10   # every problem at once
+guillotine run leagues/guillotine-2025/week-10        # validate, simulate, build the report
 ```
 
-- Saves `data/<league>/<season>/week-NN/{rules,snapshot,projections}.json`, so the season's
-  history builds itself.
+- One folder per week (`leagues/<league>/week-NN/`), so the season's history builds itself.
 - Number of seasons is a setting; it gets faster as teams are cut (~2.5 h for 20k seasons
   on 4 cores with 10 teams left).
 - Scheduling: a scheduled Claude task (no time limit) or GitHub Actions (6 h job limit,
@@ -107,11 +109,16 @@ separately.
 
 ## Order of work
 
-1. Input formats + validator + converter for the current week-9 file; regression baseline.
+1. ~~Input formats + validator + converter for the current week-9 file; regression baseline.~~
+   Done: `guillotine/inputs.py`, `docs/inputs.md`, `examples/league/`. The week-9 league
+   converted to a folder gives byte-identical simulation output to the old file.
 2. Engine generalization, one rule group at a time, each with its synthetic-league tests.
-3. Yahoo + FantasyPros adapters.
-4. Weekly runner and scheduling.
-5. Season replay.
+   The validator rejects each unsupported rule today with a "not supported yet" message;
+   each step removes one: IR slots, week-by-week cuts and other final formats, waiver
+   priority (real order carried across rounds, priority-only waivers), money pots from
+   the starting slots (K/DEF, superflex), "week 17" wording in the report.
+3. Agent instructions for building the folder each week, and scheduling.
+4. Season replay.
 
 ## Questions to settle along the way
 

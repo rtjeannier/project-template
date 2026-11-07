@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from .analysis import analyze
+from .inputs import InputError, load_league, load_state, convert_legacy
 from .models import LeagueState
 from .report import render
 from .sample import make_sample_league
@@ -20,7 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     a = sub.add_parser("analyze", help="simulate the rest of the season and print a report")
-    a.add_argument("league", help="league state JSON file")
+    a.add_argument("league", help="league folder (rules.json, snapshot.json, projections.json) or a legacy state file")
     a.add_argument("--sims", type=int, default=400, help="simulated seasons per scenario")
     a.add_argument("--top", type=int, default=6, help="waiver candidates to evaluate")
     a.add_argument("--seed", type=int, default=0)
@@ -39,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--out", default="data/raw/fantasypros")
 
     i = sub.add_parser("inspect", help="export every simulated scenario for one target player")
-    i.add_argument("league", help="league state JSON file")
+    i.add_argument("league", help="league folder (rules.json, snapshot.json, projections.json) or a legacy state file")
     i.add_argument("--player", required=True, help="player name, e.g. 'Jahmyr Gibbs'")
     i.add_argument("--sims", type=int, default=300)
     i.add_argument("--timelines", type=int, default=40, help="seasons per bid level with full week-by-week detail")
@@ -51,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--out", default="inspector.html")
 
     d = sub.add_parser("simulate-data", help="play many seasons and write every bid, award, drop, score and cut")
-    d.add_argument("league", help="league state JSON file")
+    d.add_argument("league", help="league folder (rules.json, snapshot.json, projections.json) or a legacy state file")
     d.add_argument("--seasons", type=int, default=5000)
     d.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     d.add_argument("--seed", type=int, default=0)
@@ -63,7 +64,52 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--sample-seasons", type=int, default=200, help="full seasons to include for reading one by one")
     w.add_argument("--anonymize", action="store_true", help="replace team names with Team 1..N (you stay 'You')")
 
+    c = sub.add_parser("validate", help="check a league folder and list every problem")
+    c.add_argument("league", help="league folder")
+
+    r = sub.add_parser("run", help="validate a league folder, simulate it and build the report")
+    r.add_argument("league", help="league folder")
+    r.add_argument("--seasons", type=int, default=5000)
+    r.add_argument("--workers", type=int, default=os.cpu_count() or 1)
+    r.add_argument("--seed", type=int, default=0)
+    r.add_argument("--data", help="where to write the simulation data (default <league>/sim_data)")
+    r.add_argument("--site", help="where to write the report (default <league>/report)")
+
+    k = sub.add_parser("convert-legacy", help="turn a single-file league state into a league folder")
+    k.add_argument("state", help="legacy state JSON file")
+    k.add_argument("--out", required=True, help="league folder to write")
+    k.add_argument("--name", default="")
+
     args = ap.parse_args(argv)
+
+    if args.cmd in ("validate", "run"):
+        try:
+            league = load_league(args.league)
+        except InputError as e:
+            print(e, file=sys.stderr)
+            return 2
+        for w in league.warnings:
+            print(f"warning: {w}", file=sys.stderr)
+        st = league.state
+        print(f"ok: {league.rules.name or 'league'}, week {st.settings.current_week}-{st.settings.last_week}, "
+              f"{len(st.teams)} teams alive, {len(st.waiver_pool)} on waivers, {len(st.players)} players", file=sys.stderr)
+        if args.cmd == "validate":
+            return 0
+        from .dataset import generate
+        from .site import build as build_site
+
+        data = Path(args.data or Path(args.league) / "sim_data")
+        site = Path(args.site or Path(args.league) / "report")
+        t0 = time.time()
+        generate(st, args.league, args.seasons, data, args.seed, args.workers)
+        print(f"{args.seasons} seasons in {time.time() - t0:.0f}s", file=sys.stderr)
+        for path in build_site(data, site):
+            print(path)
+        return 0
+
+    if args.cmd == "convert-legacy":
+        print(convert_legacy(args.state, args.out, args.name))
+        return 0
 
     if args.cmd == "build-site":
         from .site import build as build_site
@@ -76,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         from .dataset import generate
 
         t0 = time.time()
-        for path in generate(LeagueState.load(args.league), args.league, args.seasons, args.out,
+        for path in generate(load_state(args.league), args.league, args.seasons, args.out,
                              args.seed, args.workers):
             print(path)
         print(f"{args.seasons} seasons in {time.time() - t0:.0f}s", file=sys.stderr)
@@ -91,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "inspect":
         from .inspect import inspect_player, write
 
-        data = inspect_player(LeagueState.load(args.league), args.player, args.sims, args.timelines, args.seed)
+        data = inspect_player(load_state(args.league), args.player, args.sims, args.timelines, args.seed)
         for path in write(data, args.out):
             print(path)
         for row in data["summary"]:
@@ -114,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.out).write_text(text)
         return 0
 
-    state = LeagueState.load(args.league)
+    state = load_state(args.league)
     t0 = time.time()
     result = analyze(state, n_sims=args.sims, top_k=args.top, seed=args.seed, n_future=args.future, workers=args.workers)
     report = render(result)

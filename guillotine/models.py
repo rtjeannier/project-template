@@ -133,6 +133,23 @@ class LeagueState:
         state.validate()
         return state
 
+    def to_dict(self) -> dict:
+        """The single-file state format (what from_dict reads)."""
+        st = self.settings
+        return {
+            "settings": {"season": st.season, "current_week": st.current_week, "last_week": st.last_week,
+                         "roster_slots": st.roster_slots, "roster_size": st.roster_size,
+                         "eliminations_per_week": st.eliminations_per_week, "min_bid": st.min_bid},
+            "my_team_id": self.my_team_id,
+            "teams": [{"id": t.id, "name": t.name, "faab": t.faab, "players": t.players, "aggression": t.aggression}
+                      for t in self.teams],
+            "waiver_pool": self.waiver_pool, "free_agents": self.free_agents,
+            "players": [{"id": p.id, "name": p.name, "pos": p.pos, "nfl_team": p.nfl_team, "bye": p.bye,
+                         "ros_points": p.ros_points, "weekly": {str(w): v for w, v in p.weekly.items()},
+                         **({"trade_value": p.trade_value} if p.trade_value is not None else {})}
+                        for p in self.players.values()],
+        }
+
     @classmethod
     def load(cls, path: str | Path) -> "LeagueState":
         return cls.from_dict(json.loads(Path(path).read_text()))

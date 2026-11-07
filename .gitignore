@@ -57,3 +57,6 @@ temp/
 data/
 __pycache__/
 .pytest_cache/
+
+# simulation output written inside league folders by `guillotine run`
+sim_data/

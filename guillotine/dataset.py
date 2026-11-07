@@ -143,7 +143,11 @@ def generate(state: LeagueState, league_path: str | Path, n_seasons: int, out_di
         w.writerow(("team_id", "name", "start_faab", "is_you"))
         for t in state.teams:
             w.writerow((t.id, t.name, t.faab, t.id == state.my_team_id))
-    shutil.copy(league_path, out / "league.json")
+    if Path(league_path).is_dir():  # a league folder: keep its inputs, and the state they compile to
+        shutil.copytree(league_path, out / "inputs", dirs_exist_ok=True)
+        (out / "league.json").write_text(json.dumps(state.to_dict(), indent=1))
+    else:
+        shutil.copy(league_path, out / "league.json")
     (out / "meta.json").write_text(json.dumps({
         "seasons": n_seasons, "seed": seed, "bid_sd": sim.model.bid_sd, "noise_share": sim.model.noise_share,
         "noise_cap": sim.model.noise_cap, "weeks": sim.proj.weeks,
