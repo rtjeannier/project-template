@@ -62,7 +62,6 @@ SHORT_INJURY_WEEKS = (1, 4)
 # flex); always keep at least 1 backup RB and 1 backup WR.
 BENCH_MAX = {"QB": 1, "TE": 2}
 BENCH_MIN = {"RB": 1, "WR": 1}
-FLEX_POS = ("RB", "WR", "TE")
 # Backups a team typically holds at each position (7 bench spots: 1 QB, 1 TE, the rest
 # RB/WR). Used to scale how many players below the starters are blocked.
 BACKUPS_PER_TEAM = {"QB": 1.0, "TE": 1.0, "RB": 2.5, "WR": 2.5}
@@ -311,7 +310,7 @@ class Simulator:
             return (1.0 - q[x]) * (with_x - base)
         gain = 0.0
         for st, wo in without.items():
-            if q[st] > 0 and pos[st] in (FLEX_POS if pos[x] in FLEX_POS else (pos[x],)):
+            if q[st] > 0 and pos[st] in spec.flex_group(pos[x]):
                 tot = adders[1][st](x) if adders else spec.total([y for y in roster if y != st] + [x], fin, pos)
                 gain += q[st] * max(0.0, tot - wo)
         return gain
@@ -325,17 +324,14 @@ class Simulator:
         new RB or WR pushes out the worst flex starter, and the slot is flex (any RB/WR/TE
         can fill it). If nobody drops out, it's the empty slot he fills. A player who
         wouldn't start is a backup, compared with backups like him (QB with QBs, RB/WR/TE
-        with flex players)."""
+        with flex players). Which positions share slots comes from the league's flex slots."""
         ps, pos = self.proj.pos[p], self.proj.pos
         before = {x: lab for lab, x in self.spec.assign(roster, fin, pos) if x is not None}
         after = {x: lab for lab, x in self.spec.assign(roster + [p], fin, pos) if x is not None}
         if p not in after:
-            return (ps,) if ps not in FLEX_POS else FLEX_POS
+            return self.spec.flex_group(ps)
         out = [x for x in before if x not in after]
-        label = before[out[0]] if out else after[p]
-        if label in ("FLEX", "SUPERFLEX"):
-            return FLEX_POS
-        return (label,)
+        return self.spec.group(before[out[0]] if out else after[p])
 
     def _known_value(self, j: int) -> np.ndarray:
         """Waiver value basis at week j, given injuries that have already happened: a hurt
@@ -450,7 +446,6 @@ class Simulator:
         # final, after which there are no waivers). Whether this team then gets him depends
         # on its money: see share() in team_bids.
         reach = {u: sum(weight[u][r] for r in range(len(n_alive) - 1)) for u in active}
-        SLOTS = {"QB": ("QB",), "RB": ("RB",), "WR": ("WR",), "TE": ("TE",), "FLEX": FLEX_POS}
         # P(team reaches the final) and P(team wins the league)
         p_final = {t: 1.0 if rounds == 1 else max(0.0, 1.0 - sum(weight[t][: rounds - 1])) for t in active}
         p_title = {t: max(0.0, 1.0 - sum(weight[t])) for t in active}
@@ -508,6 +503,7 @@ class Simulator:
                         opts.append((x, u, ps))
         n_opt = len(opts)
         opt_pos = np.array([o[2] for o in opts], dtype=object)
+        upgrade_slots = spec.upgrade_slots()
         is_now = np.array([o[1] is None for o in opts], dtype=bool)
         opt_reach = np.array([1.0 if o[1] is None else reach[o[1]] for o in opts], dtype=float)
         # Weeks before the final he'd play for his new team (freed after round r, plays r+1 on;
@@ -578,7 +574,7 @@ class Simulator:
         # Each team's willingness to pay for each of them, in dollars: his value x what a
         # dollar is worth to that team (its FAAB / the value of the best player it could hope
         # to add in each slot), capped by its FAAB.
-        POS_SLOTS = ("QB", "RB", "WR", "TE")
+        POS_SLOTS = spec.starting_positions()
         will = {}
         for t in active:
             hope = sum(float((opt_reach * val_opt[t])[opt_pos == ps].max(initial=0.0)) for ps in POS_SLOTS)
@@ -645,11 +641,11 @@ class Simulator:
             step = money / (len(m_grid) - 1) if len(m_grid) > 1 else 1.0
             chance = win_chance(tid, m_grid)  # options x budget set aside for him
             my_val = opt_reach * val_opt[tid]  # expected title chance from each, if bought
-            # Money pots, one per lineup spot that could be upgraded: QB, RB #1, RB #2, WR #1,
-            # WR #2, TE, flex #1 and flex #2. A second pickup at a position is valued over the
-            # lineup after the best first one (he replaces the weaker starter); flex #1 over the
-            # lineup after the best RB and WR pickups, flex #2 after flex #1 too. All pots draw
-            # on the same money.
+            # Money pots, one per starting spot in the league's lineup (spec.upgrade_slots):
+            # e.g. QB, TE, RB #1, RB #2, WR #1, WR #2, flex #1, flex #2. Each pot is valued over
+            # the lineup after the best pickups for the pots before it (a second RB replaces the
+            # weaker starter; flex after the best RB, WR and TE pickups). All pots draw on the
+            # same money.
             def make_pots(base_roster, vals, gains) -> dict[str, np.ndarray]:
                 """Pots for a roster: vals = each option's title chance if bought onto it,
                 gains = its week-17 gain over it (for the second pickups' marginal gains)."""
@@ -664,27 +660,17 @@ class Simulator:
                             ratio[i] = min(1.0, (1.0 - q_out[o[0]]) * g2 / gains[i])
                     return ratio
 
-                # Each pot's best player is taken before the next pot is valued: the harder
-                # slots (TE, RB1, RB2, WR1, WR2) first, flex last, so no player fills two pots.
+                # Each pot's best player is taken before the next pot is valued, so no player
+                # fills two pots. A pick only matters to later pots his position can fill
+                # (a QB pick changes nothing for RB pots unless a superflex comes later).
                 out: dict[str, np.ndarray] = {}
                 picks = []
-                def take(name):
-                    if len(out[name]) and out[name].max() > 0:
+                for k, (name, elig) in enumerate(upgrade_slots):
+                    v = np.where(np.isin(opt_pos, elig), vals, 0.0) if n_opt else np.zeros(0)
+                    out[name] = v * marginal(picks, elig) if picks else v
+                    later = {q for _, e in upgrade_slots[k + 1:] for q in e}
+                    if len(v) and out[name].max() > 0 and opt_pos[int(out[name].argmax())] in later:
                         picks.append(opts[int(out[name].argmax())][0])
-                out["QB"] = np.where(opt_pos == "QB", vals, 0.0)
-                out["TE"] = np.where(opt_pos == "TE", vals, 0.0)
-                take("TE")
-                for ps in ("RB", "WR"):
-                    v1 = np.where(opt_pos == ps, vals, 0.0)
-                    out[ps + "1"] = v1 * marginal(picks, (ps,)) if picks else v1
-                    take(ps + "1")
-                    out[ps + "2"] = v1 * marginal(picks, (ps,))
-                    take(ps + "2")
-                if n_opt:
-                    v_flex = np.where(np.isin(opt_pos, FLEX_POS), vals, 0.0)
-                    out["FLEX1"] = v_flex * marginal(picks, FLEX_POS)
-                    take("FLEX1")
-                    out["FLEX2"] = v_flex * marginal(picks, FLEX_POS)
                 return out
 
             def team_plan():
@@ -699,7 +685,7 @@ class Simulator:
                     for st, lab in labels.items():
                         if q_out[st] <= 0:
                             continue
-                        grp = FLEX_POS if lab in ("FLEX", "SUPERFLEX") else (lab,)
+                        grp = spec.group(lab)
                         idx = [i for i in np.argsort(-fin[[o[0] for o in opts]]) if opts[i][2] in grp and opts[i][1] != tid][:COVER_OPTIONS]
                         if not idx:
                             continue
@@ -783,7 +769,7 @@ class Simulator:
                 v_fin = per_point_final * g_fin
                 value = v_now + v_mid + v_fin
                 group = self._slot_group(roster, p, fin)
-                key = "FLEX" if group == FLEX_POS else group[0]
+                key = group[0] if len(group) == 1 else "/".join(group)
                 # Win vs lose. Lose: keep all the money for later upgrades on today's roster
                 # (every slot, plus injury cover). Win at price b: his value now, and FAAB - b
                 # for later upgrades on the roster with him on it. He takes one lineup spot; the
@@ -1260,8 +1246,7 @@ class Simulator:
         every real player (Josh Allen looked replaceable). Uncertainty is handled by the
         injury discount and by players' true levels drifting during the season."""
         slots = self.state.settings.roster_slots
-        flex = sum(c for s, c in slots.items() if s in ("FLEX", "W/R/T", "W/R", "W/T", "R/W"))
-        superflex = sum(c for s, c in slots.items() if s in ("SUPERFLEX", "Q/W/R/T"))
+        flex, superflex = self.spec.flex_counts()
         by_pos: dict[str, list[float]] = {}
         for p in universe:
             by_pos.setdefault(self.proj.pos[p], []).append(vb[p])

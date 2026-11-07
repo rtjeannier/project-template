@@ -100,7 +100,9 @@ bid        = fair bid for 90% of bids; for 10%, fair bid × multiplier ~ Lognorm
   last round (week 17) money has no other use, so a team that expects to lose its top
   target still bids everything on it, and on the next player too. When a team's claims
   tie, the player it values more processes first. Your money buys the best set it can afford, split across pots for each lineup
-  spot that could be upgraded (QB, two RBs, two WRs, TE, two flex) plus injury cover. A second
+  spot in the league's lineup (here QB, TE, two RBs, two WRs, two flex; superflex, K or
+  DEF spots get their own pots in leagues that start them) plus injury cover. Spots no flex
+  can take are planned first, then the scarcest flex-eligible ones, flex last. A second
   pickup at a position is valued over the lineup after the best first one, and all pots
   draw on the same money, so winning one stud leaves less for the others and money spent
   now shrinks the set. A backup's value is injury cover for

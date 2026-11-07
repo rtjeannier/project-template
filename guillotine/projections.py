@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .lineup import LineupSpec
 from .models import LeagueState
 
 # Week-to-week standard deviation as a fraction of the projected mean.
@@ -62,8 +63,7 @@ class Projections:
         """
         slots = state.settings.roster_slots
         n_teams = len(state.teams)
-        flex = sum(c for s, c in slots.items() if s in ("FLEX", "W/R/T", "W/R", "W/T", "R/W"))
-        superflex = sum(c for s, c in slots.items() if s in ("SUPERFLEX", "Q/W/R/T"))
+        flex, superflex = LineupSpec(slots).flex_counts()
         flex_share = {"RB": 0.4, "WR": 0.5, "TE": 0.1}
         ros_avg = self.means.mean(axis=1)
 

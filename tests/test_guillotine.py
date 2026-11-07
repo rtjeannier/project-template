@@ -278,7 +278,7 @@ def test_a_bye_week_does_not_lower_week17_value(state, sim):
 
 def test_slot_is_where_the_dropped_starter_played(state, sim):
     # A flex-eligible player who only pushes out a flex starter competes with any RB/WR/TE.
-    from guillotine.simulate import FLEX_POS
+    FLEX_POS = sim.spec.group("FLEX")
     fin = sim.proj.means[:, -1]
     roster = list(sim.init_rosters[sim.user])
     labels = {x: lab for lab, x in sim.spec.assign(roster, fin, sim.proj.pos) if x is not None}

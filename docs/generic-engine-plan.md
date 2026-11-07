@@ -113,6 +113,9 @@ separately.
    Done: `guillotine/inputs.py`, `docs/inputs.md`, `examples/league/`. The week-9 league
    converted to a folder gives byte-identical simulation output to the old file.
 2. Engine generalization, one rule group at a time, each with its synthetic-league tests.
+   - ~~Money pots from the starting slots~~ Done: one pot per starting spot (superflex,
+     K/DEF, 3 WR...), flex groups and replacement levels from the league's flex slots.
+     Week-9 output unchanged.
    The validator rejects each unsupported rule today with a "not supported yet" message;
    each step removes one: IR slots, week-by-week cuts and other final formats, waiver
    priority (real order carried across rounds, priority-only waivers), money pots from
